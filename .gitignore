@@ -1,0 +1,16 @@
+bin/
+obj/
+dist/
+.vs/
+*.dmp
+*.user
+
+AGENTS.md
+MEMORY.md
+/screenshot.png
+capture.ps1
+check-crash.ps1
+fix-window.ps1
+test_server.py
+
+assets/ffmpeg/
