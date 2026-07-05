@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TouchMirror.Scrcpy;
@@ -28,6 +29,8 @@ public partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(StatusDotColor))]
     private ObservableCollection<MirrorInstance> _mirrors = new();
 
+    public ObservableCollection<MirrorInstance> InactiveMirrors { get; } = new();
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActiveMirrorName))]
     private MirrorInstance? _activeMirror;
@@ -49,6 +52,20 @@ public partial class MainViewModel : ObservableObject
     public Visibility RecordingVisibility =>
         ActiveMirror?.IsRecording == true ? Visibility.Visible : Visibility.Collapsed;
 
+    [ObservableProperty] private string _recordingElapsed = "REC";
+
+    private readonly DispatcherTimer _recTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+
+    public MainViewModel()
+    {
+        _recTimer.Tick += (_, _) =>
+        {
+            var since = ActiveMirror?.RecordingSince;
+            RecordingElapsed = since.HasValue ? $"REC {(DateTime.Now - since.Value):m\\:ss}" : "REC";
+        };
+        _recTimer.Start();
+    }
+
     [ObservableProperty] private int _maxSize = 0;
     [ObservableProperty] private int _maxFps = 60;
     [ObservableProperty] private int _videoBitRate = 16_000_000;
@@ -57,13 +74,24 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _enableAudio = true;
     [ObservableProperty] private bool _autoLaunchDofus;
     [ObservableProperty] private bool _autoFullscreen;
+    [ObservableProperty] private bool _syncDeviceClipboard = true;
     [ObservableProperty] private bool _topmost;
-    [ObservableProperty] private bool _turnScreenOff;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TurnScreenOffText))]
+    private bool _turnScreenOff;
+    public string TurnScreenOffText => TurnScreenOff ? "Activé" : "Désactivé";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SettingsVisibility))]
     private bool _showSettings;
     public Visibility SettingsVisibility => ShowSettings ? Visibility.Visible : Visibility.Collapsed;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UpdateBannerVisibility))]
+    private string? _updateVersion;
+    public string UpdateUrl { get; private set; } = "";
+    public Visibility UpdateBannerVisibility =>
+        UpdateVersion != null ? Visibility.Visible : Visibility.Collapsed;
 
     [ObservableProperty] private ObservableCollection<string> _logs = new();
 
@@ -78,14 +106,32 @@ public partial class MainViewModel : ObservableObject
 
     public void SetActive(MirrorInstance instance)
     {
+        InactiveMirrors.Remove(instance);
         ActiveMirror = instance;
         foreach (var m in Mirrors)
         {
             m.IsActive = m == instance;
             m.SetAudioMuted(m != instance);
         }
+        RefreshInactiveMirrors();
         UpdateStatus();
     }
+
+    private void RefreshInactiveMirrors()
+    {
+        for (var i = InactiveMirrors.Count - 1; i >= 0; i--)
+        {
+            var m = InactiveMirrors[i];
+            if (!Mirrors.Contains(m) || ReferenceEquals(m, ActiveMirror))
+                InactiveMirrors.RemoveAt(i);
+        }
+        foreach (var m in Mirrors)
+            if (!ReferenceEquals(m, ActiveMirror) && !InactiveMirrors.Contains(m))
+                InactiveMirrors.Add(m);
+        OnPropertyChanged(nameof(HasInactiveMirrors));
+    }
+
+    public bool HasInactiveMirrors => InactiveMirrors.Count > 0;
 
     private void UpdateStatus()
     {
@@ -112,24 +158,17 @@ public partial class MainViewModel : ObservableObject
         TurnScreenOff = TurnScreenOff,
     };
 
-    partial void OnMaxSizeChanged(int value) => _ = ReconnectActiveAsync();
-    partial void OnMaxFpsChanged(int value) => _ = ReconnectActiveAsync();
-    partial void OnVideoBitRateChanged(int value) => _ = ReconnectActiveAsync();
-    partial void OnVideoCodecChanged(string value) => _ = ReconnectActiveAsync();
-    partial void OnEnableAudioChanged(bool value) => _ = ReconnectActiveAsync();
-    partial void OnTurnScreenOffChanged(bool value) => _ = ReconnectAllAsync();
+    private bool _suppressReconnect;
 
-    private async Task ReconnectAllAsync()
+    partial void OnMaxSizeChanged(int value) { if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
+    partial void OnMaxFpsChanged(int value) { if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
+    partial void OnVideoBitRateChanged(int value) { if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
+    partial void OnVideoCodecChanged(string value) { if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
+    partial void OnEnableAudioChanged(bool value) { if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
+    partial void OnTurnScreenOffChanged(bool value)
     {
-        if (IsBusy)
-            return;
-        foreach (var m in Mirrors.Where(m => m.IsConnected).ToList())
-        {
-            Log("Écran éteint — reconnexion via écran virtuel…");
-            var device = m.Device;
-            await RemoveMirrorInternalAsync(m);
-            await ConnectDeviceAsync(device);
-        }
+        foreach (var m in Mirrors)
+            _ = m.SetScreenDimmedAsync(value);
     }
 
     private async Task ReconnectActiveAsync()
@@ -153,7 +192,31 @@ public partial class MainViewModel : ObservableObject
                 ? "adb embarqué — rien à installer"
                 : $"adb : {adb}";
         await RefreshDevicesAsync();
+        _ = CheckUpdateAsync();
     }
+
+    private async Task CheckUpdateAsync()
+    {
+        var update = await UpdateService.CheckAsync();
+        if (update is { } u)
+        {
+            UpdateVersion = u.Version.ToString(3);
+            UpdateUrl = u.Url;
+            OnPropertyChanged(nameof(UpdateUrl));
+            Log($"Mise à jour disponible : v{UpdateVersion}");
+        }
+    }
+
+    [RelayCommand]
+    private void OpenUpdate()
+    {
+        if (!string.IsNullOrEmpty(UpdateUrl))
+            System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo(UpdateUrl) { UseShellExecute = true });
+    }
+
+    [RelayCommand]
+    private void DismissUpdate() => UpdateVersion = null;
 
     [RelayCommand]
     private async Task RefreshDevicesAsync()
@@ -177,6 +240,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task ConnectAsync()
     {
+        Services.AppLogger.Write($"ConnectAsync cmd: sel={SelectedDevice?.Serial}");
         if (SelectedDevice is not { IsReady: true })
         {
             Status = "Aucun appareil prêt (vérifie le débogage USB)";
@@ -185,9 +249,20 @@ public partial class MainViewModel : ObservableObject
         await ConnectDeviceAsync(SelectedDevice);
     }
 
+    [RelayCommand]
+    private async Task ConnectToDeviceAsync(AdbDevice device)
+    {
+        Services.AppLogger.Write($"ConnectToDevice cmd: {device?.Serial} ready={device?.IsReady}");
+        if (device is not { IsReady: true })
+            return;
+        SelectedDevice = device;
+        await ConnectDeviceAsync(device);
+    }
+
     private async Task ConnectDeviceAsync(AdbDevice device)
     {
-        var existing = Mirrors.FirstOrDefault(m => m.Device.Serial == device.Serial);
+        Services.AppLogger.Write($"connect start: {device.Serial}");
+        var existing = Mirrors.FirstOrDefault(m => m.Device.SharesIdentity(device));
         if (existing != null)
         {
             SetActive(existing);
@@ -198,7 +273,10 @@ public partial class MainViewModel : ObservableObject
         _hasError = false;
         OnPropertyChanged(nameof(StatusDotColor));
         Status = $"Connexion — {device.DisplayName}…";
-        var instance = new MirrorInstance(device);
+        var instance = new MirrorInstance(device)
+        {
+            ShouldSyncClipboard = () => SyncDeviceClipboard
+        };
         try
         {
             instance.Log += Log;
@@ -210,20 +288,23 @@ public partial class MainViewModel : ObservableObject
             instance.Disconnected += m =>
             {
                 Mirrors.Remove(m);
-                if (ActiveMirror == m)
-                    ActiveMirror = Mirrors.LastOrDefault();
-                UpdateStatus();
+                PromoteNextActive(m);
             };
 
             Mirrors.Add(instance);
+            RefreshInactiveMirrors();
+            SetActive(instance);
             MirrorAdded?.Invoke(instance);
+            Services.AppLogger.Write("startasync begin");
             await instance.StartAsync(BuildOptions(), AutoLaunchDofus);
+            Services.AppLogger.Write("startasync done");
         }
         catch (Exception ex)
         {
             Log(ex.ToString());
             _hasError = true;
             Mirrors.Remove(instance);
+            PromoteNextActive(instance);
             instance.Dispose();
             Status = $"Échec de connexion : {ex.Message}";
             OnPropertyChanged(nameof(StatusDotColor));
@@ -251,10 +332,28 @@ public partial class MainViewModel : ObservableObject
     private async Task RemoveMirrorInternalAsync(MirrorInstance instance)
     {
         Mirrors.Remove(instance);
-        if (ActiveMirror == instance)
-            ActiveMirror = Mirrors.LastOrDefault();
-        UpdateStatus();
+        PromoteNextActive(instance);
         await instance.DisconnectAsync();
+    }
+
+    private void PromoteNextActive(MirrorInstance removed)
+    {
+        var next = Mirrors.LastOrDefault();
+        if (ActiveMirror == removed)
+        {
+            if (next != null)
+                SetActive(next);
+            else
+            {
+                ActiveMirror = null;
+                UpdateStatus();
+            }
+        }
+        else
+        {
+            RefreshInactiveMirrors();
+            UpdateStatus();
+        }
     }
 
     [RelayCommand]
@@ -267,7 +366,7 @@ public partial class MainViewModel : ObservableObject
             WifiStatus = "Activation WiFi…";
             Status = "Bascule en WiFi…";
 
-            var existing = Mirrors.FirstOrDefault(m => m.Device.Serial == SelectedDevice.Serial);
+            var existing = Mirrors.FirstOrDefault(m => m.Device.SharesIdentity(SelectedDevice));
             var reconnect = existing != null;
             if (existing != null)
                 await RemoveMirrorInternalAsync(existing);
@@ -279,7 +378,9 @@ public partial class MainViewModel : ObservableObject
             {
                 await Task.Delay(800);
                 await RefreshDevicesAsync();
-                wifiDevice = Devices.FirstOrDefault(d => d.Serial.StartsWith(ip));
+                var found = Devices.FirstOrDefault(d =>
+                    d.Serial.StartsWith(ip) || d.AltSerial?.StartsWith(ip) == true);
+                wifiDevice = found?.Preferring($"{ip}:5555");
             }
             if (wifiDevice == null)
             {
@@ -315,17 +416,32 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ApplyDofusPreset()
+    private async Task ApplyDofusPresetAsync()
     {
+        _suppressReconnect = true;
         MaxSize = 1080;
         MaxFps = 60;
-        VideoBitRate = 16_000_000;
+        VideoBitRate = 24_000_000;
         VideoCodec = "h264";
         EnableAudio = true;
         StayAwake = true;
+        TurnScreenOff = true;
         AutoLaunchDofus = true;
-        Status = "Preset Dofus appliqué — connecte-toi !";
+        _suppressReconnect = false;
+
+        if (ActiveMirror is { IsConnected: true })
+        {
+            Status = "Preset Dofus appliqué — reconnexion du miroir…";
+            await ReconnectActiveAsync();
+        }
+        else
+        {
+            Status = "Preset Dofus appliqué — 1080p · 60 fps · 24 Mbps · écran atténué · lancement auto";
+        }
     }
+
+    [RelayCommand]
+    private void ToggleScreenDim() => TurnScreenOff = !TurnScreenOff;
 
     [RelayCommand]
     private void ToggleRecording()
@@ -334,6 +450,8 @@ public partial class MainViewModel : ObservableObject
             return;
         Status = ActiveMirror.ToggleRecording(VideoCodec);
         OnPropertyChanged(nameof(RecordingVisibility));
+        RecordingElapsed = ActiveMirror.RecordingSince.HasValue
+            ? $"REC {(DateTime.Now - ActiveMirror.RecordingSince.Value):m\\:ss}" : "REC";
     }
 
     private void Log(string message)

@@ -14,7 +14,7 @@ public partial class App : Application
         {
             Wpf.Ui.Appearance.ApplicationThemeManager.Apply(Wpf.Ui.Appearance.ApplicationTheme.Dark);
             Wpf.Ui.Appearance.ApplicationAccentColorManager.Apply(
-                System.Windows.Media.Color.FromRgb(0xE8, 0xA3, 0x3D));
+                System.Windows.Media.Color.FromRgb(0x4E, 0xC9, 0x8E));
         }
         catch { }
         DispatcherUnhandledException += (_, args) =>

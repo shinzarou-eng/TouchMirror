@@ -1,20 +1,22 @@
 <div align="center">
 
-<img src="assets/mascot.png" width="140" alt="Mascotte TouchMirror">
+<img src="assets/mascot.png" width="120" alt="Mascotte TouchMirror">
 
 # TouchMirror
 
-**Le mirroring Android pensé pour Dofus Touch — gratuit, natif, multicompte.**
+**Mirroring Android natif pour Windows — pensé pour Dofus Touch.**
 
-[![Version](https://img.shields.io/badge/version-0.1.0-E8A33D?style=flat-square)](https://github.com/shinzarou-eng/TouchMirror/releases/latest)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4?style=flat-square)](https://github.com/shinzarou-eng/TouchMirror)
+Gratuit, open source, sans compte, sans pub.
+
+[![Version](https://img.shields.io/badge/version-0.1.1-D9A94E?style=flat-square)](https://github.com/shinzarou-eng/TouchMirror/releases/latest)
+[![Plateforme](https://img.shields.io/badge/plateforme-Windows%2010%2F11-0078D4?style=flat-square)](https://github.com/shinzarou-eng/TouchMirror)
 [![.NET](https://img.shields.io/badge/.NET-10-512BD4?style=flat-square)](https://dotnet.microsoft.com)
-[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
-[![Dofus Touch](https://img.shields.io/badge/optimis%C3%A9%20pour-Dofus%20Touch-E8A33D?style=flat-square)](https://www.dofus-touch.com)
+[![Licence](https://img.shields.io/badge/licence-MIT-green?style=flat-square)](LICENSE)
+[![Dofus Touch](https://img.shields.io/badge/optimis%C3%A9%20pour-Dofus%20Touch-D9A94E?style=flat-square)](https://www.dofus-touch.com)
 
-<img src="docs/screenshot.png" width="720" alt="TouchMirror — écran d'accueil">
+<img src="docs/screenshot.png" width="780" alt="TouchMirror — Dofus Touch en cours de jeu">
 
-[Télécharger la dernière version](https://github.com/shinzarou-eng/TouchMirror/releases/latest) · [Signaler un bug](https://github.com/shinzarou-eng/TouchMirror/issues)
+**[Télécharger la dernière version](https://github.com/shinzarou-eng/TouchMirror/releases/latest)** · [Documentation](docs/wiki/Home.md) · [Signaler un bug](https://github.com/shinzarou-eng/TouchMirror/issues) · [Proposer une idée](https://github.com/shinzarou-eng/TouchMirror/issues/new)
 
 </div>
 
@@ -22,26 +24,28 @@
 
 ## Pourquoi TouchMirror ?
 
-scrcpy est puissant mais n'a pas d'interface. Vysor fait payer la HD. Aucun ne gère le multicompte proprement.
+scrcpy est puissant mais n'a pas d'interface. Vysor facture la HD. Aucun ne gère proprement plusieurs téléphones.
 
-TouchMirror est une application **Windows native** qui affiche et contrôle ton téléphone Android depuis le PC : tu branches, tu cliques, tu joues. Interface Fluent 2, faible latence, et une grille multicompte unique — plusieurs téléphones dans une seule fenêtre.
+TouchMirror est une application **Windows native** qui affiche et contrôle ton téléphone Android depuis le PC : tu branches, tu cliques, tu joues. Interface sombre soignée, faible latence, et une grille multicompte — plusieurs téléphones dans **une seule fenêtre**.
 
 ## Fonctionnalités
 
 | | |
 |---|---|
-| **Mirroring HD** | Jusqu'à la résolution native du téléphone, 60/90/120 fps, codecs H.264, H.265 et AV1 |
-| **Faible latence** | Décodage FFmpeg basse latence, dernière frame prioritaire, audio à 400 ms, sockets optimisés |
-| **Multicompte** | Plusieurs téléphones dans **une seule fenêtre**, en grille adaptative — clique une tuile pour la cibler |
-| **USB et WiFi** | Bascule en sans-fil en un clic, puis débranche le câble — le flux continue |
-| **Souris = tactile** | Clic, glisser, molette = scroll, Ctrl+molette = pinch-to-zoom (zoom de la map) |
+| **Mirroring HD** | Résolution native du téléphone, 60/90/120 fps, codecs H.264, H.265 et AV1 |
+| **Faible latence** | Décodage FFmpeg basse latence, dernière frame prioritaire, audio ~400 ms, sockets optimisés |
+| **Multicompte** | Plusieurs téléphones dans une seule fenêtre, en grille adaptative — un compte par téléphone |
+| **USB & WiFi** | Bascule en sans-fil en un clic, puis débranche le câble — le flux continue |
+| **Souris = tactile** | Clic, glisser, molette = scroll, `Ctrl`+molette = pinch-to-zoom (zoom de la map) |
 | **Clavier** | Le texte tapé arrive sur le téléphone comme un clavier Bluetooth |
+| **Presse-papiers** | Bidirectionnel — `Ctrl`+`V` colle sur le tel, copier sur le tel arrive sur le PC |
 | **Enregistrement MP4** | Remux sans ré-encodage — fichiers directement lisibles et uploadables |
 | **Captures PNG** | Un clic, enregistrées dans `Images\TouchMirror` |
-| **Écran éteint** | Éteins l'écran physique du téléphone pendant le mirroring — économise batterie et AMOLED |
-| **Aide intégrée** | Sites Dofus Touch (forum, encyclopédie, DofusDB) dans un panneau navigateur sans quitter le jeu |
-| **Plein écran** | F11 ou bouton dédié, barre de contrôle au survol du bord haut |
-| **Mode capture** | Fenêtre propre pour OBS — idéal pour les streamers |
+| **Écran éteint** | L'écran physique du téléphone passe au noir pendant le mirroring — économise la batterie et l'AMOLED |
+| **Aide intégrée** | Forum, encyclopédie et DofusDB dans un panneau navigateur sans quitter le jeu |
+| **Plein écran** | `F11` ou bouton dédié, barre de contrôle au survol du bord haut |
+| **Mode capture** | Fenêtre propre pour OBS — idéal pour streamer |
+| **Mises à jour** | L'app détecte les nouvelles releases GitHub au démarrage |
 
 ## Installation
 
@@ -49,7 +53,7 @@ TouchMirror est une application **Windows native** qui affiche et contrôle ton 
 
 1. Télécharge **`TouchMirror-win-x64.zip`** depuis la [dernière release](https://github.com/shinzarou-eng/TouchMirror/releases/latest)
 2. Dézippe où tu veux, lance **`TouchMirror.exe`**
-3. C'est tout — **adb est embarqué**, le runtime .NET est inclus et FFmpeg s'extrait tout seul au premier lancement
+3. C'est tout — **adb est embarqué**, le runtime .NET est inclus et FFmpeg s'extrait au premier lancement
 
 ### Configuration du téléphone
 
@@ -59,7 +63,7 @@ TouchMirror est une application **Windows native** qui affiche et contrôle ton 
 
 ### Mode WiFi
 
-Menu **⋯ → Activer le WiFi** pendant que le câble est branché → l'appareil bascule en TCP/IP et reconnecte automatiquement. Débranche le câble, le flux continue. *(Nécessite que le PC et le téléphone soient sur le même réseau. À refaire après un redémarrage du téléphone — limitation Android.)*
+Menu **⋯ → Activer le WiFi** pendant que le câble est branché → l'appareil bascule en TCP/IP et reconnecte automatiquement. Débranche le câble, le flux continue. *(PC et téléphone sur le même réseau ; à refaire après un redémarrage du téléphone — limitation Android.)*
 
 ## Multicompte
 
@@ -84,11 +88,11 @@ Autorisé par Ankama : autant d'appareils physiques que tu veux, un compte par t
 dotnet build src/AndroidMirror/TouchMirror.csproj
 ```
 
-Prérequis : .NET 10 SDK uniquement — adb, le serveur scrcpy et les DLLs FFmpeg (`assets/ffmpeg.zip`) sont embarqués dans le repo et s'installent tout seuls.
+Prérequis : **.NET 10 SDK** uniquement — adb, le serveur scrcpy et les DLLs FFmpeg sont embarqués dans le repo.
 
 ## Stack technique
 
-WPF / .NET 10 · WPF-UI (Fluent 2) · serveur scrcpy · FFmpeg (décodage + remux MP4) · NAudio · WebView2
+WPF / .NET 10 · WPF-UI · serveur scrcpy · FFmpeg (décodage + remux MP4) · NAudio · WebView2
 
 ## Conformité Ankama
 

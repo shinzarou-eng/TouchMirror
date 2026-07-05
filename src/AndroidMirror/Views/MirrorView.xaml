@@ -31,7 +31,7 @@
                              VerticalAlignment="Center" Margin="0,0,7,0" />
                     <TextBlock x:Name="StatsText"
                                Foreground="#EAEAEA"
-                               FontSize="11"
+                               FontSize="11.5"
                                FontFamily="Consolas" />
                 </StackPanel>
             </Border>

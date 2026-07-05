@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using TouchMirror.Scrcpy;
 using TouchMirror.Video;
+using TouchMirror.ViewModels;
 
 namespace TouchMirror.Views;
 
@@ -131,7 +132,7 @@ public partial class MirrorView : UserControl
         y = (uint)Math.Clamp(vy, 0, _videoH - 1);
     }
 
-    private bool TryMapPoint(Point p, out uint x, out uint y)
+    private bool TryMapPoint(Point p, out uint x, out uint y, bool strict = false)
     {
         x = y = 0;
         if (_videoW <= 0 || _videoH <= 0)
@@ -150,8 +151,13 @@ public partial class MirrorView : UserControl
         var ox = (cw - drawW) / 2;
         var oy = (ch - drawH) / 2;
 
-        var rx = Math.Clamp((p.X - ox) / scale, 0, vw - 1);
-        var ry = Math.Clamp((p.Y - oy) / scale, 0, vh - 1);
+        var rx = (p.X - ox) / scale;
+        var ry = (p.Y - oy) / scale;
+        if (strict && (rx < 0 || ry < 0 || rx >= vw || ry >= vh))
+            return false;
+
+        rx = Math.Clamp(rx, 0, vw - 1);
+        ry = Math.Clamp(ry, 0, vh - 1);
         Unrotate(rx, ry, out x, out y);
         return true;
     }
@@ -168,9 +174,16 @@ public partial class MirrorView : UserControl
 
     private void OnMouseDown(object sender, MouseButtonEventArgs e)
     {
+        var wasInactive = DataContext is MirrorInstance { IsActive: false };
         Activated?.Invoke(this);
         InputSurface.Focus();
         Keyboard.Focus(InputSurface);
+
+        if (wasInactive)
+        {
+            e.Handled = true;
+            return;
+        }
 
 
 
@@ -185,7 +198,7 @@ public partial class MirrorView : UserControl
             return;
         }
 
-        if (_control == null || !TryMapPoint(e.GetPosition(InputSurface), out var x, out var y))
+        if (_control == null || !TryMapPoint(e.GetPosition(InputSurface), out var x, out var y, strict: true))
             return;
 
         var flag = ButtonFlag(e.ChangedButton);
