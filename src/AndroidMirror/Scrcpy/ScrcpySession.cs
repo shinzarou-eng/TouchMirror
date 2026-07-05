@@ -42,7 +42,6 @@ public sealed class ScrcpySession : IAsyncDisposable
     private Socket? _audioSocket;
     private ControlChannel? _control;
     private string _socketName = "";
-    private string? _virtualDisplaySize;
     private Task? _videoTask;
     private Task? _audioTask;
 
@@ -73,18 +72,9 @@ public sealed class ScrcpySession : IAsyncDisposable
         if (!File.Exists(jarPath))
             throw new FileNotFoundException("scrcpy-server.jar manquant", jarPath);
 
+        Services.AppLogger.Write("session: push begin");
         await AdbService.PushAsync(_device.Serial, jarPath, RemoteJarPath, _cts.Token);
-
-        if (_options.TurnScreenOff)
-        {
-            try
-            {
-                var (w, h) = await AdbService.GetScreenSizeAsync(_device.Serial, _cts.Token);
-                if (w > 0 && h > 0)
-                    _virtualDisplaySize = $"{w}x{h}";
-            }
-            catch { }
-        }
+        Services.AppLogger.Write("session: push done");
 
         var scid = Random.Shared.Next(0, 0x7fffffff);
         var scidHex = scid.ToString("x8");
@@ -94,7 +84,9 @@ public sealed class ScrcpySession : IAsyncDisposable
         _listener = new TcpListener(IPAddress.Loopback, port);
         _listener.Start();
 
+        Services.AppLogger.Write("session: reverse begin");
         await AdbService.ReverseAsync(_device.Serial, _socketName, port, _cts.Token);
+        Services.AppLogger.Write("session: reverse done");
 
         var args = BuildServerArgs(scidHex);
         ServerLog?.Invoke($"server args: {args}");
@@ -118,10 +110,12 @@ public sealed class ScrcpySession : IAsyncDisposable
         acceptCts.CancelAfter(TimeSpan.FromSeconds(15));
 
         _videoSocket = await AcceptWithTimeout(acceptCts.Token);
+        Services.AppLogger.Write("session: video socket accepted");
         if (_options.Audio)
             _audioSocket = await AcceptWithTimeout(acceptCts.Token);
         var controlSocket = await AcceptWithTimeout(acceptCts.Token);
         _listener.Stop();
+        Services.AppLogger.Write("session: sockets accepted");
 
         var metaBuf = new byte[64];
         await ReadExactAsync(_videoSocket, metaBuf);
@@ -156,9 +150,7 @@ public sealed class ScrcpySession : IAsyncDisposable
         sb.Append(" control=true");
         sb.Append($" video_codec={_options.VideoCodec}");
         sb.Append(" cleanup=true");
-        sb.Append(_options.TurnScreenOff ? " power_on=false" : " power_on=true");
-        if (_virtualDisplaySize != null)
-            sb.Append($" new_display={_virtualDisplaySize}");
+        sb.Append(" power_on=true");
         if (_options.MaxSize > 0)
             sb.Append($" max_size={_options.MaxSize}");
         if (_options.MaxFps > 0)

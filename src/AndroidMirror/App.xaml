@@ -9,11 +9,26 @@
                 <ui:ThemesDictionary Theme="Dark" />
                 <ui:ControlsDictionary />
             </ResourceDictionary.MergedDictionaries>
-            <SolidColorBrush x:Key="DofusAccentBrush" Color="#E8A33D" />
-            <SolidColorBrush x:Key="SystemAccentColorPrimaryBrush" Color="#E8A33D" />
-            <SolidColorBrush x:Key="SystemAccentColorSecondaryBrush" Color="#CE8E2D" />
-            <SolidColorBrush x:Key="SystemAccentColorTertiaryBrush" Color="#B57B24" />
-            <SolidColorBrush x:Key="TextOnAccentFillColorPrimaryBrush" Color="#1F1503" />
+            <SolidColorBrush x:Key="DofusAccentBrush" Color="#4EC98E" />
+            <SolidColorBrush x:Key="DofusAccentDimBrush" Color="#357B58" />
+            <SolidColorBrush x:Key="SystemAccentColorPrimaryBrush" Color="#4EC98E" />
+            <SolidColorBrush x:Key="SystemAccentColorSecondaryBrush" Color="#7BD9AB" />
+            <SolidColorBrush x:Key="SystemAccentColorTertiaryBrush" Color="#2E7D55" />
+            <SolidColorBrush x:Key="TextOnAccentFillColorPrimaryBrush" Color="#0A120E" />
+            <SolidColorBrush x:Key="AccentButtonBackground" Color="#4EC98E" />
+            <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="#63D6A0" />
+            <SolidColorBrush x:Key="AccentButtonBackgroundPressed" Color="#3DA879" />
+            <SolidColorBrush x:Key="AccentButtonForeground" Color="#0A120E" />
+            <SolidColorBrush x:Key="AccentButtonBorderBrush" Color="#002E1F" />
+            <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="#4EC98E" />
+            <SolidColorBrush x:Key="AccentFillColorSecondaryBrush" Color="#994EC98E" />
+            <SolidColorBrush x:Key="AccentFillColorTertiaryBrush" Color="#664EC98E" />
+            <SolidColorBrush x:Key="AccentTextFillColorPrimaryBrush" Color="#63D6A0" />
+            <SolidColorBrush x:Key="AccentTextFillColorSecondaryBrush" Color="#63D6A0" />
+            <SolidColorBrush x:Key="AccentTextFillColorTertiaryBrush" Color="#4EC98E" />
+            <SolidColorBrush x:Key="AppSurfaceBrush" Color="#111218" />
+            <SolidColorBrush x:Key="AppSurfaceAltBrush" Color="#1A1C23" />
+            <SolidColorBrush x:Key="AppBorderBrush" Color="#12FFFFFF" />
 
             <Style TargetType="ScrollBar">
                 <Setter Property="Width" Value="8" />

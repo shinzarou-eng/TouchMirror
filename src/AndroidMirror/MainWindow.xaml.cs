@@ -2,30 +2,11 @@ using System.IO;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Media.Animation;
 using TouchMirror.ViewModels;
 using Wpf.Ui.Controls;
 
 namespace TouchMirror;
-
-public sealed class MirrorGridColsConverter : IValueConverter
-{
-    public object Convert(object value, Type t, object p, System.Globalization.CultureInfo c)
-        => value is int n && n > 0 ? Math.Max(1, (int)Math.Ceiling(Math.Sqrt(n))) : 1;
-    public object ConvertBack(object v, Type t, object p, System.Globalization.CultureInfo c)
-        => Binding.DoNothing;
-}
-
-public sealed class MirrorGridRowsConverter : IValueConverter
-{
-    public object Convert(object value, Type t, object p, System.Globalization.CultureInfo c)
-    {
-        var n = value is int i && i > 0 ? i : 1;
-        var cols = Math.Max(1, (int)Math.Ceiling(Math.Sqrt(n)));
-        return Math.Max(1, (int)Math.Ceiling(n / (double)cols));
-    }
-    public object ConvertBack(object v, Type t, object p, System.Globalization.CultureInfo c)
-        => Binding.DoNothing;
-}
 
 public sealed class EmptyToVisibilityConverter : IValueConverter
 {
@@ -82,6 +63,13 @@ public partial class MainWindow : FluentWindow
     }
 
     private void OnFullscreenClick(object sender, RoutedEventArgs e) => ToggleFullscreen();
+    private void OnOpenCapturesClick(object sender, RoutedEventArgs e)
+    {
+        var dir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "TouchMirror");
+        Directory.CreateDirectory(dir);
+        System.Diagnostics.Process.Start("explorer.exe", dir);
+    }
     private void OnRotateDisplayClick(object sender, RoutedEventArgs e)
         => _vm.ActiveMirror?.View.CycleDisplayRotation();
     private void OnSettingsClick(object sender, RoutedEventArgs e) => _vm.ShowSettings = !_vm.ShowSettings;
@@ -195,11 +183,18 @@ public partial class MainWindow : FluentWindow
     private readonly System.Windows.Threading.DispatcherTimer _fsHideTimer = new()
         { Interval = TimeSpan.FromSeconds(2.5) };
 
+    private bool _fsHelpWasVisible;
+    private bool _fsSettingsWasVisible;
+
     private void ToggleFullscreen()
     {
         _isFullscreen = !_isFullscreen;
         if (_isFullscreen)
         {
+            _fsHelpWasVisible = HelpPanel.Visibility == Visibility.Visible;
+            _fsSettingsWasVisible = _vm.ShowSettings;
+            HelpPanel.Visibility = Visibility.Collapsed;
+            _vm.ShowSettings = false;
             ExtendsContentIntoTitleBar = false;
             TitleBarElement.Visibility = Visibility.Collapsed;
             TitleBarRow.Height = new GridLength(0);
@@ -230,6 +225,9 @@ public partial class MainWindow : FluentWindow
             StatusBarRow.Height = GridLength.Auto;
             TitleBarElement.Visibility = Visibility.Visible;
             ExtendsContentIntoTitleBar = true;
+            if (_fsHelpWasVisible)
+                HelpPanel.Visibility = Visibility.Visible;
+            _vm.ShowSettings = _fsSettingsWasVisible;
         }
     }
 

@@ -25,7 +25,13 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     private FileStream? _recordStream;
     private Mp4Recorder? _recorder;
     private string? _recordPath;
+    public DateTime? RecordingSince { get; private set; }
     private readonly object _decoderLock = new();
+    private bool _screenDimmed;
+    private int _savedBrightness = -1;
+    private int _savedStayOn = -1;
+
+    public Func<bool>? ShouldSyncClipboard { get; set; }
 
     public event Action<string>? Log;
     public event Action<MirrorInstance>? Disconnected;
@@ -47,6 +53,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             View.Dispatcher.Invoke(() => View.OnVideoSize(w, h));
         session.DeviceClipboard += text =>
         {
+            if (ShouldSyncClipboard?.Invoke() == false)
+                return;
             try { Application.Current.Dispatcher.Invoke(() => Clipboard.SetText(text)); } catch { }
         };
         session.Disconnected += () =>
@@ -98,10 +106,48 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         View.Dispatcher.Invoke(() => View.AttachControl(session.Control!));
         Connected?.Invoke(this);
 
-        if (autoLaunchDofus || options.TurnScreenOff)
+        if (options.TurnScreenOff)
+            _ = SetScreenDimmedAsync(true);
+
+        if (autoLaunchDofus)
         {
             await Task.Delay(800);
             session.Control?.StartApp("com.ankama.dofustouch");
+        }
+    }
+
+    public async Task SetScreenDimmedAsync(bool dimmed)
+    {
+        try
+        {
+            if (dimmed && !_screenDimmed)
+            {
+                _screenDimmed = true;
+                _savedBrightness = await AdbService.GetBrightnessAsync(Device.Serial);
+                _savedStayOn = await AdbService.GetStayOnWhilePluggedInAsync(Device.Serial);
+                // L'écran doit rester logiquement ON pour que le compositor produise des frames ;
+                // luminosité 0 rend le panneau AMOLED visuellement noir sans couper le flux.
+                await AdbService.SetStayOnWhilePluggedInAsync(Device.Serial, 7);
+                try { Session?.Control?.SetDisplayPower(true); } catch { }
+                await AdbService.WakeScreenAsync(Device.Serial);
+                await AdbService.SetBrightnessAsync(Device.Serial, 0);
+                Log?.Invoke("écran du téléphone atténué (miroir actif)");
+            }
+            else if (!dimmed && _screenDimmed)
+            {
+                _screenDimmed = false;
+                if (_savedStayOn >= 0)
+                    await AdbService.SetStayOnWhilePluggedInAsync(Device.Serial, _savedStayOn);
+                if (_savedBrightness >= 0)
+                    await AdbService.SetBrightnessAsync(Device.Serial, _savedBrightness);
+                _savedBrightness = -1;
+                _savedStayOn = -1;
+                Log?.Invoke("écran du téléphone restauré");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log?.Invoke($"luminosité: {ex.Message}");
         }
     }
 
@@ -134,11 +180,13 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             _recordStream = new FileStream(_recordPath, FileMode.Create, FileAccess.Write, FileShare.Read, 1 << 20);
         }
         IsRecording = true;
+        RecordingSince = DateTime.Now;
         return $"Enregistrement → {_recordPath}";
     }
 
     private void StopRecordingInternal()
     {
+        RecordingSince = null;
         try { _recorder?.Dispose(); } catch { }
         _recorder = null;
         try { _recordStream?.Flush(); _recordStream?.Dispose(); } catch { }
@@ -147,6 +195,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
 
     public async Task DisconnectAsync()
     {
+        if (_screenDimmed)
+            await SetScreenDimmedAsync(false);
         var session = Session;
         Session = null;
         if (session != null)

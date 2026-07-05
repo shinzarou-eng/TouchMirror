@@ -9,7 +9,8 @@
         xmlns:local="clr-namespace:TouchMirror"
         mc:Ignorable="d"
         Title="TouchMirror" Icon="assets/mascot.png"
-        MinWidth="900" MinHeight="560" Width="1280" Height="800"
+        MinWidth="1060" MinHeight="560" Width="1280" Height="800"
+        FontFamily="Segoe UI Variable Text"
         WindowBackdropType="Mica"
         ExtendsContentIntoTitleBar="True"
         Topmost="{Binding Topmost}"
@@ -19,27 +20,23 @@
         PreviewTextInput="OnPreviewTextInput">
     <ui:FluentWindow.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
-        <local:MirrorGridColsConverter x:Key="GridCols" />
-        <local:MirrorGridRowsConverter x:Key="GridRows" />
         <local:EmptyToVisibilityConverter x:Key="EmptyToVis" />
         <local:InverseBoolToVisibilityConverter x:Key="NotBoolToVis" />
 
-        <Style x:Key="ToolBtn" TargetType="ui:Button">
-            <Setter Property="Width" Value="38" />
-            <Setter Property="Height" Value="34" />
+        <Style x:Key="ToolBtn" TargetType="ui:Button"
+               BasedOn="{StaticResource {x:Type ui:Button}}">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="30" />
             <Setter Property="Margin" Value="1,0" />
+            <Setter Property="Padding" Value="0" />
             <Setter Property="Appearance" Value="Transparent" />
         </Style>
 
-        <Style x:Key="FeatureCard" TargetType="ui:Card"
+        <Style x:Key="QCard" TargetType="ui:Card"
                BasedOn="{StaticResource {x:Type ui:Card}}">
-            <Setter Property="Padding" Value="14,12" />
+            <Setter Property="Padding" Value="15,14" />
             <Setter Property="BorderThickness" Value="1" />
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="BorderBrush" Value="#66E8A33D" />
-                </Trigger>
-            </Style.Triggers>
+            <Setter Property="BorderBrush" Value="#12FFFFFF" />
         </Style>
     </ui:FluentWindow.Resources>
 
@@ -47,45 +44,52 @@
         <Grid.RowDefinitions>
             <RowDefinition x:Name="TitleBarRow" Height="Auto" />
             <RowDefinition x:Name="ToolbarRow" Height="Auto" />
+            <RowDefinition x:Name="UpdateRow" Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition x:Name="StatusBarRow" Height="Auto" />
         </Grid.RowDefinitions>
 
         <ui:TitleBar x:Name="TitleBarElement" Grid.Row="0" Title="TouchMirror" ShowMaximize="True" ShowMinimize="True" />
 
+                <!-- ══ Toolbar ══ -->
         <Border Grid.Row="1" x:Name="Toolbar"
-                Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}"
+                Background="{DynamicResource AppSurfaceBrush}"
                 BorderThickness="0,0,0,1"
-                Padding="12,7">
-            <Border.BorderBrush>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                    <GradientStop Color="#59E8A33D" Offset="0" />
-                    <GradientStop Color="#1AE8A33D" Offset="0.35" />
-                    <GradientStop Color="#0DE8A33D" Offset="1" />
-                </LinearGradientBrush>
-            </Border.BorderBrush>
+                BorderBrush="{DynamicResource AppBorderBrush}"
+                Padding="14,5">
             <Grid>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <ui:Button x:Name="HelpButton" Style="{StaticResource ToolBtn}" Click="OnHelpClick"
+                               Height="32" Width="Auto" Padding="10,0" Margin="0,0,10,0"
+                               ToolTip="Guides Dofus Touch — navigateur intégré">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="BookOpenGlobe24" FontSize="15"
+                                           Foreground="{DynamicResource DofusAccentBrush}"
+                                           Margin="0,0,7,0" />
+                            <TextBlock Text="Guides" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource DofusAccentBrush}" />
+                        </StackPanel>
+                    </ui:Button>
                     <ComboBox ItemsSource="{Binding Devices}"
                               SelectedItem="{Binding SelectedDevice}"
                               DisplayMemberPath="DisplayName"
-                              Width="190"
+                              Width="225" MaxWidth="225" MinWidth="120"
                               VerticalAlignment="Center" />
                     <ui:Button Style="{StaticResource ToolBtn}"
                                Command="{Binding RefreshDevicesCommand}"
                                ToolTip="Rafraîchir les appareils">
-                        <ui:SymbolIcon Symbol="ArrowClockwise20" FontSize="14" />
+                        <ui:SymbolIcon Symbol="ArrowClockwise24" FontSize="15" />
                     </ui:Button>
                     <ui:Button Appearance="Primary"
                                Command="{Binding ConnectCommand}"
                                IsEnabled="{Binding CanConnect}"
-                               Margin="10,0,0,0" Padding="16,0" Height="34"
+                               Margin="12,0,0,0" Padding="16,0" Height="32"
                                FontWeight="SemiBold"
                                Visibility="{Binding IsDisconnected, Converter={StaticResource BoolToVis}}">
                         <Grid>
                             <StackPanel Orientation="Horizontal"
                                         Visibility="{Binding IsBusy, Converter={StaticResource NotBoolToVis}}">
-                                <ui:SymbolIcon Symbol="Play24" FontSize="14" Margin="0,0,6,0" />
+                                <ui:SymbolIcon Symbol="Play24" FontSize="15" Margin="0,0,6,0" />
                                 <TextBlock Text="Connecter" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal"
@@ -96,45 +100,38 @@
                             </StackPanel>
                         </Grid>
                     </ui:Button>
-                    <ui:Button Command="{Binding ConnectCommand}"
-                               IsEnabled="{Binding CanConnect}"
-                               Margin="10,0,0,0" Padding="12,0" Height="34"
-                               FontWeight="SemiBold"
-                               Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}"
-                               ToolTip="Ajouter un autre téléphone à la grille (multicompte)">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="Add24" FontSize="14" Margin="0,0,6,0"
-                                           Foreground="{DynamicResource DofusAccentBrush}" />
-                            <TextBlock Text="Ajouter" Foreground="{DynamicResource DofusAccentBrush}" />
-                        </StackPanel>
-                    </ui:Button>
-                    <ui:Button Style="{StaticResource ToolBtn}"
-                               Command="{Binding DisconnectCommand}"
-                               ToolTip="Déconnecter"
-                               Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}">
-                        <ui:SymbolIcon Symbol="PlugDisconnected24" FontSize="15" />
-                    </ui:Button>
                     <StackPanel Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center"
                                 Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}">
-                        <Ellipse Width="8" Height="8" Fill="#4CAF50" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding DeviceName}" FontSize="12" Margin="6,0,0,0"
+                        <ui:Button Command="{Binding ConnectCommand}"
+                                   IsEnabled="{Binding CanConnect}"
+                                   Padding="12,0" Height="32"
+                                   FontWeight="SemiBold"
+                                   ToolTip="Ajouter un autre téléphone à la grille (multicompte)">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="Add24" FontSize="15" Margin="0,0,6,0"
+                                               Foreground="{DynamicResource DofusAccentBrush}" />
+                                <TextBlock Text="Ajouter" Foreground="{DynamicResource DofusAccentBrush}" />
+                            </StackPanel>
+                        </ui:Button>
+                        <Ellipse Width="7" Height="7" Fill="#4EC98E" Margin="12,0,0,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding ActiveMirrorName}" FontSize="12" Margin="7,0,0,0"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
-                            VerticalAlignment="Center">
+                            VerticalAlignment="Center" Margin="0,0,6,0">
                     <StackPanel Orientation="Horizontal"
                                 Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}">
-                        <Border CornerRadius="8" Padding="3"
-                                Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}"
-                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        <Border CornerRadius="9" Padding="2"
+                                Background="{DynamicResource AppSurfaceAltBrush}"
+                                BorderBrush="{DynamicResource AppBorderBrush}"
                                 BorderThickness="1">
                             <StackPanel Orientation="Horizontal">
                                 <ui:Button Style="{StaticResource ToolBtn}" Command="{Binding SendBackCommand}" ToolTip="Retour">
                                     <ui:SymbolIcon Symbol="ArrowLeft24" FontSize="15" />
                                 </ui:Button>
-                                <ui:Button Style="{StaticResource ToolBtn}" Command="{Binding SendHomeCommand}" ToolTip="Accueil">
+                                <ui:Button Style="{StaticResource ToolBtn}" Command="{Binding SendHomeCommand}" ToolTip="Accueil Android">
                                     <ui:SymbolIcon Symbol="Home24" FontSize="15" />
                                 </ui:Button>
                                 <ui:Button Style="{StaticResource ToolBtn}" Command="{Binding SendRecentsCommand}" ToolTip="Récents">
@@ -143,9 +140,9 @@
                             </StackPanel>
                         </Border>
 
-                        <Border CornerRadius="8" Padding="3" Margin="8,0"
-                                Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}"
-                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        <Border CornerRadius="9" Padding="2" Margin="8,0,0,0"
+                                Background="{DynamicResource AppSurfaceAltBrush}"
+                                BorderBrush="{DynamicResource AppBorderBrush}"
                                 BorderThickness="1">
                             <StackPanel Orientation="Horizontal">
                                 <ui:Button Style="{StaticResource ToolBtn}" Width="Auto" Padding="10,0"
@@ -158,32 +155,86 @@
                                         <TextBlock Text="Dofus" Foreground="{DynamicResource DofusAccentBrush}" FontWeight="SemiBold" />
                                     </StackPanel>
                                 </ui:Button>
-                                <ui:Button Style="{StaticResource ToolBtn}" Command="{Binding ScreenshotCommand}" ToolTip="Capture PNG">
-                                    <ui:SymbolIcon Symbol="Camera24" FontSize="15" />
+                                <ui:Button Style="{StaticResource ToolBtn}" Width="Auto" Padding="9,0"
+                                           Click="OnMoreClick" ToolTip="Captures et enregistrement">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="Camera24" FontSize="15" Margin="0,0,6,0" />
+                                        <TextBlock Text="Capturer" />
+                                        <ui:SymbolIcon Symbol="ChevronDown24" FontSize="10" Margin="4,0,0,0"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                    </StackPanel>
+                                    <ui:Button.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Capture PNG (Images\TouchMirror)"
+                                                      Command="{Binding ScreenshotCommand}">
+                                                <MenuItem.Icon><ui:SymbolIcon Symbol="Camera24" FontSize="14" /></MenuItem.Icon>
+                                            </MenuItem>
+                                            <MenuItem Header="Enregistrer en vidéo (Vidéos\TouchMirror)"
+                                                      Command="{Binding ToggleRecordingCommand}">
+                                                <MenuItem.Icon><ui:SymbolIcon Symbol="Record24" FontSize="14" /></MenuItem.Icon>
+                                            </MenuItem>
+                                            <Separator />
+                                            <MenuItem Header="Ouvrir le dossier des captures" Click="OnOpenCapturesClick">
+                                                <MenuItem.Icon><ui:SymbolIcon Symbol="FolderOpen24" FontSize="14" /></MenuItem.Icon>
+                                            </MenuItem>
+                                        </ContextMenu>
+                                    </ui:Button.ContextMenu>
                                 </ui:Button>
                                 <ui:Button Style="{StaticResource ToolBtn}" Width="Auto" Padding="9,0"
-                                           Command="{Binding ToggleRecordingCommand}"
-                                           ToolTip="Enregistrer en MP4 (Vidéos\TouchMirror)">
+                                           Click="OnMoreClick" ToolTip="Affichage et disposition">
                                     <StackPanel Orientation="Horizontal">
-                                        <Ellipse Width="7" Height="7" Fill="#F44336"
-                                                 VerticalAlignment="Center" Margin="0,0,5,0"
-                                                 Visibility="{Binding RecordingVisibility}" />
-                                        <ui:SymbolIcon Symbol="Record24" FontSize="15" />
+                                        <ui:SymbolIcon Symbol="FullScreenMaximize24" FontSize="15" Margin="0,0,6,0" />
+                                        <TextBlock Text="Affichage" />
+                                        <ui:SymbolIcon Symbol="ChevronDown24" FontSize="10" Margin="4,0,0,0"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                     </StackPanel>
-                                </ui:Button>
-                                <ui:Button Style="{StaticResource ToolBtn}" Click="OnRotateDisplayClick"
-                                           ToolTip="Tourner l'image affichée (le téléphone ne pivote pas)">
-                                    <ui:SymbolIcon Symbol="ArrowRotateClockwise24" FontSize="15" />
-                                </ui:Button>
-                                <ui:Button Style="{StaticResource ToolBtn}" Click="OnFullscreenClick"
-                                           ToolTip="Plein écran (F11)">
-                                    <ui:SymbolIcon Symbol="FullScreenMaximize24" FontSize="15" />
+                                    <ui:Button.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Plein écran (F11)" Click="OnFullscreenClick">
+                                                <MenuItem.Icon><ui:SymbolIcon Symbol="FullScreenMaximize24" FontSize="14" /></MenuItem.Icon>
+                                            </MenuItem>
+                                            <MenuItem Header="Tourner l'image affichée" Click="OnRotateDisplayClick">
+                                                <MenuItem.Icon><ui:SymbolIcon Symbol="ArrowRotateClockwise24" FontSize="14" /></MenuItem.Icon>
+                                            </MenuItem>
+                                            <MenuItem Header="Pivoter l'écran du téléphone"
+                                                      Command="{Binding RotateDeviceCommand}">
+                                                <MenuItem.Icon><ui:SymbolIcon Symbol="PhoneScreenTime24" FontSize="14" /></MenuItem.Icon>
+                                            </MenuItem>
+                                            <Separator />
+                                            <MenuItem Header="Fenêtre au-dessus des autres" IsCheckable="True"
+                                                      IsChecked="{Binding Topmost}">
+                                                <MenuItem.Icon><ui:SymbolIcon Symbol="Pin24" FontSize="14" /></MenuItem.Icon>
+                                            </MenuItem>
+                                        </ContextMenu>
+                                    </ui:Button.ContextMenu>
                                 </ui:Button>
                             </StackPanel>
                         </Border>
+
+                        <Border CornerRadius="9" Padding="2" Margin="8,0,0,0"
+                                Background="#22E05B4C" BorderBrush="#55E05B4C" BorderThickness="1"
+                                Visibility="{Binding RecordingVisibility}">
+                            <ui:Button Style="{StaticResource ToolBtn}" Width="Auto" Padding="8,0"
+                                       Command="{Binding ToggleRecordingCommand}"
+                                       ToolTip="Arrêter l'enregistrement">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="7" Height="7" Fill="#E05B4C"
+                                             VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Text="{Binding RecordingElapsed}" FontSize="11"
+                                               FontWeight="SemiBold" Foreground="#E05B4C" />
+                                </StackPanel>
+                            </ui:Button>
+                        </Border>
+
+                        <Border Width="1" Height="18" Margin="10,0"
+                                Background="{DynamicResource AppBorderBrush}" />
                     </StackPanel>
 
-                    <ui:Button Style="{StaticResource ToolBtn}" Click="OnMoreClick" ToolTip="Plus" Margin="8,0,1,0">
+                    <ui:Button Style="{StaticResource ToolBtn}" Click="OnSettingsClick"
+                               ToolTip="Réglages" Margin="4,0,0,0">
+                        <ui:SymbolIcon Symbol="Settings24" FontSize="15" />
+                    </ui:Button>
+                    <ui:Button Style="{StaticResource ToolBtn}" Click="OnMoreClick" ToolTip="Plus" Margin="4,0,0,0">
                         <ui:SymbolIcon Symbol="MoreHorizontal24" FontSize="15" />
                         <ui:Button.ContextMenu>
                             <ContextMenu>
@@ -191,145 +242,189 @@
                                           Command="{Binding EnableWifiCommand}">
                                     <MenuItem.Icon><ui:SymbolIcon Symbol="Wifi124" FontSize="14" /></MenuItem.Icon>
                                 </MenuItem>
-                                <MenuItem Header="Pivoter l'écran du téléphone"
-                                          Command="{Binding RotateDeviceCommand}">
-                                    <MenuItem.Icon><ui:SymbolIcon Symbol="PhoneScreenTime24" FontSize="14" /></MenuItem.Icon>
-                                </MenuItem>
-                                <MenuItem Header="Éteindre/allumer l'écran"
+                                <MenuItem Header="Éteindre/allumer l'écran du téléphone"
                                           Command="{Binding SendPowerCommand}">
-                                    <MenuItem.Icon><ui:SymbolIcon Symbol="Power24" FontSize="14" /></MenuItem.Icon>
-                                </MenuItem>
-                                <MenuItem Header="Ajouter un appareil (multicompte)"
-                                          Command="{Binding ConnectCommand}">
-                                    <MenuItem.Icon><ui:SymbolIcon Symbol="Grid24" FontSize="14" /></MenuItem.Icon>
+                                    <MenuItem.Icon><ui:SymbolIcon Symbol="Phone24" FontSize="14" /></MenuItem.Icon>
                                 </MenuItem>
                                 <Separator />
                                 <MenuItem Header="Mode Dofus (preset optimal)"
-                                          Command="{Binding ApplyDofusPresetCommand}">
-                                    <MenuItem.Icon><ui:SymbolIcon Symbol="Flash24" FontSize="14" /></MenuItem.Icon>
+                                          Command="{Binding ApplyDofusPresetCommand}"
+                                          ToolTip="1080p · 60 fps · 24 Mbps H.264 · audio · écran atténué · lancement auto — une seule reconnexion"
+                                          FontWeight="SemiBold"
+                                          Foreground="{DynamicResource DofusAccentBrush}">
+                                    <MenuItem.Icon><ui:SymbolIcon Symbol="Flash24" FontSize="14"
+                                                                  Foreground="{DynamicResource DofusAccentBrush}" /></MenuItem.Icon>
                                 </MenuItem>
-                                <MenuItem Header="Fenêtre au-dessus des autres" IsCheckable="True"
-                                          IsChecked="{Binding Topmost}">
-                                    <MenuItem.Icon><ui:SymbolIcon Symbol="Pin24" FontSize="14" /></MenuItem.Icon>
-                                </MenuItem>
-                                <Separator />
                                 <MenuItem Header="Mode capture (cache le badge fps — pour OBS/stream)"
-                                          IsCheckable="True" Click="OnCaptureModeClick">
-                                    <MenuItem.Icon><ui:SymbolIcon Symbol="Share24" FontSize="14" /></MenuItem.Icon>
+                                          IsCheckable="True" Click="OnCaptureModeClick" />
+                                <Separator />
+                                <MenuItem Header="Déconnecter ce téléphone"
+                                          Command="{Binding DisconnectCommand}"
+                                          Foreground="#E05B4C">
+                                    <MenuItem.Icon><ui:SymbolIcon Symbol="PlugDisconnected24" FontSize="14"
+                                                                  Foreground="#E05B4C" /></MenuItem.Icon>
                                 </MenuItem>
                             </ContextMenu>
                         </ui:Button.ContextMenu>
-                    </ui:Button>
-                    <ui:Button x:Name="HelpButton" Style="{StaticResource ToolBtn}" Click="OnHelpClick"
-                               ToolTip="Sites d'aide Dofus Touch (navigateur intégré)">
-                        <ui:SymbolIcon Symbol="BookOpenGlobe24" FontSize="15" />
-                    </ui:Button>
-                    <ui:Button Style="{StaticResource ToolBtn}" Click="OnSettingsClick"
-                               ToolTip="Réglages qualité">
-                        <ui:SymbolIcon Symbol="Settings24" FontSize="15" />
                     </ui:Button>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <Grid Grid.Row="2">
-            <Grid.Background>
-                <RadialGradientBrush Center="0.5,0.38" RadiusX="0.7" RadiusY="0.85">
-                    <GradientStop Color="#261E12" Offset="0" />
-                    <GradientStop Color="#141824" Offset="0.55" />
-                    <GradientStop Color="#0A0C10" Offset="1" />
-                </RadialGradientBrush>
-            </Grid.Background>
-            <Border x:Name="VideoFrame"
-                    Margin="20" CornerRadius="14"
+<!-- ══ Bandeau mise à jour ══ -->
+        <Border Grid.Row="2" Padding="16,8"
+                Background="{DynamicResource AppSurfaceAltBrush}"
+                BorderThickness="0,0,0,1"
+                BorderBrush="{DynamicResource AppBorderBrush}"
+                Visibility="{Binding UpdateBannerVisibility}">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <ui:SymbolIcon Symbol="ArrowDownload24" FontSize="14"
+                               Foreground="{DynamicResource DofusAccentBrush}"
+                               VerticalAlignment="Center" />
+                <TextBlock FontSize="12.5" Margin="9,0,0,0" VerticalAlignment="Center">
+                    <Run Text="Nouvelle version disponible — v" />
+                    <Run Text="{Binding UpdateVersion}" FontWeight="SemiBold" />
+                </TextBlock>
+                <ui:Button Appearance="Primary" Height="26" Padding="12,0" Margin="10,0,0,0"
+                           FontSize="12" FontWeight="SemiBold"
+                           Command="{Binding OpenUpdateCommand}">
+                    Télécharger
+                </ui:Button>
+                <ui:Button Style="{StaticResource ToolBtn}" Command="{Binding DismissUpdateCommand}"
+                           ToolTip="Ignorer">
+                    <ui:SymbolIcon Symbol="Dismiss24" FontSize="12" />
+                </ui:Button>
+            </StackPanel>
+        </Border>
+
+        <!-- ══ Contenu ══ -->
+        <Grid Grid.Row="3" Background="#0A0B0F">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Border x:Name="VideoFrame" Grid.Column="1"
+                    Margin="18" CornerRadius="14"
                     Background="Black"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                    BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1"
                     ClipToBounds="True">
                 <Border.Effect>
-                    <DropShadowEffect BlurRadius="28" ShadowDepth="0" Opacity="0.45" Color="Black" />
+                    <DropShadowEffect BlurRadius="30" ShadowDepth="0" Opacity="0.5" Color="Black" />
                 </Border.Effect>
                 <Grid>
-                    <ItemsControl ItemsSource="{Binding Mirrors}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <UniformGrid Columns="{Binding Mirrors.Count, Converter={StaticResource GridCols}}"
-                                             Rows="{Binding Mirrors.Count, Converter={StaticResource GridRows}}" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border CornerRadius="10" Margin="4" Background="Black"
-                                        BorderThickness="2" ClipToBounds="True">
-                                    <Border.Style>
-                                        <Style TargetType="Border">
-                                            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                                    <Setter Property="BorderBrush" Value="{DynamicResource DofusAccentBrush}" />
-                                                    <Setter Property="Effect">
-                                                        <Setter.Value>
-                                                            <DropShadowEffect Color="#E8A33D" BlurRadius="18"
-                                                                              ShadowDepth="0" Opacity="0.35" />
-                                                        </Setter.Value>
-                                                    </Setter>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Border.Style>
-                                    <Grid>
-                                        <ContentPresenter Content="{Binding View}" />
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-                                        <Border VerticalAlignment="Top"
-                                                Padding="10,5">
-                                            <Border.Background>
-                                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                                    <GradientStop Color="#E0101216" Offset="0" />
-                                                    <GradientStop Color="#00101216" Offset="1" />
-                                                </LinearGradientBrush>
-                                            </Border.Background>
-                                            <Grid>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <ui:SymbolIcon Symbol="Phone24" FontSize="11"
-                                                                   VerticalAlignment="Center" Margin="0,0,7,0"
-                                                                   Foreground="{DynamicResource DofusAccentBrush}" />
-                                                    <Ellipse Width="7" Height="7" Fill="#4CAF50"
-                                                             VerticalAlignment="Center" Margin="0,0,7,0"
-                                                             Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}" />
-                                                    <TextBlock Text="{Binding DeviceName}" FontSize="11"
-                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                                    <Ellipse Width="6" Height="6" Fill="#F44336" Margin="8,0,0,0"
-                                                             VerticalAlignment="Center"
-                                                             Visibility="{Binding IsRecording, Converter={StaticResource BoolToVis}}" />
-                                                </StackPanel>
-                                                <ui:Button HorizontalAlignment="Right" Appearance="Transparent"
-                                                           Width="26" Height="22"
-                                                           Command="{Binding DataContext.RemoveMirrorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                           CommandParameter="{Binding}"
-                                                           ToolTip="Déconnecter cet appareil">
-                                                    <ui:SymbolIcon Symbol="Dismiss24" FontSize="11" />
-                                                </ui:Button>
-                                            </Grid>
-                                        </Border>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <!-- Miroir actif -->
+                    <Border CornerRadius="10" Margin="4" Background="Black"
+                            BorderBrush="#734EC98E" BorderThickness="1" ClipToBounds="True">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#4EC98E" BlurRadius="18"
+                                              ShadowDepth="0" Opacity="0.16" />
+                        </Border.Effect>
+                        <Grid>
+                            <ContentPresenter Content="{Binding ActiveMirror.View}" />
+
+                            <Border VerticalAlignment="Top" Padding="10,5">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="#D0101216" Offset="0" />
+                                        <GradientStop Color="#00101216" Offset="1" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <Grid>
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="Phone24" FontSize="11"
+                                                       VerticalAlignment="Center" Margin="0,0,7,0"
+                                                       Foreground="{DynamicResource DofusAccentBrush}" />
+                                        <Ellipse Width="7" Height="7" Fill="#4EC98E"
+                                                 VerticalAlignment="Center" Margin="0,0,7,0"
+                                                 Visibility="{Binding ActiveMirror.IsConnected, Converter={StaticResource BoolToVis}}" />
+                                        <TextBlock Text="{Binding ActiveMirror.DeviceName}" FontSize="12"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <Ellipse Width="6" Height="6" Fill="#E05B4C" Margin="8,0,0,0"
+                                                 VerticalAlignment="Center"
+                                                 Visibility="{Binding ActiveMirror.IsRecording, Converter={StaticResource BoolToVis}}" />
+                                    </StackPanel>
+                                    <ui:Button HorizontalAlignment="Right" Appearance="Transparent"
+                                               Width="26" Height="22" Padding="0"
+                                               Command="{Binding RemoveMirrorCommand}"
+                                               CommandParameter="{Binding ActiveMirror}"
+                                               ToolTip="Déconnecter cet appareil">
+                                        <ui:SymbolIcon Symbol="Dismiss24" FontSize="11" />
+                                    </ui:Button>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <!-- Miniatures des autres appareils -->
+                    <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Visibility="{Binding HasInactiveMirrors, Converter={StaticResource BoolToVis}}">
+                        <ItemsControl ItemsSource="{Binding InactiveMirrors}" Margin="0,4,0,4">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Width="172" Height="112" Margin="6,4"
+                                            CornerRadius="8" Background="Black"
+                                            BorderBrush="{DynamicResource AppBorderBrush}"
+                                            BorderThickness="1" ClipToBounds="True"
+                                            ToolTip="Cliquer pour rendre actif">
+                                        <Grid>
+                                            <ContentPresenter Content="{Binding View}" />
+                                            <Border VerticalAlignment="Top" Padding="7,3">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                        <GradientStop Color="#D0101216" Offset="0" />
+                                                        <GradientStop Color="#00101216" Offset="1" />
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                                <Grid>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Ellipse Width="6" Height="6" Fill="#4EC98E"
+                                                                 VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                 Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}" />
+                                                        <TextBlock Text="{Binding DeviceName}" FontSize="11"
+                                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                        <Ellipse Width="6" Height="6" Fill="#E05B4C" Margin="7,0,0,0"
+                                                                 VerticalAlignment="Center"
+                                                                 Visibility="{Binding IsRecording, Converter={StaticResource BoolToVis}}" />
+                                                    </StackPanel>
+                                                    <ui:Button HorizontalAlignment="Right" Appearance="Transparent"
+                                                               Width="20" Height="16" Padding="0"
+                                                               Command="{Binding DataContext.RemoveMirrorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                               CommandParameter="{Binding}"
+                                                               ToolTip="Déconnecter cet appareil">
+                                                        <ui:SymbolIcon Symbol="Dismiss24" FontSize="10" />
+                                                    </ui:Button>
+                                                </Grid>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
 
                     <Border x:Name="FullscreenBar"
                             VerticalAlignment="Top" HorizontalAlignment="Center"
                             Margin="0,14,0,0" Padding="4" CornerRadius="12"
-                            Background="#E6161616"
+                            Background="#E614161C"
+                            BorderBrush="{DynamicResource AppBorderBrush}"
+                            BorderThickness="1"
                             Visibility="Collapsed">
                         <StackPanel Orientation="Horizontal">
                             <ui:Button Command="{Binding SendBackCommand}" ToolTip="Retour" Margin="2" Appearance="Secondary">
-                                <ui:SymbolIcon Symbol="ArrowLeft24" FontSize="16" />
+                                <ui:SymbolIcon Symbol="ArrowLeft24" FontSize="14.5" />
                             </ui:Button>
                             <ui:Button Command="{Binding SendHomeCommand}" ToolTip="Accueil" Margin="2" Appearance="Secondary">
-                                <ui:SymbolIcon Symbol="Home24" FontSize="16" />
+                                <ui:SymbolIcon Symbol="Home24" FontSize="14.5" />
                             </ui:Button>
                             <ui:Button Command="{Binding SendRecentsCommand}" ToolTip="Récents" Margin="2" Appearance="Secondary">
-                                <ui:SymbolIcon Symbol="SquareMultiple24" FontSize="16" />
+                                <ui:SymbolIcon Symbol="SquareMultiple24" FontSize="14.5" />
                             </ui:Button>
                             <ui:Button Click="OnFullscreenClick" ToolTip="Quitter le plein écran (F11)" Margin="2" Appearance="Secondary">
                                 <ui:SymbolIcon Symbol="FullScreenMinimize24" FontSize="16" />
@@ -337,7 +432,8 @@
                         </StackPanel>
                     </Border>
 
-                    <Grid x:Name="DisconnectedOverlay" Background="#F20A0C10"
+                    <!-- ══ Hub appareils (déconnecté) ══ -->
+                    <Grid x:Name="DisconnectedOverlay" Background="#F40A0B0F"
                           Visibility="{Binding Mirrors.Count, Converter={StaticResource EmptyToVis}}">
                         <Grid.Triggers>
                             <EventTrigger RoutedEvent="Loaded">
@@ -345,16 +441,9 @@
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetProperty="Opacity"
                                                          From="0" To="1" Duration="0:0:0.4" />
-                                        <DoubleAnimation Storyboard.TargetName="HeroBlock"
+                                        <DoubleAnimation Storyboard.TargetName="HubBlock"
                                                          Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
-                                                         From="16" To="0" Duration="0:0:0.45">
-                                            <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut" />
-                                            </DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                        <DoubleAnimation Storyboard.TargetName="CardsBlock"
-                                                         Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
-                                                         From="24" To="0" BeginTime="0:0:0.12" Duration="0:0:0.45">
+                                                         From="14" To="0" Duration="0:0:0.4">
                                             <DoubleAnimation.EasingFunction>
                                                 <CubicEase EasingMode="EaseOut" />
                                             </DoubleAnimation.EasingFunction>
@@ -363,274 +452,407 @@
                                 </BeginStoryboard>
                             </EventTrigger>
                         </Grid.Triggers>
-                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <StackPanel x:Name="HeroBlock" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,6">
-                                <StackPanel.RenderTransform>
-                                    <TranslateTransform Y="0" />
-                                </StackPanel.RenderTransform>
-                                <Image Source="assets/mascot.png" Width="96" Height="96"
-                                       VerticalAlignment="Center">
-                                    <Image.Effect>
-                                        <DropShadowEffect Color="#E8A33D" BlurRadius="32"
-                                                          ShadowDepth="0" Opacity="0.3" />
-                                    </Image.Effect>
-                                </Image>
-                                <StackPanel Margin="18,0,0,0" VerticalAlignment="Center">
+
+                        <Image Source="assets/mascot.png" Width="620" Opacity="0.035"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Visibility="{Binding Devices.Count, Converter={StaticResource EmptyToVis}}" />
+
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel x:Name="HubBlock" MaxWidth="720" HorizontalAlignment="Center"
+                                    VerticalAlignment="Center" Margin="20,14">
+                            <StackPanel.RenderTransform>
+                                <TranslateTransform Y="0" />
+                            </StackPanel.RenderTransform>
+
+                            <Grid Margin="2,0,2,14">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="Appareils" FontSize="20" FontWeight="SemiBold" />
+                                    <TextBlock FontSize="12" Margin="10,0,0,0" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}">
+                                        <Run Text="{Binding Devices.Count, Mode=OneWay}" /><Run Text=" détecté(s)" />
+                                    </TextBlock>
+                                </StackPanel>
+                                <TextBlock Text="{Binding AdbStatus}" FontSize="12" HorizontalAlignment="Right"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            </Grid>
+
+                            <ui:Card Padding="0" BorderThickness="1"
+                                     BorderBrush="#12FFFFFF"
+                                     Background="{DynamicResource AppSurfaceBrush}">
+                                <ItemsControl ItemsSource="{Binding Devices}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Padding="18,15"
+                                                    BorderThickness="0,1,0,0"
+                                                    BorderBrush="#0AFFFFFF">
+                                                <Grid>
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Border Width="44" Height="44" CornerRadius="11"
+                                                                Background="#1A4EC98E" Margin="0,0,14,0">
+                                                            <ui:SymbolIcon Symbol="Phone24" FontSize="18"
+                                                                           Foreground="{DynamicResource DofusAccentBrush}"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                        </Border>
+                                                        <StackPanel VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding ShortName}" FontSize="14" FontWeight="SemiBold" />
+                                                            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                                <TextBlock Text="{Binding TransportText}" FontSize="12"
+                                                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                                <TextBox Text="{Binding Serial}" IsReadOnly="True"
+                                                                         FontSize="10.5" Margin="8,0,0,0" Padding="0"
+                                                                         Background="Transparent" BorderThickness="0"
+                                                                         VerticalAlignment="Center"
+                                                                         Visibility="{Binding ShowSerial, Converter={StaticResource BoolToVis}}"
+                                                                         Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                            </StackPanel>
+                                                            <TextBlock Text="Accepte la fenêtre d'autorisation sur le téléphone"
+                                                                       FontSize="10.5" Margin="0,3,0,0" Foreground="#E8A33D"
+                                                                       Visibility="{Binding NeedsAuthorization, Converter={StaticResource BoolToVis}}" />
+                                                        </StackPanel>
+                                                        <StackPanel Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
+                                                            <Ellipse Width="6" Height="6" Margin="0,0,6,0" VerticalAlignment="Center">
+                                                                <Ellipse.Style>
+                                                                    <Style TargetType="Ellipse">
+                                                                        <Setter Property="Fill" Value="#5A5E66" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsReady}" Value="True">
+                                                                                <Setter Property="Fill" Value="#4EC98E" />
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding NeedsAuthorization}" Value="True">
+                                                                                <Setter Property="Fill" Value="#E8A33D" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Ellipse.Style>
+                                                            </Ellipse>
+                                                            <TextBlock Text="{Binding StateText}" FontSize="11.5">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsReady}" Value="True">
+                                                                                <Setter Property="Foreground" Value="#4EC98E" />
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding NeedsAuthorization}" Value="True">
+                                                                                <Setter Property="Foreground" Value="#E8A33D" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                            <StackPanel Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center"
+                                                                        Visibility="{Binding HasBattery, Converter={StaticResource BoolToVis}}">
+                                                                <ui:SymbolIcon Symbol="Battery924" FontSize="12"
+                                                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                                               VerticalAlignment="Center" />
+                                                                <TextBlock Text="{Binding BatteryText}" FontSize="11.5" Margin="4,0,0,0"
+                                                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                                           VerticalAlignment="Center" />
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                    <ui:Button HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                               Appearance="Primary" Height="36" Padding="16,0"
+                                                               FontSize="12" FontWeight="SemiBold"
+                                                               Command="{Binding DataContext.ConnectToDeviceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                               CommandParameter="{Binding}"
+                                                               IsEnabled="{Binding IsReady}">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <ui:SymbolIcon Symbol="Play24" FontSize="12" Margin="0,0,7,0" />
+                                                            <TextBlock Text="Connecter" />
+                                                        </StackPanel>
+                                                    </ui:Button>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ui:Card>
+
+                            <UniformGrid Columns="4" Margin="0,12,0,0">
+                                <ui:Button Margin="0,0,6,0" Padding="15,14"
+                                           HorizontalContentAlignment="Left"
+                                           Click="OnHelpClick" ToolTip="Ouvrir le navigateur de guides intégré">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock FontSize="34" FontWeight="Bold" VerticalAlignment="Center">
-                                            <Run Text="Touch" /><Run Text="Mirror" Foreground="{DynamicResource DofusAccentBrush}" />
-                                        </TextBlock>
-                                        <Border CornerRadius="8" Padding="7,2" Margin="10,0,0,0"
-                                                VerticalAlignment="Center"
-                                                Background="#1AE8A33D">
-                                            <TextBlock Text="v0.1.0" FontSize="10" FontWeight="SemiBold"
-                                                       Foreground="{DynamicResource DofusAccentBrush}" />
+                                        <Border Width="32" Height="32" CornerRadius="9" Background="#1A4EC98E"
+                                                VerticalAlignment="Center" Margin="0,0,11,0">
+                                            <ui:SymbolIcon Symbol="BookOpenGlobe24" FontSize="14"
+                                                           Foreground="{DynamicResource DofusAccentBrush}"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
                                         </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Guides Dofus" FontSize="12" FontWeight="SemiBold" />
+                                            <TextBlock Text="Sites intégrés" FontSize="11"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                        </StackPanel>
                                     </StackPanel>
-                                    <TextBlock Text="Mirroring Android — fait pour Dofus Touch"
-                                               FontSize="12"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                    <Border Width="120" Height="2" CornerRadius="1" Margin="0,8,0,0"
-                                            HorizontalAlignment="Left">
-                                        <Border.Background>
-                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                                <GradientStop Color="#E8A33D" Offset="0" />
-                                                <GradientStop Color="#00E8A33D" Offset="1" />
-                                            </LinearGradientBrush>
-                                        </Border.Background>
-                                    </Border>
-                                </StackPanel>
-                            </StackPanel>
-
-                            <UniformGrid x:Name="CardsBlock" Columns="2" Margin="0,22,0,0">
-                                <UniformGrid.RenderTransform>
-                                    <TranslateTransform Y="0" />
-                                </UniformGrid.RenderTransform>
-                                <ui:Card Padding="26,22" Margin="0,0,8,0">
-                                    <ui:Card.Effect>
-                                        <DropShadowEffect BlurRadius="24" ShadowDepth="0"
-                                                          Opacity="0.4" Color="Black" />
-                                    </ui:Card.Effect>
-                                    <ui:Card.BorderBrush>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                            <GradientStop Color="#59E8A33D" Offset="0" />
-                                            <GradientStop Color="#26E8A33D" Offset="0.5" />
-                                        </LinearGradientBrush>
-                                    </ui:Card.BorderBrush>
-                                    <StackPanel Width="240">
-                                        <TextBlock Text="Prêt à jouer ?"
-                                                   FontSize="17" FontWeight="SemiBold"
-                                                   Margin="0,0,0,12" />
-                                        <StackPanel Orientation="Horizontal" Margin="0,5">
-                                            <Border Width="20" Height="20" CornerRadius="10"
-                                                    Background="#2E2415" Margin="0,0,10,0">
-                                                <TextBlock Text="1" FontSize="10" FontWeight="Bold"
+                                </ui:Button>
+                                <ui:Button Margin="4,0" Padding="15,14"
+                                           HorizontalContentAlignment="Left"
+                                           Command="{Binding EnableWifiCommand}"
+                                           ToolTip="Activer le mirroring sans câble sur l'appareil sélectionné">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border Width="32" Height="32" CornerRadius="9" Background="#1A4EC98E"
+                                                VerticalAlignment="Center" Margin="0,0,11,0">
+                                            <ui:SymbolIcon Symbol="Wifi124" FontSize="14"
                                                            Foreground="{DynamicResource DofusAccentBrush}"
                                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                            </Border>
-                                            <TextBlock Text="Branche le téléphone en USB" FontSize="12"
-                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                       VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="WiFi" FontSize="12" FontWeight="SemiBold" />
+                                            <TextBlock Text="Sans câble" FontSize="11"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                         </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,5">
-                                            <Border Width="20" Height="20" CornerRadius="10"
-                                                    Background="#2E2415" Margin="0,0,10,0">
-                                                <TextBlock Text="2" FontSize="10" FontWeight="Bold"
-                                                           Foreground="{DynamicResource DofusAccentBrush}"
-                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                            </Border>
-                                            <TextBlock Text="Active le débogage USB (Options développeur)"
-                                                       FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center"
-                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,5">
-                                            <Border Width="20" Height="20" CornerRadius="10"
-                                                    Background="#2E2415" Margin="0,0,10,0">
-                                                <TextBlock Text="3" FontSize="10" FontWeight="Bold"
-                                                           Foreground="{DynamicResource DofusAccentBrush}"
-                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                            </Border>
-                                            <TextBlock Text="Puis lance le miroir ci-dessous" FontSize="12"
-                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                       VerticalAlignment="Center" />
-                                        </StackPanel>
-                                        <ui:Button Appearance="Primary"
-                                                   Command="{Binding ConnectCommand}"
-                                                   IsEnabled="{Binding CanConnect}"
-                                                   Height="38" Margin="0,16,0,0"
-                                                   FontWeight="SemiBold" FontSize="13">
-                                            <Grid>
-                                                <StackPanel Orientation="Horizontal"
-                                                            Visibility="{Binding IsBusy, Converter={StaticResource NotBoolToVis}}">
-                                                    <ui:SymbolIcon Symbol="Play24" FontSize="16" Margin="0,0,8,0" />
-                                                    <TextBlock Text="Connecter" />
-                                                </StackPanel>
-                                                <StackPanel Orientation="Horizontal"
-                                                            Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}">
-                                                    <ui:ProgressRing IsIndeterminate="True" Width="15" Height="15"
-                                                                     Margin="0,0,8,0" VerticalAlignment="Center" />
-                                                    <TextBlock Text="Connexion…" />
-                                                </StackPanel>
-                                            </Grid>
-                                        </ui:Button>
-                                        <TextBlock Text="{Binding AdbStatus}"
-                                                   FontSize="10" TextWrapping="Wrap" TextAlignment="Center"
-                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                                   Margin="0,10,0,0" />
                                     </StackPanel>
-                                </ui:Card>
-
-                                <StackPanel Margin="8,0,0,0">
-                                    <ui:Card Style="{StaticResource FeatureCard}" Margin="0,0,0,8">
-                                        <StackPanel Orientation="Horizontal">
-                                            <Border Width="34" Height="34" CornerRadius="10" Background="#22E8A33D"
-                                                    VerticalAlignment="Center" Margin="0,0,12,0">
-                                                <ui:SymbolIcon Symbol="Grid24" FontSize="17"
-                                                               Foreground="{DynamicResource DofusAccentBrush}"
-                                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                            </Border>
-                                            <StackPanel VerticalAlignment="Center">
-                                                <TextBlock Text="Multicompte" FontSize="12" FontWeight="SemiBold" />
-                                                <TextBlock Text="Plusieurs téléphones dans une seule fenêtre — autorisé par Ankama"
-                                                           FontSize="10" TextWrapping="Wrap"
-                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                            </StackPanel>
+                                </ui:Button>
+                                <ui:Button Margin="4,0" Padding="15,14"
+                                           HorizontalContentAlignment="Left"
+                                           Command="{Binding ToggleScreenDimCommand}"
+                                           ToolTip="Luminosité du téléphone au minimum pendant le mirroring">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border Width="32" Height="32" CornerRadius="9" Background="#1A4EC98E"
+                                                VerticalAlignment="Center" Margin="0,0,11,0">
+                                            <ui:SymbolIcon Symbol="WeatherMoon24" FontSize="14"
+                                                           Foreground="{DynamicResource DofusAccentBrush}"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Écran atténué" FontSize="12" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding TurnScreenOffText}" FontSize="11"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                         </StackPanel>
-                                    </ui:Card>
-                                    <ui:Card Style="{StaticResource FeatureCard}" Margin="0,0,0,8">
-                                        <StackPanel Orientation="Horizontal">
-                                            <Border Width="34" Height="34" CornerRadius="10" Background="#22E8A33D"
-                                                    VerticalAlignment="Center" Margin="0,0,12,0">
-                                                <ui:SymbolIcon Symbol="Wifi124" FontSize="17"
-                                                               Foreground="{DynamicResource DofusAccentBrush}"
-                                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                            </Border>
-                                            <StackPanel VerticalAlignment="Center">
-                                                <TextBlock Text="USB et WiFi" FontSize="12" FontWeight="SemiBold" />
-                                                <TextBlock Text="Passe en sans-fil en un clic, écran du tel éteint possible"
-                                                           FontSize="10" TextWrapping="Wrap"
-                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                            </StackPanel>
+                                    </StackPanel>
+                                </ui:Button>
+                                <ui:Button Margin="6,0,0,0" Padding="15,14"
+                                           HorizontalContentAlignment="Left"
+                                           Click="OnSettingsClick" ToolTip="Ouvrir les réglages">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border Width="32" Height="32" CornerRadius="9" Background="#1A4EC98E"
+                                                VerticalAlignment="Center" Margin="0,0,11,0">
+                                            <ui:SymbolIcon Symbol="Settings24" FontSize="14"
+                                                           Foreground="{DynamicResource DofusAccentBrush}"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Réglages" FontSize="12" FontWeight="SemiBold" />
+                                            <TextBlock Text="Vidéo, audio, session" FontSize="11"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                         </StackPanel>
-                                    </ui:Card>
-                                    <ui:Card Style="{StaticResource FeatureCard}">
-                                        <StackPanel Orientation="Horizontal">
-                                            <Border Width="34" Height="34" CornerRadius="10" Background="#22E8A33D"
-                                                    VerticalAlignment="Center" Margin="0,0,12,0">
-                                                <ui:SymbolIcon Symbol="Record24" FontSize="17"
-                                                               Foreground="{DynamicResource DofusAccentBrush}"
-                                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                            </Border>
-                                            <StackPanel VerticalAlignment="Center">
-                                                <TextBlock Text="Capture et MP4" FontSize="12" FontWeight="SemiBold" />
-                                                <TextBlock Text="Enregistrement direct en .mp4 — parfait pour streamer sans émulateur"
-                                                           FontSize="10" TextWrapping="Wrap"
-                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                            </StackPanel>
-                                        </StackPanel>
-                                    </ui:Card>
-                                </StackPanel>
+                                    </StackPanel>
+                                </ui:Button>
                             </UniformGrid>
+
+                            <Border Margin="0,12,0,0" Padding="18,13" CornerRadius="12"
+                                    Background="{DynamicResource AppSurfaceBrush}"
+                                    BorderBrush="#12FFFFFF" BorderThickness="1">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="DÉMARRAGE" FontSize="11" FontWeight="Bold"
+                                               Margin="0,0,14,0"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                    <Border Width="20" Height="20" CornerRadius="6" Background="#264EC98E">
+                                        <TextBlock Text="1" FontSize="11" FontWeight="Bold"
+                                                   Foreground="{DynamicResource DofusAccentBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="Branche en USB" FontSize="12" Margin="8,0,0,0"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <ui:SymbolIcon Symbol="ArrowRight16" FontSize="11" Margin="10,0"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                    <Border Width="20" Height="20" CornerRadius="6" Background="#264EC98E">
+                                        <TextBlock Text="2" FontSize="11" FontWeight="Bold"
+                                                   Foreground="{DynamicResource DofusAccentBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="Débogage USB" FontSize="12" Margin="8,0,0,0"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <ui:SymbolIcon Symbol="ArrowRight16" FontSize="11" Margin="10,0"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                    <Border Width="20" Height="20" CornerRadius="6" Background="#264EC98E">
+                                        <TextBlock Text="3" FontSize="11" FontWeight="Bold"
+                                                   Foreground="{DynamicResource DofusAccentBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="Connecter" FontSize="12" Margin="8,0,0,0"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
+                        </ScrollViewer>
                     </Grid>
                 </Grid>
             </Border>
 
-            <Border x:Name="SettingsPanel"
-                    HorizontalAlignment="Right" Width="300"
-                    Margin="0,0,16,16" CornerRadius="12"
-                    Background="#FF1B1F27"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+            <!-- ══ Panneau réglages ══ -->
+            <Border x:Name="SettingsPanel" Grid.Column="2"
+                    Width="320"
+                    Margin="0,14,14,14" CornerRadius="14"
+                    Background="{DynamicResource AppSurfaceAltBrush}"
+                    BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1"
                     Visibility="{Binding SettingsVisibility}">
-                    <Border.Effect>
-                        <DropShadowEffect BlurRadius="28" ShadowDepth="4" Opacity="0.55" Color="Black" />
-                    </Border.Effect>
-                    <Border.RenderTransform>
-                        <TranslateTransform x:Name="SettingsSlide" X="0" />
-                    </Border.RenderTransform>
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding ShowSettings}" Value="True">
-                                    <DataTrigger.EnterActions>
-                                        <BeginStoryboard>
-                                            <Storyboard>
-                                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.X"
-                                                                 From="40" To="0" Duration="0:0:0.2" />
-                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                                                 From="0" To="1" Duration="0:0:0.2" />
-                                            </Storyboard>
-                                        </BeginStoryboard>
-                                    </DataTrigger.EnterActions>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="30" ShadowDepth="4" Opacity="0.55" Color="Black" />
+                </Border.Effect>
+                <Border.RenderTransform>
+                    <TranslateTransform x:Name="SettingsSlide" X="0" />
+                </Border.RenderTransform>
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ShowSettings}" Value="True">
+                                <DataTrigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.X"
+                                                             From="40" To="0" Duration="0:0:0.2" />
+                                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                             From="0" To="1" Duration="0:0:0.2" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.EnterActions>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <Grid Grid.Row="0" Margin="16,12,8,0">
-                        <TextBlock Text="Réglages" FontSize="14" FontWeight="SemiBold"
-                                   VerticalAlignment="Center" />
-                        <ui:Button HorizontalAlignment="Right" Appearance="Secondary"
-                                   Width="30" Height="28" Click="OnSettingsClick">
+                    <Grid Grid.Row="0" Margin="16,13,10,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <ui:SymbolIcon Symbol="Settings24" FontSize="13" Margin="0,0,8,0"
+                                           Foreground="{DynamicResource DofusAccentBrush}" />
+                            <TextBlock Text="Réglages" FontSize="14" FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <ui:Button HorizontalAlignment="Right" Appearance="Transparent"
+                                   Width="28" Height="26" Padding="0" Click="OnSettingsClick">
                             <ui:SymbolIcon Symbol="Dismiss24" FontSize="12" />
                         </ui:Button>
                     </Grid>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                        <StackPanel Margin="16,10,16,16">
-                            <TextBlock Text="Résolution" FontSize="11" />
-                            <ComboBox ItemsSource="{Binding MaxSizeOptions}"
-                                      SelectedValue="{Binding MaxSize}"
-                                      SelectedValuePath="Value" DisplayMemberPath="Label"
-                                      Margin="0,2,0,10" />
-                            <TextBlock Text="Codec" FontSize="11" />
-                            <ComboBox ItemsSource="{Binding CodecOptions}"
-                                      SelectedValue="{Binding VideoCodec}"
-                                      SelectedValuePath="Value" DisplayMemberPath="Label"
-                                      Margin="0,2,0,10" />
-                            <TextBlock Text="Framerate" FontSize="11" />
-                            <ComboBox ItemsSource="{Binding FpsOptions}"
-                                      SelectedValue="{Binding MaxFps}"
-                                      SelectedValuePath="Value" DisplayMemberPath="Label"
-                                      Margin="0,2,0,10" />
-                            <TextBlock Text="Débit vidéo" FontSize="11" />
-                            <ComboBox ItemsSource="{Binding BitRateOptions}"
-                                      SelectedValue="{Binding VideoBitRate}"
-                                      SelectedValuePath="Value" DisplayMemberPath="Label"
-                                      Margin="0,2,0,14" />
-                            <ui:ToggleSwitch Content="Audio du jeu sur le PC" IsChecked="{Binding EnableAudio}" />
-                            <ui:ToggleSwitch Content="Garder l'écran allumé" IsChecked="{Binding StayAwake}" />
-                            <ui:ToggleSwitch Content="Lancer Dofus à la connexion" IsChecked="{Binding AutoLaunchDofus}" />
-                            <ui:ToggleSwitch Content="Plein écran automatique" IsChecked="{Binding AutoFullscreen}" />
-                            <ui:ToggleSwitch Content="Éteindre l'écran du téléphone (batterie)"
-                                             IsChecked="{Binding TurnScreenOff}"
-                                             ToolTip="L'écran du téléphone s'éteint pendant le mirroring — économise la batterie et préserve l'AMOLED" />
-
-                            <TextBlock Text="Journal" FontSize="11" FontWeight="SemiBold"
+                        <StackPanel Margin="14,10,14,14">
+                            <TextBlock Text="VIDÉO" FontSize="11" FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                       Margin="0,16,0,6" />
-                            <ListBox ItemsSource="{Binding Logs}"
-                                     Height="160" FontFamily="Consolas" FontSize="11"
-                                     Background="#10FFFFFF" BorderThickness="0" />
+                                       Margin="4,4,0,7" />
+                            <Border CornerRadius="10" Padding="12,0"
+                                    Background="#07FFFFFF"
+                                    BorderBrush="#0FFFFFFF" BorderThickness="1">
+                                <StackPanel>
+                                    <Grid MinHeight="42">
+                                        <TextBlock Text="Résolution" FontSize="12" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <ComboBox Width="175" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                  ItemsSource="{Binding MaxSizeOptions}"
+                                                  SelectedValue="{Binding MaxSize}"
+                                                  SelectedValuePath="Value" DisplayMemberPath="Label" />
+                                    </Grid>
+                                    <Border Height="1" Background="#08FFFFFF" />
+                                    <Grid MinHeight="42">
+                                        <TextBlock Text="Codec" FontSize="12" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <ComboBox Width="175" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                  ItemsSource="{Binding CodecOptions}"
+                                                  SelectedValue="{Binding VideoCodec}"
+                                                  SelectedValuePath="Value" DisplayMemberPath="Label" />
+                                    </Grid>
+                                    <Border Height="1" Background="#08FFFFFF" />
+                                    <Grid MinHeight="42">
+                                        <TextBlock Text="Framerate" FontSize="12" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <ComboBox Width="175" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                  ItemsSource="{Binding FpsOptions}"
+                                                  SelectedValue="{Binding MaxFps}"
+                                                  SelectedValuePath="Value" DisplayMemberPath="Label" />
+                                    </Grid>
+                                    <Border Height="1" Background="#08FFFFFF" />
+                                    <Grid MinHeight="42">
+                                        <TextBlock Text="Débit vidéo" FontSize="12" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <ComboBox Width="175" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                  ItemsSource="{Binding BitRateOptions}"
+                                                  SelectedValue="{Binding VideoBitRate}"
+                                                  SelectedValuePath="Value" DisplayMemberPath="Label" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="SESSION" FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                       Margin="4,16,0,7" />
+                            <Border CornerRadius="10" Padding="12,2"
+                                    Background="#07FFFFFF"
+                                    BorderBrush="#0FFFFFFF" BorderThickness="1">
+                                <StackPanel>
+                                    <Grid MinHeight="38">
+                                        <TextBlock Text="Audio du jeu sur le PC" FontSize="12" VerticalAlignment="Center" />
+                                        <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                         IsChecked="{Binding EnableAudio}" />
+                                    </Grid>
+                                    <Border Height="1" Background="#08FFFFFF" />
+                                    <Grid MinHeight="38">
+                                        <TextBlock Text="Garder l'écran allumé" FontSize="12" VerticalAlignment="Center" />
+                                        <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                         IsChecked="{Binding StayAwake}" />
+                                    </Grid>
+                                    <Border Height="1" Background="#08FFFFFF" />
+                                    <Grid MinHeight="38">
+                                        <TextBlock Text="Lancer Dofus à la connexion" FontSize="12" VerticalAlignment="Center" />
+                                        <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                         IsChecked="{Binding AutoLaunchDofus}" />
+                                    </Grid>
+                                    <Border Height="1" Background="#08FFFFFF" />
+                                    <Grid MinHeight="38">
+                                        <TextBlock Text="Plein écran automatique" FontSize="12" VerticalAlignment="Center" />
+                                        <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                         IsChecked="{Binding AutoFullscreen}" />
+                                    </Grid>
+                                    <Border Height="1" Background="#08FFFFFF" />
+                                    <Grid MinHeight="38"
+                                          ToolTip="Le texte copié sur le téléphone arrive dans le presse-papiers Windows">
+                                        <TextBlock Text="Recevoir le presse-papiers du téléphone" FontSize="12" VerticalAlignment="Center" />
+                                        <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                         IsChecked="{Binding SyncDeviceClipboard}" />
+                                    </Grid>
+                                    <Border Height="1" Background="#08FFFFFF" />
+                                    <Grid MinHeight="38"
+                                          ToolTip="Luminosité du téléphone au minimum pendant le mirroring — économise la batterie et préserve l'AMOLED">
+                                        <TextBlock Text="Atténuer l'écran du téléphone" FontSize="12" VerticalAlignment="Center" />
+                                        <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                         IsChecked="{Binding TurnScreenOff}" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="JOURNAL" FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                       Margin="4,16,0,7" />
+                            <Border CornerRadius="10"
+                                    Background="#07FFFFFF"
+                                    BorderBrush="#0FFFFFFF" BorderThickness="1">
+                                <ListBox ItemsSource="{Binding Logs}"
+                                         Height="140" FontFamily="Cascadia Mono, Consolas" FontSize="11"
+                                         Background="Transparent" BorderThickness="0" Padding="10,8" />
+                            </Border>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
             </Border>
 
-            <Border x:Name="HelpPanel"
-                    HorizontalAlignment="Left" Width="600"
-                    Margin="14,0,0,14" CornerRadius="12"
-                    Background="#F51B1F27"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+            <!-- ══ Panneau aide ══ -->
+            <Border x:Name="HelpPanel" Grid.Column="0"
+                    Width="560"
+                    Margin="14,14,0,14" CornerRadius="14"
+                    Background="#F51A1E26"
+                    BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1"
                     Visibility="Collapsed" ClipToBounds="True" Opacity="0">
                 <Border.RenderTransform>
                     <TranslateTransform x:Name="HelpSlide" X="-40" />
                 </Border.RenderTransform>
                 <Border.Effect>
-                    <DropShadowEffect BlurRadius="28" ShadowDepth="4" Opacity="0.55" Color="Black" />
+                    <DropShadowEffect BlurRadius="30" ShadowDepth="4" Opacity="0.55" Color="Black" />
                 </Border.Effect>
                 <Grid>
                     <Grid.RowDefinitions>
@@ -648,23 +870,23 @@
                                 <Border Width="30" Height="30" CornerRadius="9" Margin="0,0,10,0">
                                     <Border.Background>
                                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                            <GradientStop Color="#E8A33D" Offset="0" />
-                                            <GradientStop Color="#B57B24" Offset="1" />
+                                            <GradientStop Color="#4EC98E" Offset="0" />
+                                            <GradientStop Color="#2E7D55" Offset="1" />
                                         </LinearGradientBrush>
                                     </Border.Background>
                                     <ui:SymbolIcon Symbol="BookOpenGlobe24" FontSize="15"
-                                                   Foreground="#1F1503"
+                                                   Foreground="#0A120E"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
                                 <StackPanel>
                                     <TextBlock Text="Aide Dofus Touch" FontSize="13" FontWeight="SemiBold" />
-                                    <TextBlock x:Name="PageTitle" Text="Navigateur intégré" FontSize="10"
+                                    <TextBlock x:Name="PageTitle" Text="Sites intégrés" FontSize="11"
                                                Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                                TextTrimming="CharacterEllipsis" MaxWidth="380" />
                                 </StackPanel>
                             </StackPanel>
                             <ui:Button HorizontalAlignment="Right" Appearance="Transparent"
-                                       Width="30" Height="28" Click="OnHelpClick">
+                                       Width="30" Height="28" Padding="0" Click="OnHelpClick">
                                 <ui:SymbolIcon Symbol="Dismiss24" FontSize="12" />
                             </ui:Button>
                         </Grid>
@@ -722,6 +944,24 @@
                             </StackPanel>
                         </ui:Button>
                         <ui:Button Appearance="Secondary" Padding="9,4" Margin="0,0,6,6" FontSize="11"
+                                   Click="OnSiteClick" Tag="https://www.krosmoz.com/fr/almanax?game=dofustouch"
+                                   ToolTip="Almanax officiel — offrande et bonus du jour">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="CalendarStar24" FontSize="12" Margin="0,0,5,0"
+                                               Foreground="{DynamicResource DofusAccentBrush}" />
+                                <TextBlock Text="Almanax" />
+                            </StackPanel>
+                        </ui:Button>
+                        <ui:Button Appearance="Secondary" Padding="9,4" Margin="0,0,6,6" FontSize="11"
+                                   Click="OnSiteClick" Tag="https://papycha.fr/quetes/"
+                                   ToolTip="Guides papycha — quêtes, donjons, succès">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="TaskListLtr24" FontSize="12" Margin="0,0,5,0"
+                                               Foreground="{DynamicResource DofusAccentBrush}" />
+                                <TextBlock Text="Guides" />
+                            </StackPanel>
+                        </ui:Button>
+                        <ui:Button Appearance="Secondary" Padding="9,4" Margin="0,0,6,6" FontSize="11"
                                    Click="OnSiteClick" Tag="https://support.ankama.com/hc/fr"
                                    ToolTip="Support Ankama">
                             <StackPanel Orientation="Horizontal">
@@ -734,7 +974,7 @@
 
                     <Border Grid.Row="3" Margin="12,4,12,10" CornerRadius="17" Height="34"
                             Background="#14FFFFFF"
-                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                            BorderBrush="{DynamicResource AppBorderBrush}"
                             BorderThickness="1">
                         <Grid Margin="4,0">
                             <Grid.ColumnDefinitions>
@@ -779,23 +1019,26 @@
             </Border>
         </Grid>
 
-        <Border Grid.Row="3"
-                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0"
-                Padding="14,5">
+        <!-- ══ Statusbar ══ -->
+        <Border Grid.Row="4"
+                Background="{DynamicResource AppSurfaceBrush}"
+                BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="0,1,0,0"
+                Padding="16,6">
             <Grid>
                 <StackPanel Orientation="Horizontal">
                     <Ellipse Width="7" Height="7" Fill="{Binding StatusDotColor}"
                              VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <TextBlock Text="{Binding Status}" FontSize="11"
+                    <TextBlock Text="{Binding Status}" FontSize="11.5"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                    <TextBlock Text="{Binding WifiStatus}" FontSize="11" Margin="16,0,0,0"
+                    <TextBlock Text="{Binding WifiStatus}" FontSize="11.5" Margin="16,0,0,0"
                                Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                 </StackPanel>
-                <TextBlock Text="TouchMirror — gratuit · autorisé Ankama · Dofus Touch"
+                <TextBlock Text="TouchMirror v0.1.1"
                            FontSize="11"
                            Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                            HorizontalAlignment="Right" />
             </Grid>
         </Border>
+
     </Grid>
 </ui:FluentWindow>
