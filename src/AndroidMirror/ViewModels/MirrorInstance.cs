@@ -102,7 +102,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         await session.StartAsync();
 
         IsConnected = true;
-        DeviceName = session.DeviceName ?? Device.DisplayName;
+        DeviceName = Device.CustomName ?? session.DeviceName ?? Device.DisplayName;
         View.Dispatcher.Invoke(() => View.AttachControl(session.Control!));
         Connected?.Invoke(this);
 

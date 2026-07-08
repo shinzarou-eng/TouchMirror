@@ -35,7 +35,11 @@ public partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ActiveMirrorName))]
     private MirrorInstance? _activeMirror;
 
-    [ObservableProperty] private ObservableCollection<AdbDevice> _devices = new();
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DetectedDeviceCount))]
+    private ObservableCollection<AdbDevice> _devices = new();
+
+    public int DetectedDeviceCount => Devices.Count(d => !d.IsRememberedOnly);
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanConnect))]
     private AdbDevice? _selectedDevice;
@@ -55,6 +59,9 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _recordingElapsed = "REC";
 
     private readonly DispatcherTimer _recTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    private readonly DispatcherTimer _saveTimer = new() { Interval = TimeSpan.FromMilliseconds(600) };
+    private readonly AppSettings _settings;
+    private bool _suppressSave;
 
     public MainViewModel()
     {
@@ -64,6 +71,51 @@ public partial class MainViewModel : ObservableObject
             RecordingElapsed = since.HasValue ? $"REC {(DateTime.Now - since.Value):m\\:ss}" : "REC";
         };
         _recTimer.Start();
+        _saveTimer.Tick += (_, _) => { _saveTimer.Stop(); SaveNow(); };
+
+        _settings = SettingsStore.Load();
+        _suppressReconnect = true;
+        _suppressSave = true;
+        MaxSize = _settings.MaxSize;
+        MaxFps = _settings.MaxFps;
+        VideoBitRate = _settings.VideoBitRate;
+        VideoCodec = _settings.VideoCodec;
+        StayAwake = _settings.StayAwake;
+        EnableAudio = _settings.EnableAudio;
+        AutoLaunchDofus = _settings.AutoLaunchDofus;
+        AutoFullscreen = _settings.AutoFullscreen;
+        SyncDeviceClipboard = _settings.SyncDeviceClipboard;
+        Topmost = _settings.Topmost;
+        TurnScreenOff = _settings.TurnScreenOff;
+        ShowSettings = _settings.ShowSettings;
+        _suppressSave = false;
+        _suppressReconnect = false;
+    }
+
+    private void ScheduleSave()
+    {
+        if (_suppressSave) return;
+        _saveTimer.Stop();
+        _saveTimer.Start();
+    }
+
+    public void SaveNow()
+    {
+        _saveTimer.Stop();
+        _settings.MaxSize = MaxSize;
+        _settings.MaxFps = MaxFps;
+        _settings.VideoBitRate = VideoBitRate;
+        _settings.VideoCodec = VideoCodec;
+        _settings.StayAwake = StayAwake;
+        _settings.EnableAudio = EnableAudio;
+        _settings.AutoLaunchDofus = AutoLaunchDofus;
+        _settings.AutoFullscreen = AutoFullscreen;
+        _settings.SyncDeviceClipboard = SyncDeviceClipboard;
+        _settings.Topmost = Topmost;
+        _settings.TurnScreenOff = TurnScreenOff;
+        _settings.ShowSettings = ShowSettings;
+        _settings.LastSelectedDeviceKey = SelectedDevice?.DeviceKey;
+        SettingsStore.Save(_settings);
     }
 
     [ObservableProperty] private int _maxSize = 0;
@@ -160,13 +212,21 @@ public partial class MainViewModel : ObservableObject
 
     private bool _suppressReconnect;
 
-    partial void OnMaxSizeChanged(int value) { if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
-    partial void OnMaxFpsChanged(int value) { if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
-    partial void OnVideoBitRateChanged(int value) { if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
-    partial void OnVideoCodecChanged(string value) { if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
-    partial void OnEnableAudioChanged(bool value) { if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
+    partial void OnMaxSizeChanged(int value) { ScheduleSave(); if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
+    partial void OnMaxFpsChanged(int value) { ScheduleSave(); if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
+    partial void OnVideoBitRateChanged(int value) { ScheduleSave(); if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
+    partial void OnVideoCodecChanged(string value) { ScheduleSave(); if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
+    partial void OnEnableAudioChanged(bool value) { ScheduleSave(); if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
+    partial void OnStayAwakeChanged(bool value) => ScheduleSave();
+    partial void OnAutoLaunchDofusChanged(bool value) => ScheduleSave();
+    partial void OnAutoFullscreenChanged(bool value) => ScheduleSave();
+    partial void OnSyncDeviceClipboardChanged(bool value) => ScheduleSave();
+    partial void OnTopmostChanged(bool value) => ScheduleSave();
+    partial void OnShowSettingsChanged(bool value) => ScheduleSave();
+    partial void OnSelectedDeviceChanged(AdbDevice? value) => ScheduleSave();
     partial void OnTurnScreenOffChanged(bool value)
     {
+        ScheduleSave();
         foreach (var m in Mirrors)
             _ = m.SetScreenDimmedAsync(value);
     }
@@ -223,13 +283,56 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            var list = await AdbService.GetDevicesAsync();
+            var list = (await AdbService.GetDevicesAsync()).ToList();
+
+            // Migre les entrées mémorisées par un serial transitoire (ex. ip:5555)
+            // vers la clé matérielle quand l'appareil réapparaît.
+            foreach (var d in list)
+            {
+                if (_settings.Devices.ContainsKey(d.DeviceKey))
+                    continue;
+                var stale = _settings.Devices.FirstOrDefault(kv =>
+                    kv.Value.LastSerial != null && d.MatchesSerial(kv.Value.LastSerial));
+                if (stale.Key != null)
+                {
+                    _settings.Devices.Remove(stale.Key);
+                    _settings.Devices[d.DeviceKey] = stale.Value;
+                }
+            }
+
+            for (var i = 0; i < list.Count; i++)
+            {
+                var d = list[i];
+                if (!_settings.Devices.TryGetValue(d.DeviceKey, out var prefs))
+                    continue;
+                prefs.Model = d.Model;
+                prefs.LastSerial = d.Serial;
+                if (prefs.CustomName != null && prefs.CustomName != d.CustomName)
+                    list[i] = d with { CustomName = prefs.CustomName };
+            }
+
+            foreach (var (key, prefs) in _settings.Devices)
+            {
+                var present = list.Any(d => d.DeviceKey == key
+                    || (prefs.LastSerial != null && d.MatchesSerial(prefs.LastSerial)));
+                if (!present)
+                    list.Add(new AdbDevice(prefs.LastSerial ?? key, prefs.Model ?? "",
+                        "remembered", CustomName: prefs.CustomName));
+            }
+
             Devices = new ObservableCollection<AdbDevice>(list);
-            SelectedDevice ??= list.FirstOrDefault(d => d.IsReady) ?? list.FirstOrDefault();
-            if (list.Count == 0)
+            var current = SelectedDevice != null
+                ? list.FirstOrDefault(d => d.SharesIdentity(SelectedDevice) || d.DeviceKey == SelectedDevice.DeviceKey)
+                : null;
+            SelectedDevice = current
+                ?? list.FirstOrDefault(d => d.DeviceKey == _settings.LastSelectedDeviceKey)
+                ?? list.FirstOrDefault(d => d.IsReady)
+                ?? list.FirstOrDefault();
+            var detected = list.Count(d => !d.IsRememberedOnly);
+            if (detected == 0)
                 Status = "Aucun appareil détecté — active le débogage USB et branche ton téléphone";
             else if (!IsConnected)
-                Status = $"{list.Count} appareil(s) détecté(s)";
+                Status = $"{detected} appareil(s) détecté(s)";
         }
         catch (Exception ex)
         {
@@ -298,6 +401,7 @@ public partial class MainViewModel : ObservableObject
             Services.AppLogger.Write("startasync begin");
             await instance.StartAsync(BuildOptions(), AutoLaunchDofus);
             Services.AppLogger.Write("startasync done");
+            RememberDevice(device);
         }
         catch (Exception ex)
         {
@@ -334,6 +438,56 @@ public partial class MainViewModel : ObservableObject
         Mirrors.Remove(instance);
         PromoteNextActive(instance);
         await instance.DisconnectAsync();
+    }
+
+    private void RememberDevice(AdbDevice device)
+    {
+        var key = device.DeviceKey;
+        if (!_settings.Devices.TryGetValue(key, out var prefs))
+            _settings.Devices[key] = prefs = new DevicePrefs();
+        prefs.Model = device.Model;
+        prefs.LastSerial = device.Serial;
+        ScheduleSave();
+    }
+
+    public void RenameDevice(AdbDevice device, string? name)
+    {
+        var trimmed = string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+        if (trimmed == device.CustomName)
+            return;
+        var key = device.DeviceKey;
+        if (!_settings.Devices.TryGetValue(key, out var prefs))
+            _settings.Devices[key] = prefs = new DevicePrefs();
+        prefs.CustomName = trimmed;
+        prefs.Model = device.Model;
+        prefs.LastSerial = device.Serial;
+        for (var i = 0; i < Devices.Count; i++)
+            if (Devices[i].SharesIdentity(device))
+                Devices[i] = Devices[i] with { CustomName = trimmed };
+        foreach (var m in Mirrors.Where(m => m.Device.SharesIdentity(device)))
+            m.DeviceName = trimmed ?? device.DisplayName;
+        SaveNow();
+    }
+
+    [RelayCommand]
+    private void ForgetDevice(AdbDevice? device)
+    {
+        if (device == null)
+            return;
+        _settings.Devices.Remove(device.DeviceKey);
+        var stale = _settings.Devices.FirstOrDefault(kv =>
+            kv.Value.LastSerial != null && device.MatchesSerial(kv.Value.LastSerial));
+        if (stale.Key != null)
+            _settings.Devices.Remove(stale.Key);
+        var i = Devices.IndexOf(device);
+        if (i >= 0)
+        {
+            if (Devices[i].IsRememberedOnly)
+                Devices.RemoveAt(i);
+            else
+                Devices[i] = Devices[i] with { CustomName = null };
+        }
+        SaveNow();
     }
 
     private void PromoteNextActive(MirrorInstance removed)

@@ -470,7 +470,7 @@
                                     <TextBlock Text="Appareils" FontSize="20" FontWeight="SemiBold" />
                                     <TextBlock FontSize="12" Margin="10,0,0,0" VerticalAlignment="Center"
                                                Foreground="{DynamicResource TextFillColorTertiaryBrush}">
-                                        <Run Text="{Binding Devices.Count, Mode=OneWay}" /><Run Text=" détecté(s)" />
+                                        <Run Text="{Binding DetectedDeviceCount, Mode=OneWay}" /><Run Text=" détecté(s)" />
                                     </TextBlock>
                                 </StackPanel>
                                 <TextBlock Text="{Binding AdbStatus}" FontSize="12" HorizontalAlignment="Right"
@@ -496,7 +496,12 @@
                                                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                         </Border>
                                                         <StackPanel VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding ShortName}" FontSize="14" FontWeight="SemiBold" />
+                                                            <TextBox Text="{Binding ShortName, Mode=OneWay}"
+                                                                     FontSize="14" FontWeight="SemiBold" Padding="0"
+                                                                     Background="Transparent" BorderThickness="0"
+                                                                     ToolTip="Renommer ce téléphone — Entrée pour valider, Échap pour annuler"
+                                                                     KeyDown="OnDeviceNameKeyDown"
+                                                                     LostFocus="OnDeviceNameLostFocus" />
                                                             <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                                                                 <TextBlock Text="{Binding TransportText}" FontSize="12"
                                                                            Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
@@ -551,6 +556,14 @@
                                                                            Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                                                            VerticalAlignment="Center" />
                                                             </StackPanel>
+                                                            <ui:Button Appearance="Transparent" Padding="4" Margin="12,0,0,0"
+                                                                       VerticalAlignment="Center" ToolTip="Oublier cet appareil"
+                                                                       Command="{Binding DataContext.ForgetDeviceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                       CommandParameter="{Binding}"
+                                                                       Visibility="{Binding IsRememberedOnly, Converter={StaticResource BoolToVis}}">
+                                                                <ui:SymbolIcon Symbol="Dismiss24" FontSize="12"
+                                                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                            </ui:Button>
                                                         </StackPanel>
                                                     </StackPanel>
                                                     <ui:Button HorizontalAlignment="Right" VerticalAlignment="Center"
@@ -558,7 +571,8 @@
                                                                FontSize="12" FontWeight="SemiBold"
                                                                Command="{Binding DataContext.ConnectToDeviceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                                CommandParameter="{Binding}"
-                                                               IsEnabled="{Binding IsReady}">
+                                                               IsEnabled="{Binding IsReady}"
+                                                               Visibility="{Binding IsRememberedOnly, Converter={StaticResource NotBoolToVis}}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <ui:SymbolIcon Symbol="Play24" FontSize="12" Margin="0,0,7,0" />
                                                             <TextBlock Text="Connecter" />

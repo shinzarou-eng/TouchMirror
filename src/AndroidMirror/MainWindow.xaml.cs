@@ -57,6 +57,7 @@ public partial class MainWindow : FluentWindow
         Loaded += async (_, _) => await _vm.InitializeAsync();
         Closed += async (_, _) =>
         {
+            _vm.SaveNow();
             foreach (var m in _vm.Mirrors.ToList())
                 await m.DisconnectAsync();
         };
@@ -73,6 +74,37 @@ public partial class MainWindow : FluentWindow
     private void OnRotateDisplayClick(object sender, RoutedEventArgs e)
         => _vm.ActiveMirror?.View.CycleDisplayRotation();
     private void OnSettingsClick(object sender, RoutedEventArgs e) => _vm.ShowSettings = !_vm.ShowSettings;
+
+    private void OnDeviceNameKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.TextBox tb || tb.DataContext is not Services.AdbDevice d)
+            return;
+        if (e.Key is Key.Enter or Key.Return)
+        {
+            CommitDeviceName(tb, d);
+            Keyboard.ClearFocus();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            tb.Text = d.ShortName;
+            Keyboard.ClearFocus();
+            e.Handled = true;
+        }
+    }
+
+    private void OnDeviceNameLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.TextBox tb && tb.DataContext is Services.AdbDevice d)
+            CommitDeviceName(tb, d);
+    }
+
+    private void CommitDeviceName(System.Windows.Controls.TextBox tb, Services.AdbDevice device)
+    {
+        var text = tb.Text.Trim();
+        if (text != device.ShortName)
+            _vm.RenameDevice(device, text);
+    }
 
     private bool _browserReady;
 
