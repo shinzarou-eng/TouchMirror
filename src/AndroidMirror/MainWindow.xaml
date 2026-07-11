@@ -72,9 +72,19 @@
                     </ui:Button>
                     <ComboBox ItemsSource="{Binding Devices}"
                               SelectedItem="{Binding SelectedDevice}"
-                              DisplayMemberPath="DisplayName"
                               Width="225" MaxWidth="225" MinWidth="120"
-                              VerticalAlignment="Center" />
+                              VerticalAlignment="Center">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding ShortName}" />
+                                    <TextBlock Text="{Binding SelectorHint}" FontSize="10.5"
+                                               Margin="6,1,0,0" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
                     <ui:Button Style="{StaticResource ToolBtn}"
                                Command="{Binding RefreshDevicesCommand}"
                                ToolTip="Rafraîchir les appareils">

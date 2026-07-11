@@ -32,6 +32,13 @@ public sealed record AdbDevice(string Serial, string Model, string State, int? B
             ? (IsWifi ? $"USB + WiFi — {Serial}" : "USB + WiFi")
             : IsWifi ? $"WiFi — {Serial}" : "USB";
     public bool ShowSerial => !IsWifi && !IsRememberedOnly;
+    public string? SelectorHint => State switch
+    {
+        "unauthorized" => "— à autoriser",
+        "offline" => "— hors ligne",
+        "remembered" => "— non détecté",
+        _ => null
+    };
 
     public bool MatchesSerial(string s) => Serial == s || AltSerial == s;
 

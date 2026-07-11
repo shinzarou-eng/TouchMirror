@@ -60,6 +60,8 @@ public partial class MainViewModel : ObservableObject
 
     private readonly DispatcherTimer _recTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer _saveTimer = new() { Interval = TimeSpan.FromMilliseconds(600) };
+    private readonly DispatcherTimer _pollTimer = new() { Interval = TimeSpan.FromSeconds(5) };
+    private bool _refreshing;
     private readonly AppSettings _settings;
     private bool _suppressSave;
 
@@ -72,6 +74,11 @@ public partial class MainViewModel : ObservableObject
         };
         _recTimer.Start();
         _saveTimer.Tick += (_, _) => { _saveTimer.Stop(); SaveNow(); };
+        _pollTimer.Tick += async (_, _) =>
+        {
+            if (!IsBusy && !_refreshing)
+                await RefreshDevicesAsync();
+        };
 
         _settings = SettingsStore.Load();
         _suppressReconnect = true;
@@ -281,6 +288,9 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task RefreshDevicesAsync()
     {
+        if (_refreshing)
+            return;
+        _refreshing = true;
         try
         {
             var list = (await AdbService.GetDevicesAsync()).ToList();
@@ -333,10 +343,18 @@ public partial class MainViewModel : ObservableObject
                 Status = "Aucun appareil détecté — active le débogage USB et branche ton téléphone";
             else if (!IsConnected)
                 Status = $"{detected} appareil(s) détecté(s)";
+
+            // Relance la détection tant qu'un appareil attend une action
+            // (autorisation, hors ligne) ou qu'un appareil mémorisé est absent.
+            _pollTimer.IsEnabled = list.Any(d => !d.IsReady);
         }
         catch (Exception ex)
         {
             Status = ex.Message;
+        }
+        finally
+        {
+            _refreshing = false;
         }
     }
 
@@ -344,12 +362,13 @@ public partial class MainViewModel : ObservableObject
     private async Task ConnectAsync()
     {
         Services.AppLogger.Write($"ConnectAsync cmd: sel={SelectedDevice?.Serial}");
-        if (SelectedDevice is not { IsReady: true })
+        var device = SelectedDevice;
+        if (device is not { IsReady: true })
         {
-            Status = "Aucun appareil prêt (vérifie le débogage USB)";
+            Status = NotReadyMessage(device);
             return;
         }
-        await ConnectDeviceAsync(SelectedDevice);
+        await ConnectDeviceAsync(device);
     }
 
     [RelayCommand]
@@ -357,10 +376,23 @@ public partial class MainViewModel : ObservableObject
     {
         Services.AppLogger.Write($"ConnectToDevice cmd: {device?.Serial} ready={device?.IsReady}");
         if (device is not { IsReady: true })
+        {
+            Status = NotReadyMessage(device);
             return;
+        }
         SelectedDevice = device;
         await ConnectDeviceAsync(device);
     }
+
+    private static string NotReadyMessage(AdbDevice? device) => device switch
+    {
+        null => "Aucun appareil prêt (vérifie le débogage USB)",
+        { NeedsAuthorization: true } =>
+            $"Autorise le débogage USB sur « {device.ShortName} » — regarde l'écran de l'appareil",
+        { IsOffline: true } => $"« {device.ShortName} » est hors ligne — rebranche-le",
+        { IsRememberedOnly: true } => $"« {device.ShortName} » n'est pas détecté — rebranche-le",
+        _ => $"« {device.ShortName} » n'est pas prêt"
+    };
 
     private async Task ConnectDeviceAsync(AdbDevice device)
     {
