@@ -358,6 +358,14 @@
                                         <Ellipse Width="6" Height="6" Fill="#E05B4C" Margin="8,0,0,0"
                                                  VerticalAlignment="Center"
                                                  Visibility="{Binding ActiveMirror.IsRecording, Converter={StaticResource BoolToVis}}" />
+                                        <Border Margin="8,0,0,0" Padding="7,1" CornerRadius="5"
+                                                Background="#2EFFFFFF"
+                                                Visibility="{Binding HasInactiveMirrors, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock FontSize="10"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                                <Run Text="Ctrl" /><Run Text="+" /><Run Text="{Binding ActiveMirror.Slot, Mode=OneWay}" />
+                                            </TextBlock>
+                                        </Border>
                                     </StackPanel>
                                     <ui:Button HorizontalAlignment="Right" Appearance="Transparent"
                                                Width="26" Height="22" Padding="0"
@@ -412,6 +420,14 @@
                                                     </ui:Button>
                                                 </Grid>
                                             </Border>
+                                            <Border VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                                                    Margin="6" Padding="7,2" CornerRadius="6"
+                                                    Background="#C0101216">
+                                                <TextBlock FontSize="10"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                                    <Run Text="Ctrl" /><Run Text="+" /><Run Text="{Binding Slot, Mode=OneWay}" />
+                                                </TextBlock>
+                                            </Border>
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
@@ -436,7 +452,7 @@
                             <ui:Button Command="{Binding SendRecentsCommand}" ToolTip="Récents" Margin="2" Appearance="Secondary">
                                 <ui:SymbolIcon Symbol="SquareMultiple24" FontSize="14.5" />
                             </ui:Button>
-                            <ui:Button Click="OnFullscreenClick" ToolTip="Quitter le plein écran (F11)" Margin="2" Appearance="Secondary">
+                            <ui:Button Click="OnFullscreenClick" ToolTip="Quitter le plein écran (Échap ou F11)" Margin="2" Appearance="Secondary">
                                 <ui:SymbolIcon Symbol="FullScreenMinimize24" FontSize="16" />
                             </ui:Button>
                         </StackPanel>

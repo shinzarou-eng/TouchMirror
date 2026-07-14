@@ -21,6 +21,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     [ObservableProperty] private bool _isConnected;
     [ObservableProperty] private bool _isRecording;
     [ObservableProperty] private bool _isActive;
+    [ObservableProperty] private int _slot;
 
     private FileStream? _recordStream;
     private Mp4Recorder? _recorder;

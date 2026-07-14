@@ -176,8 +176,26 @@ public partial class MainViewModel : ObservableObject
         UpdateStatus();
     }
 
+    public void ActivateAdjacent(int delta)
+    {
+        if (Mirrors.Count < 2 || ActiveMirror == null)
+            return;
+        var i = Mirrors.IndexOf(ActiveMirror);
+        if (i < 0)
+            return;
+        SetActive(Mirrors[(i + delta + Mirrors.Count) % Mirrors.Count]);
+    }
+
+    public void ActivateAt(int index)
+    {
+        if (index >= 0 && index < Mirrors.Count && !ReferenceEquals(Mirrors[index], ActiveMirror))
+            SetActive(Mirrors[index]);
+    }
+
     private void RefreshInactiveMirrors()
     {
+        for (var i = 0; i < Mirrors.Count; i++)
+            Mirrors[i].Slot = i + 1;
         for (var i = InactiveMirrors.Count - 1; i >= 0; i--)
         {
             var m = InactiveMirrors[i];
