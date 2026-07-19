@@ -46,6 +46,7 @@ public partial class MainWindow : FluentWindow
                 var file = Path.Combine(dir, $"mirror_{DateTime.Now:yyyyMMdd_HHmmss}.png");
                 instance.View.SaveScreenshot(file);
                 _vm.Status = $"Capture enregistrée → {file}";
+                return file;
             });
         _vm.AnyConnected += () =>
             Dispatcher.Invoke(() =>
@@ -53,11 +54,18 @@ public partial class MainWindow : FluentWindow
                 if (_vm.AutoFullscreen && !_isFullscreen)
                     ToggleFullscreen();
             });
+        _vm.ConfirmUnverified = p => Task.FromResult(
+            System.Windows.MessageBox.Show(this,
+                $"« {p.Name} » n'est pas un plugin officiel — il peut exécuter n'importe quel code sur ce PC.\n\nL'activer quand même ?",
+                "Plugin non vérifié",
+                System.Windows.MessageBoxButton.YesNo,
+                System.Windows.MessageBoxImage.Warning) == System.Windows.MessageBoxResult.Yes);
 
         Loaded += async (_, _) => await _vm.InitializeAsync();
         Closed += async (_, _) =>
         {
             _vm.SaveNow();
+            await _vm.ShutdownApiAsync();
             foreach (var m in _vm.Mirrors.ToList())
                 await m.DisconnectAsync();
         };

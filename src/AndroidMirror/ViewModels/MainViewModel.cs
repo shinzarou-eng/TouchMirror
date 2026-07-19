@@ -31,6 +31,8 @@ public partial class MainViewModel : ObservableObject
 
     public ObservableCollection<MirrorInstance> InactiveMirrors { get; } = new();
 
+    public ObservableCollection<PluginInstance> Plugins { get; } = new();
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActiveMirrorName))]
     private MirrorInstance? _activeMirror;
@@ -64,6 +66,9 @@ public partial class MainViewModel : ObservableObject
     private bool _refreshing;
     private readonly AppSettings _settings;
     private bool _suppressSave;
+    private readonly LocalApiHost _apiHost;
+    private LocalApiServer? _apiServer;
+    private bool _apiBusy;
 
     public MainViewModel()
     {
@@ -81,6 +86,7 @@ public partial class MainViewModel : ObservableObject
         };
 
         _settings = SettingsStore.Load();
+        _apiHost = new LocalApiHost(this);
         _suppressReconnect = true;
         _suppressSave = true;
         MaxSize = _settings.MaxSize;
@@ -95,6 +101,9 @@ public partial class MainViewModel : ObservableObject
         Topmost = _settings.Topmost;
         TurnScreenOff = _settings.TurnScreenOff;
         ShowSettings = _settings.ShowSettings;
+        LocalApiPort = _settings.LocalApiPort;
+        LocalApiToken = _settings.LocalApiToken ?? "";
+        LocalApiEnabled = _settings.LocalApiEnabled;
         _suppressSave = false;
         _suppressReconnect = false;
     }
@@ -121,8 +130,14 @@ public partial class MainViewModel : ObservableObject
         _settings.Topmost = Topmost;
         _settings.TurnScreenOff = TurnScreenOff;
         _settings.ShowSettings = ShowSettings;
+        _settings.LocalApiEnabled = LocalApiEnabled;
+        _settings.LocalApiPort = LocalApiPort;
+        _settings.LocalApiToken = string.IsNullOrEmpty(LocalApiToken) ? null : LocalApiToken;
         _settings.LastSelectedDeviceKey = SelectedDevice?.DeviceKey;
+        _settings.EnabledPlugins = Plugins.Where(p => p.Running).Select(p => p.Name).ToList();
         SettingsStore.Save(_settings);
+        if (LocalApiEnabled && _apiServer is { Port: { } p } && p != LocalApiPort)
+            _ = RestartApiAsync();
     }
 
     [ObservableProperty] private int _maxSize = 0;
@@ -160,7 +175,7 @@ public partial class MainViewModel : ObservableObject
         : IsConnected ? System.Windows.Media.Brushes.LimeGreen : System.Windows.Media.Brushes.Gray;
 
     public event Action<MirrorInstance>? MirrorAdded;
-    public event Action<MirrorInstance>? ScreenshotRequested;
+    public event Func<MirrorInstance, string?>? ScreenshotRequested;
     public event Action? AnyConnected;
 
     public void SetActive(MirrorInstance instance)
@@ -174,6 +189,7 @@ public partial class MainViewModel : ObservableObject
         }
         RefreshInactiveMirrors();
         UpdateStatus();
+        _apiHost.Publish("mirror.active", new { slot = instance.Slot, name = instance.DeviceName });
     }
 
     public void ActivateAdjacent(int delta)
@@ -190,6 +206,193 @@ public partial class MainViewModel : ObservableObject
     {
         if (index >= 0 && index < Mirrors.Count && !ReferenceEquals(Mirrors[index], ActiveMirror))
             SetActive(Mirrors[index]);
+    }
+
+    // API locale — control-plane uniquement : rien ici ne doit atteindre
+    // Session.Control (tactile, clavier, clipboard). Voir LocalApiHost.
+
+    [ObservableProperty] private bool _localApiEnabled;
+    [ObservableProperty] private int _localApiPort = 47613;
+    [ObservableProperty] private string _localApiToken = "";
+
+    public MirrorInstance? MirrorAtSlot(int slot)
+        => slot >= 1 && slot <= Mirrors.Count ? Mirrors[slot - 1] : null;
+
+    public bool TryActivateSlot(int slot)
+    {
+        var m = MirrorAtSlot(slot);
+        if (m == null)
+            return false;
+        SetActive(m);
+        return true;
+    }
+
+    public string? ToggleRecordingFor(MirrorInstance? m)
+    {
+        if (m == null)
+            return null;
+        Status = m.ToggleRecording(VideoCodec);
+        OnPropertyChanged(nameof(RecordingVisibility));
+        RecordingElapsed = m.RecordingSince.HasValue
+            ? $"REC {(DateTime.Now - m.RecordingSince.Value):m\\:ss}" : "REC";
+        _apiHost.Publish("mirror.recording", new { slot = m.Slot, recording = m.IsRecording });
+        return Status;
+    }
+
+    public string? RequestScreenshot(MirrorInstance m) => ScreenshotRequested?.Invoke(m);
+
+    public async Task<AdbDevice?> FindDeviceBySerialAsync(string serial)
+    {
+        var d = Devices.FirstOrDefault(x => x.MatchesSerial(serial));
+        if (d == null)
+        {
+            await RefreshDevicesAsync();
+            d = Devices.FirstOrDefault(x => x.MatchesSerial(serial));
+        }
+        return d;
+    }
+
+    public Task ConnectExistingDeviceAsync(AdbDevice device) => ConnectDeviceAsync(device);
+    public Task DisconnectMirrorAsync(MirrorInstance m) => RemoveMirrorInternalAsync(m);
+
+    partial void OnLocalApiEnabledChanged(bool value)
+    {
+        ScheduleSave();
+        _ = RestartApiAsync();
+    }
+
+    partial void OnLocalApiPortChanged(int value) => ScheduleSave();
+
+    [RelayCommand]
+    private void RegenerateApiToken()
+    {
+        _settings.LocalApiToken = Guid.NewGuid().ToString("N");
+        LocalApiToken = _settings.LocalApiToken;
+        SaveNow();
+        Log("Token API régénéré");
+    }
+
+    private async Task RestartApiAsync()
+    {
+        if (_apiBusy)
+            return;
+        _apiBusy = true;
+        try
+        {
+            if (!LocalApiEnabled)
+            {
+                if (_apiServer != null)
+                {
+                    await _apiServer.DisposeAsync();
+                    _apiServer = null;
+                    Log("API locale arrêtée");
+                }
+                return;
+            }
+            if (string.IsNullOrEmpty(_settings.LocalApiToken))
+                _settings.LocalApiToken = Guid.NewGuid().ToString("N");
+            LocalApiToken = _settings.LocalApiToken;
+            if (LocalApiPort is < 1024 or > 65535)
+            {
+                LocalApiPort = 47613;
+                return;
+            }
+            var server = new LocalApiServer();
+            try
+            {
+                await server.StartAsync(_apiHost, LocalApiPort, () => _settings.LocalApiToken);
+                var old = _apiServer;
+                _apiServer = server;
+                if (old != null)
+                    await old.DisposeAsync();
+                Log($"API locale : http://127.0.0.1:{LocalApiPort}/api — token Bearer requis");
+            }
+            catch (Exception ex)
+            {
+                Log($"API locale impossible : {ex.Message}");
+                if (_apiServer == null)
+                {
+                    _apiBusy = false;
+                    LocalApiEnabled = false;
+                }
+            }
+        }
+        finally
+        {
+            _apiBusy = false;
+        }
+    }
+
+    public async Task ShutdownApiAsync()
+    {
+        if (_apiServer != null)
+            await _apiServer.DisposeAsync();
+        _apiServer = null;
+        foreach (var p in Plugins)
+            p.Stop();
+    }
+
+    // ═══ Plugins — scripts utilisateurs du dossier plugins/ ═══
+
+    private string? ApiUrl =>
+        LocalApiEnabled && _apiServer?.Port is int p ? $"http://127.0.0.1:{p}/api" : null;
+
+    [RelayCommand]
+    private void RescanPlugins()
+    {
+        var dir = Path.Combine(AppContext.BaseDirectory, "plugins");
+        Directory.CreateDirectory(dir);
+        var files = Directory.EnumerateFiles(dir, "*.ps1")
+            .OrderBy(f => f)
+            .ToList();
+
+        for (var i = Plugins.Count - 1; i >= 0; i--)
+            if (!files.Contains(Plugins[i].FilePath))
+                Plugins.RemoveAt(i);
+        foreach (var f in files.Where(f => Plugins.All(p => p.FilePath != f)))
+        {
+            var plugin = new PluginInstance(f);
+            plugin.Output += line => Log($"[{plugin.Name}] {line}");
+            Plugins.Add(plugin);
+        }
+        foreach (var p in Plugins)
+            if (!p.Running && _settings.EnabledPlugins.Contains(p.Name))
+                p.Start(ApiUrl, _settings.LocalApiToken);
+    }
+
+    /// <summary>Demande de confirmation avant d'activer un plugin non officiel. Posée par la vue.</summary>
+    public Func<PluginInstance, Task<bool>>? ConfirmUnverified;
+
+    [RelayCommand]
+    private async Task TogglePlugin(PluginInstance? plugin)
+    {
+        if (plugin == null)
+            return;
+        if (!plugin.Running && !plugin.IsVerified
+            && ConfirmUnverified != null && !await ConfirmUnverified(plugin))
+            return;
+        if (plugin.Running)
+        {
+            plugin.Stop();
+            _settings.EnabledPlugins.Remove(plugin.Name);
+            Log($"plugin arrêté : {plugin.Name}");
+        }
+        else
+        {
+            plugin.Start(ApiUrl, _settings.LocalApiToken);
+            if (plugin.Running && !_settings.EnabledPlugins.Contains(plugin.Name))
+                _settings.EnabledPlugins.Add(plugin.Name);
+            Log($"plugin lancé : {plugin.Name}");
+        }
+        ScheduleSave();
+    }
+
+    [RelayCommand]
+    private void OpenPluginsFolder()
+    {
+        var dir = Path.Combine(AppContext.BaseDirectory, "plugins");
+        Directory.CreateDirectory(dir);
+        System.Diagnostics.Process.Start("explorer.exe", dir);
     }
 
     private void RefreshInactiveMirrors()
@@ -247,7 +450,12 @@ public partial class MainViewModel : ObservableObject
     partial void OnAutoFullscreenChanged(bool value) => ScheduleSave();
     partial void OnSyncDeviceClipboardChanged(bool value) => ScheduleSave();
     partial void OnTopmostChanged(bool value) => ScheduleSave();
-    partial void OnShowSettingsChanged(bool value) => ScheduleSave();
+    partial void OnShowSettingsChanged(bool value)
+    {
+        ScheduleSave();
+        if (value)
+            RescanPlugins();
+    }
     partial void OnSelectedDeviceChanged(AdbDevice? value) => ScheduleSave();
     partial void OnTurnScreenOffChanged(bool value)
     {
@@ -277,6 +485,7 @@ public partial class MainViewModel : ObservableObject
                 ? "adb embarqué — rien à installer"
                 : $"adb : {adb}";
         await RefreshDevicesAsync();
+        RescanPlugins();
         _ = CheckUpdateAsync();
     }
 
@@ -361,6 +570,7 @@ public partial class MainViewModel : ObservableObject
                 Status = "Aucun appareil détecté — active le débogage USB et branche ton téléphone";
             else if (!IsConnected)
                 Status = $"{detected} appareil(s) détecté(s)";
+            _apiHost.Publish("devices", new { detected });
 
             // Relance la détection tant qu'un appareil attend une action
             // (autorisation, hors ligne) ou qu'un appareil mémorisé est absent.
@@ -437,9 +647,13 @@ public partial class MainViewModel : ObservableObject
             {
                 SetActive(m);
                 AnyConnected?.Invoke();
+                _apiHost.Publish("mirror.connected",
+                    new { slot = m.Slot, name = m.DeviceName, serial = m.Device.Serial });
             };
             instance.Disconnected += m =>
             {
+                _apiHost.Publish("mirror.disconnected",
+                    new { name = m.DeviceName, serial = m.Device.Serial });
                 Mirrors.Remove(m);
                 PromoteNextActive(m);
             };
@@ -616,7 +830,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand] private void Screenshot()
     {
         if (ActiveMirror != null)
-            ScreenshotRequested?.Invoke(ActiveMirror);
+            RequestScreenshot(ActiveMirror);
     }
 
     [RelayCommand]
@@ -648,15 +862,7 @@ public partial class MainViewModel : ObservableObject
     private void ToggleScreenDim() => TurnScreenOff = !TurnScreenOff;
 
     [RelayCommand]
-    private void ToggleRecording()
-    {
-        if (ActiveMirror == null)
-            return;
-        Status = ActiveMirror.ToggleRecording(VideoCodec);
-        OnPropertyChanged(nameof(RecordingVisibility));
-        RecordingElapsed = ActiveMirror.RecordingSince.HasValue
-            ? $"REC {(DateTime.Now - ActiveMirror.RecordingSince.Value):m\\:ss}" : "REC";
-    }
+    private void ToggleRecording() => ToggleRecordingFor(ActiveMirror);
 
     private void Log(string message)
     {

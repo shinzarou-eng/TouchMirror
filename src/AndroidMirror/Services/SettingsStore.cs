@@ -24,7 +24,11 @@ public sealed class AppSettings
     public bool TurnScreenOff { get; set; }
     public bool Topmost { get; set; }
     public bool ShowSettings { get; set; }
+    public bool LocalApiEnabled { get; set; }
+    public int LocalApiPort { get; set; } = 47613;
+    public string? LocalApiToken { get; set; }
     public string? LastSelectedDeviceKey { get; set; }
+    public List<string> EnabledPlugins { get; set; } = new();
     public Dictionary<string, DevicePrefs> Devices { get; set; } = new();
 }
 
