@@ -1,0 +1,183 @@
+using System.Text.Json;
+using System.Threading.Channels;
+using System.Windows;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+using TouchMirror.ViewModels;
+
+namespace TouchMirror.Services;
+
+/// <summary>
+/// Façade de l'API locale — control-plane uniquement (activation, record,
+/// capture, connexion). Aucun accès à ControlChannel / ScrcpySession :
+/// l'API ne peut pas produire d'input sur le téléphone. Ne pas l'ouvrir.
+/// </summary>
+public sealed class LocalApiHost
+{
+    public sealed record MirrorDto(int Slot, string Name, string Serial, string Model,
+        bool Connected, bool Active, bool Recording, bool Wifi);
+    public sealed record DeviceDto(string Serial, string Name, string Model,
+        bool Ready, bool Remembered, bool Wifi);
+    public sealed record ApiResult(bool Ok, string? Message = null, object? Data = null);
+
+    private readonly MainViewModel _vm;
+    private readonly Channel<string> _events = Channel.CreateUnbounded<string>();
+
+    public LocalApiHost(MainViewModel vm) => _vm = vm;
+
+    public ChannelReader<string> Events => _events.Reader;
+
+    public void Publish(string type, object data)
+        => _events.Writer.TryWrite(JsonSerializer.Serialize(new { type, data }));
+
+    private static Task<T> Ui<T>(Func<T> f)
+        => Application.Current.Dispatcher.InvokeAsync(f).Task;
+
+    private static Task<T> UiAsync<T>(Func<Task<T>> f)
+        => Application.Current.Dispatcher.InvokeAsync(f).Task.Unwrap();
+
+    public Task<ApiResult> GetStatusAsync() => Ui(() => new ApiResult(true, Data: new
+    {
+        version = typeof(LocalApiHost).Assembly.GetName().Version?.ToString(3),
+        status = _vm.Status,
+        mirrors = _vm.Mirrors.Count,
+        activeSlot = _vm.ActiveMirror?.Slot ?? 0,
+    }));
+
+    public Task<ApiResult> GetMirrorsAsync() => Ui(() => new ApiResult(true,
+        Data: _vm.Mirrors.Select(m => new MirrorDto(
+            m.Slot, m.DeviceName, m.Device.Serial, m.Device.Model, m.IsConnected,
+            ReferenceEquals(m, _vm.ActiveMirror), m.IsRecording, m.Device.IsWifi)).ToList()));
+
+    public Task<ApiResult> GetDevicesAsync() => Ui(() => new ApiResult(true,
+        Data: _vm.Devices.Select(d => new DeviceDto(
+            d.Serial, d.DisplayName, d.Model, d.IsReady, d.IsRememberedOnly, d.IsWifi)).ToList()));
+
+    public Task<ApiResult> ActivateAsync(int slot) => Ui(() =>
+        _vm.TryActivateSlot(slot)
+            ? new ApiResult(true, $"Miroir {slot} actif")
+            : new ApiResult(false, $"slot {slot} inconnu"));
+
+    public Task<ApiResult> ToggleRecordingAsync(int slot) => Ui(() =>
+    {
+        var m = _vm.MirrorAtSlot(slot);
+        if (m == null)
+            return new ApiResult(false, $"slot {slot} inconnu");
+        var msg = _vm.ToggleRecordingFor(m);
+        return new ApiResult(true, msg, new { recording = m.IsRecording });
+    });
+
+    public Task<ApiResult> ScreenshotAsync(int slot) => Ui(() =>
+    {
+        var m = _vm.MirrorAtSlot(slot);
+        if (m == null)
+            return new ApiResult(false, $"slot {slot} inconnu");
+        var path = _vm.RequestScreenshot(m);
+        return path == null
+            ? new ApiResult(false, "capture impossible (pas de flux vidéo)")
+            : new ApiResult(true, "capture enregistrée", new { path });
+    });
+
+    public Task<ApiResult> DisconnectMirrorAsync(int slot) => UiAsync(async () =>
+    {
+        var m = _vm.MirrorAtSlot(slot);
+        if (m == null)
+            return new ApiResult(false, $"slot {slot} inconnu");
+        await _vm.DisconnectMirrorAsync(m);
+        return new ApiResult(true, $"miroir {slot} déconnecté");
+    });
+
+    public Task<ApiResult> ConnectAsync(string serial) => UiAsync(async () =>
+    {
+        var d = await _vm.FindDeviceBySerialAsync(serial);
+        if (d == null)
+            return new ApiResult(false, $"appareil {serial} introuvable");
+        if (!d.IsReady)
+            return new ApiResult(false, $"appareil non prêt ({d.State})");
+        if (_vm.Mirrors.Any(m => m.Device.SharesIdentity(d)))
+            return new ApiResult(true, "déjà connecté");
+        await _vm.ConnectExistingDeviceAsync(d);
+        return new ApiResult(true, $"connecté — {d.DisplayName}");
+    });
+}
+
+/// <summary>HTTP local (Kestrel, 127.0.0.1) + SSE. Auth : Bearer ou ?token=.</summary>
+public sealed class LocalApiServer : IAsyncDisposable
+{
+    private WebApplication? _app;
+    public int? Port { get; private set; }
+
+    public async Task StartAsync(LocalApiHost host, int port, Func<string?> token)
+    {
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.Logging.ClearProviders();
+        builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
+        var app = builder.Build();
+
+        app.Use(async (ctx, next) =>
+        {
+            if (!ctx.Request.Path.StartsWithSegments("/api"))
+            {
+                ctx.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+            var expected = token();
+            var authorized = !string.IsNullOrEmpty(expected)
+                && (ctx.Request.Headers.Authorization == $"Bearer {expected}"
+                    || ctx.Request.Query["token"] == expected);
+            if (!authorized)
+            {
+                ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await ctx.Response.WriteAsJsonAsync(new { ok = false, error = "token manquant ou invalide" });
+                return;
+            }
+            await next(ctx);
+        });
+
+        static IResult Http(LocalApiHost.ApiResult r)
+            => r.Ok ? Results.Ok(r) : Results.NotFound(r);
+
+        app.MapGet("/api/status", async () => Results.Ok(await host.GetStatusAsync()));
+        app.MapGet("/api/mirrors", async () => Results.Ok(await host.GetMirrorsAsync()));
+        app.MapGet("/api/devices", async () => Results.Ok(await host.GetDevicesAsync()));
+        app.MapPost("/api/mirrors/{slot:int}/activate", async (int slot) => Http(await host.ActivateAsync(slot)));
+        app.MapPost("/api/mirrors/{slot:int}/record", async (int slot) => Http(await host.ToggleRecordingAsync(slot)));
+        app.MapPost("/api/mirrors/{slot:int}/screenshot", async (int slot) => Http(await host.ScreenshotAsync(slot)));
+        app.MapPost("/api/mirrors/{slot:int}/disconnect", async (int slot) => Http(await host.DisconnectMirrorAsync(slot)));
+        app.MapPost("/api/devices/{serial}/connect", async (string serial) => Http(await host.ConnectAsync(serial)));
+        app.MapGet("/api/events", ctx => StreamEventsAsync(host, ctx));
+
+        _app = app;
+        Port = port;
+        await app.StartAsync();
+    }
+
+    private static async Task StreamEventsAsync(LocalApiHost host, HttpContext ctx)
+    {
+        ctx.Response.ContentType = "text/event-stream";
+        ctx.Response.Headers.CacheControl = "no-cache";
+        try
+        {
+            await ctx.Response.WriteAsync("data: {\"type\":\"ready\"}\n\n", ctx.RequestAborted);
+            await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+            await foreach (var msg in host.Events.ReadAllAsync(ctx.RequestAborted))
+            {
+                await ctx.Response.WriteAsync($"data: {msg}\n\n", ctx.RequestAborted);
+                await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_app == null)
+            return;
+        await _app.StopAsync();
+        await _app.DisposeAsync();
+        _app = null;
+        Port = null;
+    }
+}

@@ -46,6 +46,7 @@ public partial class MainWindow : FluentWindow
                 var file = Path.Combine(dir, $"mirror_{DateTime.Now:yyyyMMdd_HHmmss}.png");
                 instance.View.SaveScreenshot(file);
                 _vm.Status = $"Capture enregistrée → {file}";
+                return file;
             });
         _vm.AnyConnected += () =>
             Dispatcher.Invoke(() =>
@@ -53,10 +54,18 @@ public partial class MainWindow : FluentWindow
                 if (_vm.AutoFullscreen && !_isFullscreen)
                     ToggleFullscreen();
             });
+        _vm.ConfirmUnverified = p => Task.FromResult(
+            System.Windows.MessageBox.Show(this,
+                $"« {p.Name} » n'est pas un plugin officiel — il peut exécuter n'importe quel code sur ce PC.\n\nL'activer quand même ?",
+                "Plugin non vérifié",
+                System.Windows.MessageBoxButton.YesNo,
+                System.Windows.MessageBoxImage.Warning) == System.Windows.MessageBoxResult.Yes);
 
         Loaded += async (_, _) => await _vm.InitializeAsync();
         Closed += async (_, _) =>
         {
+            _vm.SaveNow();
+            await _vm.ShutdownApiAsync();
             foreach (var m in _vm.Mirrors.ToList())
                 await m.DisconnectAsync();
         };
@@ -73,6 +82,37 @@ public partial class MainWindow : FluentWindow
     private void OnRotateDisplayClick(object sender, RoutedEventArgs e)
         => _vm.ActiveMirror?.View.CycleDisplayRotation();
     private void OnSettingsClick(object sender, RoutedEventArgs e) => _vm.ShowSettings = !_vm.ShowSettings;
+
+    private void OnDeviceNameKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.TextBox tb || tb.DataContext is not Services.AdbDevice d)
+            return;
+        if (e.Key is Key.Enter or Key.Return)
+        {
+            CommitDeviceName(tb, d);
+            Keyboard.ClearFocus();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            tb.Text = d.ShortName;
+            Keyboard.ClearFocus();
+            e.Handled = true;
+        }
+    }
+
+    private void OnDeviceNameLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.TextBox tb && tb.DataContext is Services.AdbDevice d)
+            CommitDeviceName(tb, d);
+    }
+
+    private void CommitDeviceName(System.Windows.Controls.TextBox tb, Services.AdbDevice device)
+    {
+        var text = tb.Text.Trim();
+        if (text != device.ShortName)
+            _vm.RenameDevice(device, text);
+    }
 
     private bool _browserReady;
 
@@ -185,12 +225,16 @@ public partial class MainWindow : FluentWindow
 
     private bool _fsHelpWasVisible;
     private bool _fsSettingsWasVisible;
+    private Rect _fsBounds;
+    private bool _fsWasMaximized;
 
     private void ToggleFullscreen()
     {
         _isFullscreen = !_isFullscreen;
         if (_isFullscreen)
         {
+            _fsWasMaximized = WindowState == WindowState.Maximized;
+            _fsBounds = RestoreBounds;
             _fsHelpWasVisible = HelpPanel.Visibility == Visibility.Visible;
             _fsSettingsWasVisible = _vm.ShowSettings;
             HelpPanel.Visibility = Visibility.Collapsed;
@@ -206,6 +250,7 @@ public partial class MainWindow : FluentWindow
             WindowStyle = WindowStyle.None;
             ResizeMode = ResizeMode.NoResize;
             WindowState = WindowState.Maximized;
+            FullscreenBar.Visibility = Visibility.Visible;
             _fsHideTimer.Tick += OnFsHideTick;
             _fsHideTimer.Start();
         }
@@ -216,7 +261,18 @@ public partial class MainWindow : FluentWindow
             FullscreenBar.Visibility = Visibility.Collapsed;
             WindowStyle = WindowStyle.SingleBorderWindow;
             ResizeMode = ResizeMode.CanResize;
-            WindowState = WindowState.Normal;
+            if (_fsWasMaximized)
+            {
+                WindowState = WindowState.Maximized;
+            }
+            else
+            {
+                WindowState = WindowState.Normal;
+                Left = _fsBounds.Left;
+                Top = _fsBounds.Top;
+                Width = _fsBounds.Width;
+                Height = _fsBounds.Height;
+            }
             VideoFrame.Margin = new Thickness(20);
             VideoFrame.CornerRadius = new CornerRadius(14);
             VideoFrame.BorderThickness = new Thickness(1);
@@ -239,7 +295,7 @@ public partial class MainWindow : FluentWindow
         if (!_isFullscreen)
             return;
         var y = e.GetPosition(this).Y;
-        if (y < 6 && FullscreenBar.Visibility != Visibility.Visible)
+        if (y < 24 && FullscreenBar.Visibility != Visibility.Visible)
         {
             FullscreenBar.Visibility = Visibility.Visible;
             _fsHideTimer.Stop();
@@ -267,6 +323,28 @@ public partial class MainWindow : FluentWindow
             e.Handled = true;
             return;
         }
+        if (e.Key == Key.Escape && _isFullscreen && !IsTextInputTarget(e.OriginalSource))
+        {
+            ToggleFullscreen();
+            e.Handled = true;
+            return;
+        }
+
+        var mods = Keyboard.Modifiers;
+        if (e.Key == Key.Tab && mods is ModifierKeys.Control or (ModifierKeys.Control | ModifierKeys.Shift))
+        {
+            _vm.ActivateAdjacent(mods.HasFlag(ModifierKeys.Shift) ? -1 : 1);
+            e.Handled = true;
+            return;
+        }
+        if (mods.HasFlag(ModifierKeys.Control) && !mods.HasFlag(ModifierKeys.Alt)
+            && e.Key is >= Key.D1 and <= Key.D9 or >= Key.NumPad1 and <= Key.NumPad9)
+        {
+            _vm.ActivateAt(e.Key <= Key.D9 ? e.Key - Key.D1 : e.Key - Key.NumPad1);
+            e.Handled = true;
+            return;
+        }
+
         var view = _vm.ActiveMirror?.View;
         if (view == null || IsTextInputTarget(e.OriginalSource))
             return;

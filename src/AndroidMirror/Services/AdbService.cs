@@ -6,28 +6,39 @@ using System.Text.RegularExpressions;
 namespace TouchMirror.Services;
 
 public sealed record AdbDevice(string Serial, string Model, string State, int? Battery = null,
-    string? HardwareSerial = null, string? AltSerial = null)
+    string? HardwareSerial = null, string? AltSerial = null, string? CustomName = null)
 {
-    public string DisplayName => string.IsNullOrWhiteSpace(Model) ? Serial : $"{Model} ({Serial})";
-    public string ShortName => string.IsNullOrWhiteSpace(Model) ? Serial : Model;
+    public string DeviceKey => HardwareSerial is { Length: > 0 } h ? h : Serial;
+    public string DisplayName => CustomName ?? (string.IsNullOrWhiteSpace(Model) ? Serial : $"{Model} ({Serial})");
+    public string ShortName => CustomName ?? (string.IsNullOrWhiteSpace(Model) ? Serial : Model);
     public bool IsReady => State == "device";
     public bool NeedsAuthorization => State == "unauthorized";
     public bool IsOffline => State == "offline";
+    public bool IsRememberedOnly => State == "remembered";
     public string StateText => State switch
     {
         "device" => "Prêt",
         "unauthorized" => "À autoriser sur le téléphone",
         "offline" => "Hors ligne — rebranche",
+        "remembered" => "Non détecté",
         _ => "Non prêt"
     };
     public bool HasBattery => Battery.HasValue;
     public string BatteryText => Battery.HasValue ? $"{Battery} %" : "";
     public bool IsWifi => Serial.Contains(':');
     public bool HasDualTransport => AltSerial != null;
-    public string TransportText => HasDualTransport
-        ? (IsWifi ? $"USB + WiFi — {Serial}" : "USB + WiFi")
-        : IsWifi ? $"WiFi — {Serial}" : "USB";
-    public bool ShowSerial => !IsWifi;
+    public string TransportText => IsRememberedOnly ? "Mémorisé"
+        : HasDualTransport
+            ? (IsWifi ? $"USB + WiFi — {Serial}" : "USB + WiFi")
+            : IsWifi ? $"WiFi — {Serial}" : "USB";
+    public bool ShowSerial => !IsWifi && !IsRememberedOnly;
+    public string? SelectorHint => State switch
+    {
+        "unauthorized" => "— à autoriser",
+        "offline" => "— hors ligne",
+        "remembered" => "— non détecté",
+        _ => null
+    };
 
     public bool MatchesSerial(string s) => Serial == s || AltSerial == s;
 
