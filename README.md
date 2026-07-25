@@ -13,11 +13,11 @@ Gratuit, open source, sans compte, sans pub.
 [![.NET](https://img.shields.io/badge/.NET-10-512BD4?style=flat-square)](https://dotnet.microsoft.com)
 [![Licence](https://img.shields.io/badge/licence-MIT-green?style=flat-square)](LICENSE)
 [![Dofus Touch](https://img.shields.io/badge/optimis%C3%A9%20pour-Dofus%20Touch-D9A94E?style=flat-square)](https://www.dofus-touch.com)
-[![Discord](https://img.shields.io/badge/Discord-rejoins-nous-5865F2?style=flat-square)](https://discord.gg/DBJ9kNCdX)
+[![Discord](https://img.shields.io/badge/Discord-rejoins--nous-5865F2?style=flat-square)](https://discord.gg/DBJ9kNCdX)
 
 <img src="docs/screenshot.png" width="780" alt="TouchMirror — Dofus Touch en cours de jeu">
 
-**[Télécharger la dernière version](https://github.com/shinzarou-eng/TouchMirror/releases/latest)** · [Discord](https://discord.gg/DBJ9kNCdX) · [Documentation](docs/wiki/Home.md) · [Signaler un bug](https://github.com/shinzarou-eng/TouchMirror/issues) · [Proposer une idée](https://github.com/shinzarou-eng/TouchMirror/issues/new)
+**[Télécharger la dernière version](https://github.com/shinzarou-eng/TouchMirror/releases/latest)** · [Discord](https://discord.gg/DBJ9kNCdX) · [Documentation](docs/wiki/Home.md) · [Roadmap](ROADMAP.md) · [Signaler un bug](https://github.com/shinzarou-eng/TouchMirror/issues) · [Proposer une idée](https://github.com/shinzarou-eng/TouchMirror/issues/new)
 
 </div>
 
@@ -129,6 +129,14 @@ WPF / .NET 10 · WPF-UI · serveur scrcpy · FFmpeg (décodage + remux MP4) · N
 ## Conformité Ankama
 
 TouchMirror affiche et contrôle le **jeu officiel** qui tourne sur ton **vrai téléphone** — pas d'émulateur, pas de client modifié, pas de macro ni d'automatisation. Chaque action correspond à un geste humain. C'est le cas d'usage que le support Ankama a confirmé comme autorisé (voir la [FAQ officielle](https://support.ankama.com/hc/fr/articles/26840828168209)).
+
+**TouchMirror ne proposera jamais de système d'automatisation, de bot ou de macro** — ni aujourd'hui, ni dans une version future. L'API locale et les plugins pilotent l'application (miroir, capture, enregistrement, reconnexion), jamais les actions en jeu : aucune route API n'injecte de tactile, clavier, texte ou presse-papiers vers Android. Voir le [hors périmètre de la roadmap](ROADMAP.md#hors-périmètre).
+
+## Roadmap
+
+La prochaine étape : fiabiliser l'API, les autorisations des plugins et la reconnexion, puis construire des **espaces de travail multi-téléphones**. Prise en main, performance, diagnostic, replay et intégrations officielles complètent la direction produit, avec des niveaux d'engagement distincts.
+
+**[Consulter la roadmap](ROADMAP.md)** — priorités, critères de validation et pistes à l'étude. Les éléments prévus ne sont pas encore des fonctionnalités disponibles.
 
 ## Communauté
 
