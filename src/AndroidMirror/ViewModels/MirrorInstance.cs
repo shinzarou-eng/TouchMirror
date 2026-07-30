@@ -23,6 +23,9 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     [ObservableProperty] private bool _isActive;
     [ObservableProperty] private int _slot;
 
+    /// <summary>Vrai quand la déconnexion vient d'un geste utilisateur (pas d'une coupure session).</summary>
+    public bool ManualDisconnect { get; set; }
+
     private FileStream? _recordStream;
     private Mp4Recorder? _recorder;
     private string? _recordPath;

@@ -47,7 +47,7 @@ TouchMirror est une application **Windows native** qui affiche et contrôle ton 
 | **Plein écran** | `F11` ou bouton dédié, barre de contrôle au survol du bord haut |
 | **Mode capture** | Fenêtre propre pour OBS — idéal pour streamer |
 | **API locale** | HTTP + SSE sur localhost avec token — pilotage Stream Deck, OBS, scripts. Aucun endpoint ne peut injecter d'input sur le téléphone |
-| **Plugins** | Zone dédiée dans les réglages — scripts `.ps1`, token API injecté, plugins officiels vérifiés par hash |
+| **Plugins** | Moteur JavaScript embarqué (sandbox) — manifest `plugin.json`, plugins officiels vérifiés par hash |
 | **Mises à jour** | L'app détecte les nouvelles releases GitHub au démarrage |
 
 ## Installation
@@ -103,16 +103,33 @@ Réglages → **API locale** : expose `http://127.0.0.1:<port>` protégé par to
 
 ### Plugins
 
-Réglages → **PLUGINS** : dépose un script `.ps1` dans `plugins/`, active-le d'un toggle — l'app injecte `TOUCHMIRROR_API_URL` et `TOUCHMIRROR_API_TOKEN` automatiquement. Un seul format, lisible et auditable. Les plugins actifs relancent au démarrage, leur sortie arrive dans le journal.
+Réglages → **PLUGINS** : un plugin = un dossier `plugins/<nom>/` avec un manifest `plugin.json` (nom, version, description) et un `plugin.js`. Le code tourne dans un **moteur JavaScript embarqué et sandboxé** — pas de process externe, pas de shell : le plugin ne voit que l'objet `tm`.
 
-Un plugin est du code arbitraire : n'installe que ce que tu lis ou qui vient de nous. Les plugins officiels portent un badge bouclier vert (hash vérifié) — tout autre script demande une confirmation avant activation. Les plugins officiels pilotent l'app — jamais le jeu.
-
-Inclus : **`watchdog.ps1`** — reconnecte tout appareil qui repasse « prêt » (la farm se répare seule après une déco).
-
-```powershell
-.\plugins\watchdog.ps1                        # tous les appareils
-.\plugins\watchdog.ps1 -Serials RFGL22M2JQM   # seulement certains
+```text
+plugins/
+  watchdog/
+    plugin.json    # métadonnées (nom, version, auteur…)
+    plugin.js      # logique, via l'API tm.*
 ```
+
+**API exposée** (`tm.*`, control-plane uniquement) :
+
+```javascript
+await tm.getDevices();           // appareils découverts
+await tm.getMirrors();           // miroirs et leurs slots
+await tm.connect("RFGL22M2JQM"); // connecter un appareil
+await tm.activate(0);            // slot 0 en grand miroir
+await tm.screenshot(0);          // capture
+tm.on("devices", e => …);        // événements temps réel
+tm.setInterval(fn, ms); tm.setTimeout(fn, ms);
+tm.log("message");               // → journal de l'app
+```
+
+Aucun accès au système de fichiers, au réseau ou aux process depuis le sandbox — et comme l'API locale, **rien ne peut injecter d'input vers le téléphone**.
+
+Un plugin est du code : n'installe que ce que tu lis ou qui vient de nous. Les plugins officiels portent un badge bouclier vert (hash SHA-256 vérifié) — tout autre plugin demande une confirmation avant activation, et toute modification d'un plugin déjà approuvé redemande ton accord. Les plugins pilotent l'app — jamais le jeu.
+
+Inclus : **🐕 watchdog** — reconnecte un miroir dont la session a lâché (câble, WiFi, plantage), jamais après une déconnexion volontaire. La farm se répare seule, sans rien lancer sur le téléphone.
 
 ## Build depuis les sources
 

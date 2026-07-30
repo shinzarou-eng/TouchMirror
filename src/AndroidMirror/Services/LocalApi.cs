@@ -16,21 +16,63 @@ namespace TouchMirror.Services;
 /// </summary>
 public sealed class LocalApiHost
 {
+    private static readonly JsonSerializerOptions JsonOpts = new()
+        { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
     public sealed record MirrorDto(int Slot, string Name, string Serial, string Model,
         bool Connected, bool Active, bool Recording, bool Wifi);
     public sealed record DeviceDto(string Serial, string Name, string Model,
-        bool Ready, bool Remembered, bool Wifi);
+        bool Ready, bool Remembered, bool Wifi, bool Blocked);
     public sealed record ApiResult(bool Ok, string? Message = null, object? Data = null);
 
     private readonly MainViewModel _vm;
-    private readonly Channel<string> _events = Channel.CreateUnbounded<string>();
+    private readonly object _subLock = new();
+    private readonly List<Channel<string>> _subscribers = new();
 
     public LocalApiHost(MainViewModel vm) => _vm = vm;
 
-    public ChannelReader<string> Events => _events.Reader;
+    /// <summary>
+    /// Chaque abonné SSE reçoit sa propre file bornée : tous les clients voient
+    /// tous les événements, et un client lent perd les plus anciens au lieu de
+    /// faire gonfler la mémoire.
+    /// </summary>
+    public IDisposable SubscribeEvents(out ChannelReader<string> reader)
+    {
+        var ch = Channel.CreateBounded<string>(new BoundedChannelOptions(64)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest,
+            SingleReader = true,
+        });
+        lock (_subLock)
+            _subscribers.Add(ch);
+        reader = ch.Reader;
+        return new Subscription(this, ch);
+    }
+
+    private sealed class Subscription : IDisposable
+    {
+        private readonly LocalApiHost _host;
+        private readonly Channel<string> _ch;
+        public Subscription(LocalApiHost host, Channel<string> ch) { _host = host; _ch = ch; }
+        public void Dispose()
+        {
+            lock (_host._subLock)
+                _host._subscribers.Remove(_ch);
+            _ch.Writer.TryComplete();
+        }
+    }
+
+    /// <summary>Événements JSON pour les plugins JS (même contenu que le flux SSE).</summary>
+    public event Action<string>? PluginEvent;
 
     public void Publish(string type, object data)
-        => _events.Writer.TryWrite(JsonSerializer.Serialize(new { type, data }));
+    {
+        var json = JsonSerializer.Serialize(new { type, data }, JsonOpts);
+        lock (_subLock)
+            foreach (var ch in _subscribers)
+                ch.Writer.TryWrite(json);
+        PluginEvent?.Invoke(json);
+    }
 
     private static Task<T> Ui<T>(Func<T> f)
         => Application.Current.Dispatcher.InvokeAsync(f).Task;
@@ -53,7 +95,8 @@ public sealed class LocalApiHost
 
     public Task<ApiResult> GetDevicesAsync() => Ui(() => new ApiResult(true,
         Data: _vm.Devices.Select(d => new DeviceDto(
-            d.Serial, d.DisplayName, d.Model, d.IsReady, d.IsRememberedOnly, d.IsWifi)).ToList()));
+            d.Serial, d.DisplayName, d.Model, d.IsReady, d.IsRememberedOnly, d.IsWifi,
+            _vm.IsVoluntarilyDisconnected(d.Serial))).ToList()));
 
     public Task<ApiResult> ActivateAsync(int slot) => Ui(() =>
         _vm.TryActivateSlot(slot)
@@ -98,7 +141,8 @@ public sealed class LocalApiHost
             return new ApiResult(false, $"appareil non prêt ({d.State})");
         if (_vm.Mirrors.Any(m => m.Device.SharesIdentity(d)))
             return new ApiResult(true, "déjà connecté");
-        await _vm.ConnectExistingDeviceAsync(d);
+        // Reconnexion via API/watchdog : restaure le miroir, jamais de lancement d'app.
+        await _vm.ConnectExistingDeviceAsync(d, allowAppLaunch: false);
         return new ApiResult(true, $"connecté — {d.DisplayName}");
     });
 }
@@ -162,7 +206,8 @@ public sealed class LocalApiServer : IAsyncDisposable
         {
             await ctx.Response.WriteAsync("data: {\"type\":\"ready\"}\n\n", ctx.RequestAborted);
             await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
-            await foreach (var msg in host.Events.ReadAllAsync(ctx.RequestAborted))
+            using var sub = host.SubscribeEvents(out var reader);
+            await foreach (var msg in reader.ReadAllAsync(ctx.RequestAborted))
             {
                 await ctx.Response.WriteAsync($"data: {msg}\n\n", ctx.RequestAborted);
                 await ctx.Response.Body.FlushAsync(ctx.RequestAborted);

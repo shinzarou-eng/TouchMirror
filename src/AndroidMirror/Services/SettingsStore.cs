@@ -29,6 +29,10 @@ public sealed class AppSettings
     public string? LocalApiToken { get; set; }
     public string? LastSelectedDeviceKey { get; set; }
     public List<string> EnabledPlugins { get; set; } = new();
+    /// <summary>Plugins non officiels approuvés par l'utilisateur : id → hash SHA-256 validé.</summary>
+    public Dictionary<string, string> ApprovedPlugins { get; set; } = new();
+    /// <summary>Ordre des tuiles miroir, par clé d'appareil.</summary>
+    public List<string> MirrorOrder { get; set; } = new();
     public Dictionary<string, DevicePrefs> Devices { get; set; } = new();
 }
 

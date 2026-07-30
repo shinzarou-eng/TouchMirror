@@ -34,23 +34,22 @@ L'ordre indique les priorités, pas des dates de sortie. Les périmètres peuven
 
 **Résultat attendu :** une reconnexion prévisible, des autorisations explicites et une API fiable avec plusieurs clients.
 
-- [ ] Vérifier le contenu des plugins à chaque lancement, y compris au démarrage de TouchMirror, et empêcher l'exécution d'un contenu différent de celui validé.
-- [ ] Lier l'autorisation d'un script tiers à son empreinte : toute modification doit demander un nouvel accord.
-- [ ] Refuser le lancement d'un script non autorisé si la confirmation ne peut pas être affichée.
-- [ ] Arrêter les processus des plugins retirés et fiabiliser leur cycle de démarrage, d'arrêt et de sortie.
-- [ ] Distribuer chaque événement SSE à chaque client abonné, avec des files limitées et un nettoyage à la déconnexion.
-- [ ] Limiter le watchdog aux appareils explicitement sélectionnés et respecter les déconnexions volontaires.
-- [ ] Séparer la connexion du miroir du lancement d'application : une connexion via l'API ou le watchdog ne doit pas lancer Dofus.
+- [x] Vérifier le contenu des plugins à chaque lancement, y compris au démarrage de TouchMirror, et empêcher l'exécution d'un contenu différent de celui validé.
+- [x] Lier l'autorisation d'un script tiers à son empreinte : toute modification doit demander un nouvel accord.
+- [x] Refuser le lancement d'un script non autorisé si la confirmation ne peut pas être affichée.
+- [x] Remplacer l'exécution de scripts externes par un moteur JavaScript sandboxé (Jint) : aucun processus enfant, aucun accès fichier/réseau/process depuis le plugin, seulement l'API `tm.*`.
+- [x] Arrêter les plugins retirés et fiabiliser leur cycle de démarrage, d'arrêt et de sortie.
+- [x] Distribuer chaque événement SSE à chaque client abonné, avec des files limitées et un nettoyage à la déconnexion.
+- [x] Limiter le watchdog aux appareils explicitement sélectionnés et respecter les déconnexions volontaires.
+- [x] Séparer la connexion du miroir du lancement d'application : une connexion via l'API ou le watchdog ne doit pas lancer Dofus.
 - [ ] Ajouter des tests de non-régression sur l'authentification, les autorisations des plugins et les reconnexions.
-- [ ] Livrer en même temps un premier gain visible : renommer les tuiles et réordonner la grille manuellement — une release de durcissement doit aussi apporter quelque chose à l'utilisateur.
+- [x] Livrer en même temps un premier gain visible : renommer les tuiles et réordonner la grille manuellement — une release de durcissement doit aussi apporter quelque chose à l'utilisateur.
 
 **Validation :** un plugin modifié ne redémarre pas sans accord ; deux clients SSE reçoivent les mêmes événements ; un client lent ne provoque pas une accumulation sans limite ; un appareil déconnecté volontairement reste arrêté ; une reconnexion automatique ne lance pas le jeu ; les tuiles portent un nom choisi et se réordonnent.
 
 ### Limites actuelles à connaître
 
-La vérification repose sur des empreintes SHA-256 embarquées, pas sur une signature numérique d'éditeur. Un script PowerShell s'exécute avec les droits de l'utilisateur ; il n'est pas isolé du PC. Les protections de lancement ci-dessus restent à renforcer.
-
-Le watchdog actuel tente de connecter les appareils prêts sans miroir, même si l'arrêt était volontaire. Le chemin de connexion peut aussi reprendre l'option de lancement automatique de Dofus. Ces comportements sont à corriger avant d'élargir les intégrations.
+La vérification repose sur des empreintes SHA-256 embarquées, pas sur une signature numérique d'éditeur. Les plugins tournent dans un moteur JavaScript sandboxé qui n'expose que l'API `tm.*` (control-plane) — pas d'accès fichier, réseau ou processus. Le sandbox limite la portée, mais le code d'un plugin tiers reste à lire avant activation.
 
 ## 2. Espaces de travail
 
@@ -111,7 +110,7 @@ Le watchdog actuel tente de connecter les appareils prêts sans miroir, même si
 - [ ] Évaluer une intégration OBS pour synchroniser les états utiles à la diffusion.
 - [ ] Prévoir des notifications de coupure de session avec destinations et contenu choisis par l'utilisateur.
 - [ ] Étudier un format déclaratif pour les intégrations simples : actions autorisées et paramètres, sans exécution de code arbitraire.
-- [ ] Définir des autorisations API par intégration et leur révocation, sans prétendre isoler les scripts PowerShell.
+- [ ] Définir des autorisations API par intégration et leur révocation.
 - [ ] Documenter le contrat API, les erreurs et la compatibilité entre versions avant diffusion des intégrations.
 
 **Validation avant diffusion :** plusieurs intégrations coexistent sans perte d'événements ; les autorisations sont explicites et révocables ; aucun parcours officiel n'exécute de commandes de jeu.

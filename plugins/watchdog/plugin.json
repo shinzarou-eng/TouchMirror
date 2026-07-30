@@ -1,0 +1,7 @@
+{
+  "name": "Watchdog",
+  "description": "Reconnecte automatiquement les appareils qui repassent prêts — la farm se répare seule après une déco ou un rebranchement.",
+  "version": "2.0",
+  "author": "TouchMirror",
+  "icon": "🐶"
+}
