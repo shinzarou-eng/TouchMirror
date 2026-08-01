@@ -18,14 +18,36 @@ public sealed class PluginApi
     private readonly LocalApiHost _host;
     private readonly Action<string> _log;
 
+    // Rate-limit : un plugin ne peut pas appeler l'API plus de 30×/s.
+    private const int MaxCallsPerSecond = 30;
+    private int _windowCalls;
+    private DateTime _windowStart = DateTime.UtcNow;
+
     public PluginApi(LocalApiHost host, Action<string> log)
     {
         _host = host;
         _log = log;
     }
 
+    private bool TryAcquireCall()
+    {
+        var now = DateTime.UtcNow;
+        if (now - _windowStart > TimeSpan.FromSeconds(1))
+        {
+            _windowStart = now;
+            _windowCalls = 0;
+        }
+        return ++_windowCalls <= MaxCallsPerSecond;
+    }
+
     public string? Call(string method, string? arg)
     {
+        if (!TryAcquireCall())
+            return JsonSerializer.Serialize(
+                new LocalApiHost.ApiResult(false, "limite d'appels dépassée"), JsonOpts);
+        // Journal des actions mutantes : l'utilisateur voit ce que fait le plugin.
+        if (method is "activate" or "record" or "screenshot" or "disconnect" or "connect")
+            _log($"[api] {method} {arg}");
         try
         {
             var r = method switch
@@ -56,7 +78,7 @@ public sealed class PluginApi
 
     private LocalApiHost.ApiResult Log(string? msg)
     {
-        _log(msg ?? "");
+        _log(msg is { Length: > 1000 } ? msg[..1000] + "…" : msg ?? "");
         return new LocalApiHost.ApiResult(true);
     }
 }

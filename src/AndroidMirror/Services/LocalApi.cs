@@ -141,8 +141,7 @@ public sealed class LocalApiHost
             return new ApiResult(false, $"appareil non prêt ({d.State})");
         if (_vm.Mirrors.Any(m => m.Device.SharesIdentity(d)))
             return new ApiResult(true, "déjà connecté");
-        // Reconnexion via API/watchdog : restaure le miroir, jamais de lancement d'app.
-        await _vm.ConnectExistingDeviceAsync(d, allowAppLaunch: false);
+        await _vm.ConnectExistingDeviceAsync(d);
         return new ApiResult(true, $"connecté — {d.DisplayName}");
     });
 }

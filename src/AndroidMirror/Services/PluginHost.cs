@@ -62,7 +62,11 @@ public partial class PluginInstance : ObservableObject
         PluginManifest? m = null;
         if (File.Exists(manifestPath))
         {
-            try { m = JsonSerializer.Deserialize<PluginManifest>(File.ReadAllText(manifestPath)); }
+            try
+            {
+                m = JsonSerializer.Deserialize<PluginManifest>(File.ReadAllText(manifestPath),
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            }
             catch { }
         }
         Id = Path.GetFileName(path).Equals("plugin.js", StringComparison.OrdinalIgnoreCase)
@@ -76,13 +80,19 @@ public partial class PluginInstance : ObservableObject
         IsVerified = ComputeIsVerified();
     }
 
-    /// <summary>Revérifie le hash du fichier à l'instant du lancement.</summary>
+    /// <summary>Revérifie le hash du fichier à l'instant du lancement.
+    /// Couvre plugin.js + plugin.json : un manifest modifié invalide aussi la confiance.</summary>
     public bool VerifyNow()
     {
         try
         {
-            using var fs = File.OpenRead(FilePath);
-            ContentHash = Convert.ToHexString(SHA256.HashData(fs));
+            var bytes = File.ReadAllBytes(FilePath);
+            var manifestPath = Path.Combine(Path.GetDirectoryName(FilePath)!, "plugin.json");
+            var manifest = File.Exists(manifestPath)
+                ? File.ReadAllBytes(manifestPath)
+                : Array.Empty<byte>();
+            ContentHash = Convert.ToHexString(
+                SHA256.HashData(bytes.Concat(manifest).ToArray()));
             IsVerified = VerifiedPlugins.Hashes.Contains(ContentHash);
         }
         catch { ContentHash = null; IsVerified = false; }
@@ -122,11 +132,16 @@ public partial class PluginInstance : ObservableObject
         catch { }
     }
 
-    /// <summary>Appelé par l'app quand un événement TM est publié.</summary>
+    /// <summary>Appelé par l'app quand un événement TM est publié. File bornée :
+    /// un plugin lent ou planté ne fait pas gonfler la mémoire de l'app.</summary>
+    private const int MaxQueuedEvents = 256;
+
     public void DispatchEvent(string json)
     {
         lock (_queueLock)
         {
+            if (_queue.Count >= MaxQueuedEvents)
+                return;
             _queue.Enqueue(() => FireEvent(json));
             Monitor.Pulse(_queueLock);
         }
@@ -153,8 +168,16 @@ public partial class PluginInstance : ObservableObject
         catch (Exception ex) { Output?.Invoke($"event: {ex.Message}"); }
     }
 
+    private const int MaxTimers = 64;
+    private const int MaxHandlers = 128;
+
     private int AddTimer(JsValue fn, int ms, bool repeat)
     {
+        if (_timers.Count >= MaxTimers)
+        {
+            Output?.Invoke($"limite de timers atteinte ({MaxTimers})");
+            return -1;
+        }
         var id = _nextTimerId++;
         _timers.Add(new JsTimer(id, fn, Math.Max(16, ms), repeat, DateTime.UtcNow.AddMilliseconds(ms)));
         lock (_queueLock) Monitor.Pulse(_queueLock);
@@ -190,11 +213,18 @@ public partial class PluginInstance : ObservableObject
     {
         try
         {
-            var engine = new Engine(o => o
-                .LimitMemory(8_000_000)
-                .MaxStatements(1_000_000)
-                .TimeoutInterval(TimeSpan.FromSeconds(5))
-                .CancellationToken(ct));
+            var engine = new Engine(o =>
+            {
+                o.LimitMemory(8_000_000);
+                o.LimitRecursion(64);
+                o.MaxStatements(1_000_000);
+                o.TimeoutInterval(TimeSpan.FromSeconds(5));
+                o.CancellationToken(ct);
+                o.Constraints.MaxArraySize = 10_000;
+                o.Constraints.RegexTimeout = TimeSpan.FromMilliseconds(250);
+                // Interop CLR non activé : le script ne peut atteindre aucun type .NET,
+                // seulement les delegates explicitement exposés (__call, __schedule…).
+            });
             _engine = engine;
 
             // pont unique : __call(méthode, arg?) -> JSON string
@@ -205,6 +235,11 @@ public partial class PluginInstance : ObservableObject
             {
                 if (!_handlers.TryGetValue(ev, out var l))
                     _handlers[ev] = l = new();
+                if (_handlers.Values.Sum(x => x.Count) >= MaxHandlers)
+                {
+                    Output?.Invoke($"limite de handlers atteinte ({MaxHandlers})");
+                    return;
+                }
                 l.Add(fn);
             }));
 

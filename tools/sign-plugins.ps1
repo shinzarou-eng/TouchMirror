@@ -1,5 +1,6 @@
 # Régénère la liste des hash SHA-256 des plugins officiels.
-# À relancer après toute modification d'un plugin.js dans plugins/.
+# Le hash couvre plugin.js + plugin.json — aligné sur PluginInstance.VerifyNow().
+# À relancer après toute modification d'un plugin dans plugins/.
 #   .\tools\sign-plugins.ps1
 
 $ErrorActionPreference = "Stop"
@@ -7,8 +8,12 @@ $root   = Split-Path $PSScriptRoot -Parent
 $out    = Join-Path $root "src\AndroidMirror\Services\VerifiedPlugins.cs"
 $files  = Get-ChildItem (Join-Path $root "plugins") -Recurse -Filter *.js | Sort-Object FullName
 
+$sha = [System.Security.Cryptography.SHA256]::Create()
 $entries = foreach ($f in $files) {
-    $h = (Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    $bytes = [System.IO.File]::ReadAllBytes($f.FullName)
+    $manifest = Join-Path $f.DirectoryName "plugin.json"
+    if (Test-Path $manifest) { $bytes += [System.IO.File]::ReadAllBytes($manifest) }
+    $h = [BitConverter]::ToString($sha.ComputeHash($bytes)).Replace("-", "").ToLowerInvariant()
     $rel = $f.FullName.Substring($root.Length + 1) -replace '\\', '/'
     '        "{0}", // {1}' -f $h, $rel
 }

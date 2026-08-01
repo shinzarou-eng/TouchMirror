@@ -156,16 +156,6 @@
                                 BorderBrush="{DynamicResource AppBorderBrush}"
                                 BorderThickness="1">
                             <StackPanel Orientation="Horizontal">
-                                <ui:Button Style="{StaticResource ToolBtn}" Width="Auto" Padding="10,0"
-                                           Command="{Binding LaunchDofusTouchCommand}"
-                                           ToolTip="Lancer Dofus Touch sur le téléphone">
-                                    <StackPanel Orientation="Horizontal">
-                                        <ui:SymbolIcon Symbol="Games24" FontSize="15"
-                                                       Foreground="{DynamicResource DofusAccentBrush}"
-                                                       Margin="0,0,6,0" />
-                                        <TextBlock Text="Dofus" Foreground="{DynamicResource DofusAccentBrush}" FontWeight="SemiBold" />
-                                    </StackPanel>
-                                </ui:Button>
                                 <ui:Button Style="{StaticResource ToolBtn}" Width="Auto" Padding="9,0"
                                            Click="OnMoreClick" ToolTip="Captures et enregistrement">
                                     <StackPanel Orientation="Horizontal">
@@ -260,7 +250,7 @@
                                 <Separator />
                                 <MenuItem Header="Mode Dofus (preset optimal)"
                                           Command="{Binding ApplyDofusPresetCommand}"
-                                          ToolTip="1080p · 60 fps · 24 Mbps H.264 · audio · écran atténué · lancement auto — une seule reconnexion"
+                                          ToolTip="1080p · 60 fps · 24 Mbps H.264 · audio · écran atténué — une seule reconnexion"
                                           FontWeight="SemiBold"
                                           Foreground="{DynamicResource DofusAccentBrush}">
                                     <MenuItem.Icon><ui:SymbolIcon Symbol="Flash24" FontSize="14"
@@ -865,12 +855,6 @@
                                         <TextBlock Text="Garder l'écran allumé" FontSize="12" VerticalAlignment="Center" />
                                         <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"
                                                          IsChecked="{Binding StayAwake}" />
-                                    </Grid>
-                                    <Border Height="1" Background="#08FFFFFF" />
-                                    <Grid MinHeight="38">
-                                        <TextBlock Text="Lancer Dofus à la connexion" FontSize="12" VerticalAlignment="Center" />
-                                        <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"
-                                                         IsChecked="{Binding AutoLaunchDofus}" />
                                     </Grid>
                                     <Border Height="1" Background="#08FFFFFF" />
                                     <Grid MinHeight="38">

@@ -38,10 +38,11 @@ L'ordre indique les priorités, pas des dates de sortie. Les périmètres peuven
 - [x] Lier l'autorisation d'un script tiers à son empreinte : toute modification doit demander un nouvel accord.
 - [x] Refuser le lancement d'un script non autorisé si la confirmation ne peut pas être affichée.
 - [x] Remplacer l'exécution de scripts externes par un moteur JavaScript sandboxé (Jint) : aucun processus enfant, aucun accès fichier/réseau/process depuis le plugin, seulement l'API `tm.*`.
+- [x] Durcir le sandbox : limites mémoire/récursion/tableaux/regex, files et timers bornés, appels API limités à 30/s, actions mutantes tracées au journal, hash couvrant `plugin.js` + `plugin.json`.
 - [x] Arrêter les plugins retirés et fiabiliser leur cycle de démarrage, d'arrêt et de sortie.
 - [x] Distribuer chaque événement SSE à chaque client abonné, avec des files limitées et un nettoyage à la déconnexion.
-- [x] Limiter le watchdog aux appareils explicitement sélectionnés et respecter les déconnexions volontaires.
-- [x] Séparer la connexion du miroir du lancement d'application : une connexion via l'API ou le watchdog ne doit pas lancer Dofus.
+- [x] Limiter le plugin de reconnexion aux appareils explicitement sélectionnés et respecter les déconnexions volontaires.
+- [x] Séparer la connexion du miroir du lancement d'application : une connexion via l'API ou un plugin ne doit pas lancer Dofus.
 - [ ] Ajouter des tests de non-régression sur l'authentification, les autorisations des plugins et les reconnexions.
 - [x] Livrer en même temps un premier gain visible : renommer les tuiles et réordonner la grille manuellement — une release de durcissement doit aussi apporter quelque chose à l'utilisateur.
 

@@ -18,7 +18,6 @@ public sealed class AppSettings
     public string VideoCodec { get; set; } = "h264";
     public bool StayAwake { get; set; }
     public bool EnableAudio { get; set; } = true;
-    public bool AutoLaunchDofus { get; set; }
     public bool AutoFullscreen { get; set; }
     public bool SyncDeviceClipboard { get; set; } = true;
     public bool TurnScreenOff { get; set; }
@@ -49,7 +48,15 @@ public static class SettingsStore
         try
         {
             if (File.Exists(_path))
-                return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_path)) ?? new();
+            {
+                var s = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_path)) ?? new();
+                // Renommage watchdog → reconnect : conserve l'activation et l'approbation.
+                if (s.EnabledPlugins.Remove("watchdog"))
+                    s.EnabledPlugins.Add("reconnect");
+                if (s.ApprovedPlugins.Remove("watchdog", out var h))
+                    s.ApprovedPlugins["reconnect"] = h;
+                return s;
+            }
         }
         catch { }
         return new();

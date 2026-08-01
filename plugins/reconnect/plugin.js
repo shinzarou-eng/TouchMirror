@@ -1,18 +1,12 @@
-// Watchdog — reconnexion automatique
-// Ne reconnecte que les miroirs qui ont LÂCHÉ (session coupée, câble, WiFi).
-// Jamais une déconnexion volontaire, jamais un appareil qui n'avait pas de miroir.
-// Réglages en haut du fichier — aucune config externe nécessaire.
+const INTERVAL_MS = 3000;
+const RETRY_MS    = 30000;
+const SERIALS     = [];
 
-const INTERVAL_MS = 3000;   // fréquence de scan des appareils prêts
-const RETRY_MS    = 30000;  // délai après un échec de connexion
-const SERIALS     = [];     // ex: ['RFGL22M2JQM'] pour ne surveiller que certains — [] = tous
-
-const pending = {};    // serial -> true : miroir tombé, à reconnecter dès que l'appareil repasse prêt
+const pending = {};
 const retryAfter = {};
 
-tm.log('watchdog actif — reconnexion des miroirs tombés (scan ' + (INTERVAL_MS / 1000) + 's)');
+tm.log('reconnect actif — scan ' + (INTERVAL_MS / 1000) + 's');
 
-// Un miroir vient de se fermer. manual = geste utilisateur → on respecte, on ne reconnecte pas.
 tm.on('mirror.disconnected', d => {
   const serial = d.serial;
   if (!serial) return;
@@ -36,7 +30,7 @@ tm.setInterval(() => {
     if (live.includes(serial)) { delete pending[serial]; continue; }
     if (retryAfter[serial] && Date.now() < retryAfter[serial]) continue;
     const d = devices.find(x => x.serial === serial);
-    if (!d || !d.ready) continue;   // pas encore redétecté
+    if (!d || !d.ready) continue;
 
     tm.log('→ ' + (d.name || serial) + ' prêt — reconnexion…');
     const r = tm.connect(serial);
@@ -45,7 +39,7 @@ tm.setInterval(() => {
       delete pending[serial];
       delete retryAfter[serial];
     } else {
-      tm.log('  échec — nouvel essai dans ' + (RETRY_MS / 1000) + 's (' + ((r && r.message) || '?') + ')');
+      tm.log('  échec — nouvel essai dans ' + (RETRY_MS / 1000) + 's');
       retryAfter[serial] = Date.now() + RETRY_MS;
     }
   }

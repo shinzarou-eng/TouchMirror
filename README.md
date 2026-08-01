@@ -62,7 +62,7 @@ TouchMirror est une application **Windows native** qui affiche et contrôle ton 
 
 1. **Options développeur → Débogage USB** activé
 2. Branche en USB, accepte l'autorisation sur le téléphone
-3. Clique **Connecter** → **Dofus**
+3. Clique **Connecter** — le miroir s'affiche, tu joues depuis le PC
 
 ### Mode WiFi
 
@@ -107,7 +107,7 @@ Réglages → **PLUGINS** : un plugin = un dossier `plugins/<nom>/` avec un mani
 
 ```text
 plugins/
-  watchdog/
+  reconnect/
     plugin.json    # métadonnées (nom, version, auteur…)
     plugin.js      # logique, via l'API tm.*
 ```
@@ -125,11 +125,11 @@ tm.setInterval(fn, ms); tm.setTimeout(fn, ms);
 tm.log("message");               // → journal de l'app
 ```
 
-Aucun accès au système de fichiers, au réseau ou aux process depuis le sandbox — et comme l'API locale, **rien ne peut injecter d'input vers le téléphone**.
+Aucun accès au système de fichiers, au réseau ou aux process depuis le sandbox — et comme l'API locale, **rien ne peut injecter d'input vers le téléphone**. Le moteur est borné (mémoire, récursion, timers, 30 appels/s max) et chaque action d'un plugin est tracée dans le journal.
 
 Un plugin est du code : n'installe que ce que tu lis ou qui vient de nous. Les plugins officiels portent un badge bouclier vert (hash SHA-256 vérifié) — tout autre plugin demande une confirmation avant activation, et toute modification d'un plugin déjà approuvé redemande ton accord. Les plugins pilotent l'app — jamais le jeu.
 
-Inclus : **🐕 watchdog** — reconnecte un miroir dont la session a lâché (câble, WiFi, plantage), jamais après une déconnexion volontaire. La farm se répare seule, sans rien lancer sur le téléphone.
+Inclus : **� Reconnect** — restaure un miroir dont la session a lâché (câble, WiFi, plantage), jamais après une déconnexion volontaire. La farm se répare seule, sans rien lancer sur le téléphone.
 
 ## Build depuis les sources
 

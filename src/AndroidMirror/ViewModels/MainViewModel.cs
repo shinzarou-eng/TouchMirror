@@ -105,7 +105,6 @@ public partial class MainViewModel : ObservableObject
         VideoCodec = _settings.VideoCodec;
         StayAwake = _settings.StayAwake;
         EnableAudio = _settings.EnableAudio;
-        AutoLaunchDofus = _settings.AutoLaunchDofus;
         AutoFullscreen = _settings.AutoFullscreen;
         SyncDeviceClipboard = _settings.SyncDeviceClipboard;
         Topmost = _settings.Topmost;
@@ -134,7 +133,6 @@ public partial class MainViewModel : ObservableObject
         _settings.VideoCodec = VideoCodec;
         _settings.StayAwake = StayAwake;
         _settings.EnableAudio = EnableAudio;
-        _settings.AutoLaunchDofus = AutoLaunchDofus;
         _settings.AutoFullscreen = AutoFullscreen;
         _settings.SyncDeviceClipboard = SyncDeviceClipboard;
         _settings.Topmost = Topmost;
@@ -144,7 +142,7 @@ public partial class MainViewModel : ObservableObject
         _settings.LocalApiPort = LocalApiPort;
         _settings.LocalApiToken = string.IsNullOrEmpty(LocalApiToken) ? null : LocalApiToken;
         _settings.LastSelectedDeviceKey = SelectedDevice?.DeviceKey;
-        _settings.EnabledPlugins = Plugins.Where(p => p.Running).Select(p => p.Name).ToList();
+        _settings.EnabledPlugins = Plugins.Where(p => p.Running).Select(p => p.Id).ToList();
         SettingsStore.Save(_settings);
         if (LocalApiEnabled && _apiServer is { Port: { } p } && p != LocalApiPort)
             _ = RestartApiAsync();
@@ -156,7 +154,6 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _videoCodec = "h264";
     [ObservableProperty] private bool _stayAwake;
     [ObservableProperty] private bool _enableAudio = true;
-    [ObservableProperty] private bool _autoLaunchDofus;
     [ObservableProperty] private bool _autoFullscreen;
     [ObservableProperty] private bool _syncDeviceClipboard = true;
     [ObservableProperty] private bool _topmost;
@@ -262,8 +259,7 @@ public partial class MainViewModel : ObservableObject
         return d;
     }
 
-    public Task ConnectExistingDeviceAsync(AdbDevice device, bool allowAppLaunch = true)
-        => ConnectDeviceAsync(device, allowAppLaunch);
+    public Task ConnectExistingDeviceAsync(AdbDevice device) => ConnectDeviceAsync(device);
     public Task DisconnectMirrorAsync(MirrorInstance m) => RemoveMirrorInternalAsync(m);
 
     partial void OnLocalApiEnabledChanged(bool value)
@@ -368,6 +364,12 @@ public partial class MainViewModel : ObservableObject
             }
         foreach (var f in files.Where(f => Plugins.All(p => p.FilePath != f)))
         {
+            // Garde-fou : un script >256 Ko est suspect pour un plugin control-plane.
+            if (new FileInfo(f).Length > 256 * 1024)
+            {
+                Log($"plugin ignoré : {Path.GetFileName(f)} — fichier trop volumineux");
+                continue;
+            }
             var plugin = new PluginInstance(f);
             plugin.Output += line => Log($"[{plugin.Name}] {line}");
             Plugins.Add(plugin);
@@ -535,7 +537,6 @@ public partial class MainViewModel : ObservableObject
     partial void OnVideoCodecChanged(string value) { ScheduleSave(); if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
     partial void OnEnableAudioChanged(bool value) { ScheduleSave(); if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
     partial void OnStayAwakeChanged(bool value) => ScheduleSave();
-    partial void OnAutoLaunchDofusChanged(bool value) => ScheduleSave();
     partial void OnAutoFullscreenChanged(bool value) => ScheduleSave();
     partial void OnSyncDeviceClipboardChanged(bool value) => ScheduleSave();
     partial void OnTopmostChanged(bool value) => ScheduleSave();
@@ -715,7 +716,7 @@ public partial class MainViewModel : ObservableObject
         _ => $"« {device.ShortName} » n'est pas prêt"
     };
 
-    private async Task ConnectDeviceAsync(AdbDevice device, bool allowAppLaunch = true)
+    private async Task ConnectDeviceAsync(AdbDevice device)
     {
         Services.AppLogger.Write($"connect start: {device.Serial}");
         _voluntaryDisconnects.Remove(device.Serial);
@@ -758,7 +759,7 @@ public partial class MainViewModel : ObservableObject
             SetActive(instance);
             MirrorAdded?.Invoke(instance);
             Services.AppLogger.Write("startasync begin");
-            await instance.StartAsync(BuildOptions(), allowAppLaunch && AutoLaunchDofus);
+            await instance.StartAsync(BuildOptions());
             Services.AppLogger.Write("startasync done");
             RememberDevice(device);
         }
@@ -795,7 +796,7 @@ public partial class MainViewModel : ObservableObject
     private async Task RemoveMirrorInternalAsync(MirrorInstance instance)
     {
         instance.ManualDisconnect = true;
-        // Déconnexion volontaire : le watchdog/API ne doit pas reconnecter cet
+        // Déconnexion volontaire : un plugin/l'API ne doit pas reconnecter cet
         // appareil tant qu'il reste détecté. Effacé à la prochaine connexion
         // explicite ou quand l'appareil disparaît (débranché).
         _voluntaryDisconnects.Add(instance.Device.Serial);
@@ -932,7 +933,6 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand] private void SendRecents() => ActiveMirror?.Session?.Control?.InjectKeyPress(AndroidKeyCode.AppSwitch);
     [RelayCommand] private void SendPower() => ActiveMirror?.Session?.Control?.InjectKeyPress(AndroidKeyCode.Power);
     [RelayCommand] private void RotateDevice() => ActiveMirror?.Session?.Control?.SendSimple(ControlMsgType.RotateDevice);
-    [RelayCommand] private void LaunchDofusTouch() => ActiveMirror?.Session?.Control?.StartApp("com.ankama.dofustouch");
     [RelayCommand] private void Screenshot()
     {
         if (ActiveMirror != null)
@@ -950,17 +950,16 @@ public partial class MainViewModel : ObservableObject
         EnableAudio = true;
         StayAwake = true;
         TurnScreenOff = true;
-        AutoLaunchDofus = true;
         _suppressReconnect = false;
 
         if (ActiveMirror is { IsConnected: true })
         {
-            Status = "Preset Dofus appliqué — reconnexion du miroir…";
+            Status = "Preset appliqué — reconnexion du miroir…";
             await ReconnectActiveAsync();
         }
         else
         {
-            Status = "Preset Dofus appliqué — 1080p · 60 fps · 24 Mbps · écran atténué · lancement auto";
+            Status = "Preset appliqué — 1080p · 60 fps · 24 Mbps · écran atténué";
         }
     }
 

@@ -47,7 +47,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         DeviceName = device.DisplayName;
     }
 
-    public async Task StartAsync(ScrcpyOptions options, bool autoLaunchDofus)
+    public async Task StartAsync(ScrcpyOptions options)
     {
         var session = new ScrcpySession(Device, options);
         Session = session;
@@ -112,12 +112,6 @@ public partial class MirrorInstance : ObservableObject, IDisposable
 
         if (options.TurnScreenOff)
             _ = SetScreenDimmedAsync(true);
-
-        if (autoLaunchDofus)
-        {
-            await Task.Delay(800);
-            session.Control?.StartApp("com.ankama.dofustouch");
-        }
     }
 
     public async Task SetScreenDimmedAsync(bool dimmed)
