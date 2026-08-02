@@ -1194,7 +1194,7 @@
                     <TextBlock Text="{Binding WifiStatus}" FontSize="11.5" Margin="16,0,0,0"
                                Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                 </StackPanel>
-                <TextBlock Text="TouchMirror v0.1.1"
+                <TextBlock x:Name="VersionText"
                            FontSize="11"
                            Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                            HorizontalAlignment="Right" />

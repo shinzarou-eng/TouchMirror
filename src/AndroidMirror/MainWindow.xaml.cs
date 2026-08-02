@@ -69,6 +69,7 @@ public partial class MainWindow : FluentWindow
                 System.Windows.MessageBoxButton.YesNo,
                 System.Windows.MessageBoxImage.Warning) == System.Windows.MessageBoxResult.Yes);
 
+        VersionText.Text = $"TouchMirror v{GetType().Assembly.GetName().Version?.ToString(3)}";
         Loaded += async (_, _) => await _vm.InitializeAsync();
         Closed += async (_, _) =>
         {
