@@ -1,89 +1,302 @@
-using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
+using System.Text.Json;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Jint;
+using Jint.Native;
+using Jint.Native.Function;
 
 namespace TouchMirror.Services;
 
+/// <summary>Métadonnées d'un plugin (plugin.json à côté de plugin.js).</summary>
+public sealed class PluginManifest
+{
+    public string? Name { get; set; }
+    public string? Description { get; set; }
+    public string? Version { get; set; }
+    public string? Author { get; set; }
+    public string? Icon { get; set; }
+}
+
 /// <summary>
-/// Script utilisateur lancé par l'app (dossier plugins/, .ps1 uniquement —
-/// un seul format lisible et auditable).
-/// Reçoit TOUCHMIRROR_API_URL / TOUCHMIRROR_API_TOKEN en variables
-/// d'environnement quand l'API locale est active.
+/// Plugin utilisateur en JavaScript, exécuté en sandbox (Jint) dans un thread
+/// dédié. Le script ne voit que l'objet tm.* (control-plane : miroirs,
+/// connexion, capture, enregistrement) — aucun accès fichier, processus,
+/// réseau ou injection d'input vers le téléphone.
+/// Structure : plugins/<id>/plugin.js (+ plugin.json optionnel) ou plugins/<id>.js
 /// </summary>
 public partial class PluginInstance : ObservableObject
 {
     public string FilePath { get; }
-    public string Name => Path.GetFileName(FilePath);
-    public bool IsVerified { get; }
+    /// <summary>Identifiant stable : nom du dossier ou du fichier .js.</summary>
+    public string Id { get; }
+    public string Name { get; }
+    public string? Description { get; }
+    public string? Version { get; }
+    public string? Author { get; }
+    public string Icon { get; }
+    [ObservableProperty] private bool _isVerified;
+    /// <summary>Hash SHA-256 du plugin.js au dernier scan/vérification.</summary>
+    public string? ContentHash { get; private set; }
     [ObservableProperty] private bool _running;
 
-    private Process? _proc;
+    private Thread? _thread;
+    private CancellationTokenSource? _cts;
+    private readonly object _queueLock = new();
+    private readonly Queue<Action> _queue = new();
+    private readonly List<JsTimer> _timers = new();
+    private int _nextTimerId = 1;
+
+    private sealed record JsTimer(int Id, JsValue Fn, int IntervalMs, bool Repeat, DateTime Due);
 
     public event Action<string>? Output;
+
+    internal void Emit(string line) => Output?.Invoke(line);
 
     public PluginInstance(string path)
     {
         FilePath = path;
+        var dir = Path.GetDirectoryName(path)!;
+        var manifestPath = Path.Combine(dir, "plugin.json");
+        PluginManifest? m = null;
+        if (File.Exists(manifestPath))
+        {
+            try
+            {
+                m = JsonSerializer.Deserialize<PluginManifest>(File.ReadAllText(manifestPath),
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            }
+            catch { }
+        }
+        Id = Path.GetFileName(path).Equals("plugin.js", StringComparison.OrdinalIgnoreCase)
+            ? Path.GetFileName(dir)
+            : Path.GetFileNameWithoutExtension(path);
+        Name = m?.Name ?? Id;
+        Description = m?.Description;
+        Version = m?.Version;
+        Author = m?.Author;
+        Icon = m?.Icon ?? "🧩";
         IsVerified = ComputeIsVerified();
     }
 
-    private bool ComputeIsVerified()
+    /// <summary>Revérifie le hash du fichier à l'instant du lancement.
+    /// Couvre plugin.js + plugin.json : un manifest modifié invalide aussi la confiance.</summary>
+    public bool VerifyNow()
     {
         try
         {
-            using var fs = File.OpenRead(FilePath);
-            var hash = Convert.ToHexString(SHA256.HashData(fs));
-            return VerifiedPlugins.Hashes.Contains(hash);
+            var bytes = File.ReadAllBytes(FilePath);
+            var manifestPath = Path.Combine(Path.GetDirectoryName(FilePath)!, "plugin.json");
+            var manifest = File.Exists(manifestPath)
+                ? File.ReadAllBytes(manifestPath)
+                : Array.Empty<byte>();
+            ContentHash = Convert.ToHexString(
+                SHA256.HashData(bytes.Concat(manifest).ToArray()));
+            IsVerified = VerifiedPlugins.Hashes.Contains(ContentHash);
         }
-        catch { return false; }
+        catch { ContentHash = null; IsVerified = false; }
+        return IsVerified;
     }
 
-    public void Start(string? apiUrl, string? apiToken)
+    private bool ComputeIsVerified() => VerifyNow();
+
+    // ── API exposée au script ────────────────────────────────────────
+
+    private PluginApi? _api;
+    private Engine? _engine;
+    private readonly Dictionary<string, List<JsValue>> _handlers = new();
+
+    public void Start(PluginApi api)
     {
-        if (_proc != null)
+        if (_thread != null)
             return;
-        var psi = new ProcessStartInfo("powershell.exe",
-            $"-NoProfile -ExecutionPolicy Bypass -File \"{FilePath}\"");
-        psi.CreateNoWindow = true;
-        psi.UseShellExecute = false;
-        psi.RedirectStandardOutput = true;
-        psi.RedirectStandardError = true;
-        psi.WorkingDirectory = Path.GetDirectoryName(FilePath)!;
-        if (apiUrl != null) psi.Environment["TOUCHMIRROR_API_URL"] = apiUrl;
-        if (apiToken != null) psi.Environment["TOUCHMIRROR_API_TOKEN"] = apiToken;
-        try
-        {
-            var proc = Process.Start(psi);
-            if (proc == null)
-                return;
-            _proc = proc;
-            proc.EnableRaisingEvents = true;
-            proc.OutputDataReceived += (_, e) => { if (e.Data != null) Output?.Invoke(e.Data); };
-            proc.ErrorDataReceived += (_, e) => { if (e.Data != null) Output?.Invoke(e.Data); };
-            proc.Exited += (_, _) =>
-            {
-                _proc = null;
-                Application.Current?.Dispatcher.Invoke(() => Running = false);
-            };
-            proc.BeginOutputReadLine();
-            proc.BeginErrorReadLine();
-            Running = true;
-        }
-        catch (Exception ex)
-        {
-            _proc = null;
-            Output?.Invoke($"lancement impossible : {ex.Message}");
-        }
+        _api = api;
+        _cts = new CancellationTokenSource();
+        _thread = new Thread(() => Run(api, _cts.Token)) { IsBackground = true, Name = $"plugin-{Id}" };
+        _thread.Start();
+        Running = true;
     }
 
     public void Stop()
     {
-        var proc = _proc;
-        _proc = null;
-        Running = false;
-        try { proc?.Kill(entireProcessTree: true); } catch { }
-        try { proc?.Dispose(); } catch { }
+        _cts?.Cancel();
+        lock (_queueLock) { _queue.Clear(); Monitor.PulseAll(_queueLock); }
+        _thread?.Join(1500);
+        _thread = null;
+        _engine = null;
+        _handlers.Clear();
+        _timers.Clear();
+        _api = null;
+        try { Application.Current?.Dispatcher.Invoke(() => Running = false); }
+        catch { }
     }
+
+    /// <summary>Appelé par l'app quand un événement TM est publié. File bornée :
+    /// un plugin lent ou planté ne fait pas gonfler la mémoire de l'app.</summary>
+    private const int MaxQueuedEvents = 256;
+
+    public void DispatchEvent(string json)
+    {
+        lock (_queueLock)
+        {
+            if (_queue.Count >= MaxQueuedEvents)
+                return;
+            _queue.Enqueue(() => FireEvent(json));
+            Monitor.Pulse(_queueLock);
+        }
+    }
+
+    private void FireEvent(string json)
+    {
+        var e = _engine;
+        if (e == null)
+            return;
+        try
+        {
+            var doc = JsonDocument.Parse(json);
+            var type = doc.RootElement.TryGetProperty("type", out var tp)
+                ? tp.GetString() ?? "" : "";
+            if (!_handlers.TryGetValue(type, out var fns))
+                return;
+            var raw = doc.RootElement.TryGetProperty("data", out var dp)
+                ? dp.GetRawText() : "null";
+            var data = e.Evaluate(raw);
+            foreach (var fn in fns.ToArray())
+                ((Function)fn).Call(JsValue.Undefined, data);
+        }
+        catch (Exception ex) { Output?.Invoke($"event: {ex.Message}"); }
+    }
+
+    private const int MaxTimers = 64;
+    private const int MaxHandlers = 128;
+
+    private int AddTimer(JsValue fn, int ms, bool repeat)
+    {
+        if (_timers.Count >= MaxTimers)
+        {
+            Output?.Invoke($"limite de timers atteinte ({MaxTimers})");
+            return -1;
+        }
+        var id = _nextTimerId++;
+        _timers.Add(new JsTimer(id, fn, Math.Max(16, ms), repeat, DateTime.UtcNow.AddMilliseconds(ms)));
+        lock (_queueLock) Monitor.Pulse(_queueLock);
+        return id;
+    }
+
+    private void ClearTimer(int id) => _timers.RemoveAll(t => t.Id == id);
+
+    private void RunTimers()
+    {
+        var now = DateTime.UtcNow;
+        foreach (var t in _timers.Where(t => t.Due <= now).ToArray())
+        {
+            _timers.Remove(t);
+            if (t.Repeat)
+                _timers.Add(t with { Due = now.AddMilliseconds(t.IntervalMs) });
+            try { ((Function)t.Fn).Call(JsValue.Undefined); }
+            catch (Exception ex) { Output?.Invoke($"timer: {ex.Message}"); }
+        }
+    }
+
+    private int NextDueMs()
+    {
+        if (_timers.Count == 0)
+            return 60000;
+        var ms = (int)(_timers.Min(t => t.Due) - DateTime.UtcNow).TotalMilliseconds;
+        return Math.Clamp(ms, 5, 60000);
+    }
+
+    // ── Moteur ───────────────────────────────────────────────────────
+
+    private void Run(PluginApi api, CancellationToken ct)
+    {
+        try
+        {
+            var engine = new Engine(o =>
+            {
+                o.LimitMemory(8_000_000);
+                o.LimitRecursion(64);
+                o.MaxStatements(1_000_000);
+                o.TimeoutInterval(TimeSpan.FromSeconds(5));
+                o.CancellationToken(ct);
+                o.Constraints.MaxArraySize = 10_000;
+                o.Constraints.RegexTimeout = TimeSpan.FromMilliseconds(250);
+                // Interop CLR non activé : le script ne peut atteindre aucun type .NET,
+                // seulement les delegates explicitement exposés (__call, __schedule…).
+            });
+            _engine = engine;
+
+            // pont unique : __call(méthode, arg?) -> JSON string
+            engine.SetValue("__call", new Func<string, string?, string?>(api.Call));
+            engine.SetValue("__schedule", new Func<JsValue, int, bool, int>(AddTimer));
+            engine.SetValue("__clearTimer", new Action<int>(ClearTimer));
+            engine.SetValue("__on", new Action<string, JsValue>((ev, fn) =>
+            {
+                if (!_handlers.TryGetValue(ev, out var l))
+                    _handlers[ev] = l = new();
+                if (_handlers.Values.Sum(x => x.Count) >= MaxHandlers)
+                {
+                    Output?.Invoke($"limite de handlers atteinte ({MaxHandlers})");
+                    return;
+                }
+                l.Add(fn);
+            }));
+
+            engine.Execute(Prelude, "tm-prelude.js");
+            engine.Execute(File.ReadAllText(FilePath), Path.GetFileName(FilePath));
+
+            // boucle d'événements : timers + events publiés
+            while (!ct.IsCancellationRequested)
+            {
+                Action? work = null;
+                lock (_queueLock)
+                {
+                    if (_queue.Count > 0)
+                        work = _queue.Dequeue();
+                    else
+                        Monitor.Wait(_queueLock, NextDueMs());
+                }
+                if (work != null)
+                {
+                    try { work(); }
+                    catch (Exception ex) { Output?.Invoke(ex.Message); }
+                }
+                RunTimers();
+            }
+        }
+        catch (Exception) when (ct.IsCancellationRequested)
+        {
+            // arrêt demandé — sortie silencieuse
+        }
+        catch (Exception ex)
+        {
+            Output?.Invoke($"moteur arrêté : {ex.Message}");
+        }
+        finally
+        {
+            try { Application.Current?.Dispatcher.Invoke(() => Running = false); }
+            catch { }
+        }
+    }
+
+    /// <summary>Surface JS : tm.* — control-plane uniquement.</summary>
+    private const string Prelude = """
+        const tm = {
+          log:        (...a) => __call('log', a.map(String).join(' ')),
+          getStatus:   ()    => JSON.parse(__call('status')),
+          getMirrors:  ()    => JSON.parse(__call('mirrors')),
+          getDevices:  ()    => JSON.parse(__call('devices')),
+          activate:    s     => JSON.parse(__call('activate',    String(s))),
+          record:      s     => JSON.parse(__call('record',      String(s))),
+          screenshot:  s     => JSON.parse(__call('screenshot',  String(s))),
+          disconnect:  s     => JSON.parse(__call('disconnect',  String(s))),
+          connect:     s     => JSON.parse(__call('connect',     String(s))),
+          on:          (ev, fn) => __on(ev, fn),
+          setTimeout:  (fn, ms) => __schedule(fn, ms, false),
+          setInterval: (fn, ms) => __schedule(fn, ms, true),
+          clearTimeout:  (id)   => __clearTimer(id),
+          clearInterval: (id)   => __clearTimer(id),
+        };
+        """;
 }

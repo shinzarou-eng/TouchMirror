@@ -24,6 +24,14 @@ public sealed class InverseBoolToVisibilityConverter : IValueConverter
         => Binding.DoNothing;
 }
 
+public sealed class NullToCollapsedConverter : IValueConverter
+{
+    public object Convert(object value, Type t, object p, System.Globalization.CultureInfo c)
+        => string.IsNullOrEmpty(value as string) ? Visibility.Collapsed : Visibility.Visible;
+    public object ConvertBack(object v, Type t, object p, System.Globalization.CultureInfo c)
+        => Binding.DoNothing;
+}
+
 public partial class MainWindow : FluentWindow
 {
     private readonly MainViewModel _vm = new();
@@ -56,18 +64,23 @@ public partial class MainWindow : FluentWindow
             });
         _vm.ConfirmUnverified = p => Task.FromResult(
             System.Windows.MessageBox.Show(this,
-                $"« {p.Name} » n'est pas un plugin officiel — il peut exécuter n'importe quel code sur ce PC.\n\nL'activer quand même ?",
+                $"« {p.Name} » n'est pas un plugin officiel — il tourne dans le sandbox JavaScript et peut piloter l'app (connexion, capture, miroirs).\n\nLis le code avant de l'activer. Continuer ?",
                 "Plugin non vérifié",
                 System.Windows.MessageBoxButton.YesNo,
                 System.Windows.MessageBoxImage.Warning) == System.Windows.MessageBoxResult.Yes);
 
+        VersionText.Text = $"TouchMirror v{GetType().Assembly.GetName().Version?.ToString(3)}";
         Loaded += async (_, _) => await _vm.InitializeAsync();
         Closed += async (_, _) =>
         {
+            _vm.StopPlugins();
             _vm.SaveNow();
             await _vm.ShutdownApiAsync();
             foreach (var m in _vm.Mirrors.ToList())
+            {
+                m.ManualDisconnect = true;
                 await m.DisconnectAsync();
+            }
         };
     }
 
@@ -112,6 +125,42 @@ public partial class MainWindow : FluentWindow
         var text = tb.Text.Trim();
         if (text != device.ShortName)
             _vm.RenameDevice(device, text);
+    }
+
+    private void OnMirrorNameKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.TextBox tb)
+            return;
+        if (e.Key is Key.Enter or Key.Return)
+        {
+            CommitMirrorName(tb);
+            Keyboard.ClearFocus();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            tb.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty)?.UpdateTarget();
+            Keyboard.ClearFocus();
+            e.Handled = true;
+        }
+    }
+
+    private void OnMirrorNameLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.TextBox tb)
+            CommitMirrorName(tb);
+    }
+
+    private void CommitMirrorName(System.Windows.Controls.TextBox tb)
+    {
+        var device = tb.DataContext switch
+        {
+            MirrorInstance m => m.Device,
+            MainViewModel => _vm.ActiveMirror?.Device,
+            _ => null
+        };
+        if (device != null)
+            _vm.RenameDevice(device, tb.Text);
     }
 
     private bool _browserReady;

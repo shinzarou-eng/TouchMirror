@@ -7,6 +7,6 @@ public static class VerifiedPlugins
 {
     public static readonly HashSet<string> Hashes = new(System.StringComparer.OrdinalIgnoreCase)
     {
-        "70f47f042efdc366d5d1e663614df478a6db46edc1cae248a809e95965ed1fa3", // watchdog.ps1
+        "22c369f0611fc9122047658ed8707c7f914cff3d2142e6287b5f0fc9694b59b2", // plugins/reconnect/plugin.js
     };
 }

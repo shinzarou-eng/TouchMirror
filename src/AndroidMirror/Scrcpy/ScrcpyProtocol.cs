@@ -22,7 +22,6 @@ public enum ControlMsgType : byte
     UhidInput = 13,
     UhidDestroy = 14,
     OpenHardKeyboardSettings = 15,
-    StartApp = 16,
     ResetVideo = 17,
     CameraSetTorch = 18,
     CameraZoomIn = 19,
@@ -221,16 +220,6 @@ public sealed class ControlChannel : IDisposable
     public void SetDisplayPower(bool on)
     {
         Span<byte> buf = stackalloc byte[2] { (byte)ControlMsgType.SetDisplayPower, (byte)(on ? 1 : 0) };
-        Send(buf);
-    }
-
-    public void StartApp(string packageName)
-    {
-        var bytes = Encoding.UTF8.GetBytes(packageName);
-        var buf = new byte[2 + bytes.Length];
-        buf[0] = (byte)ControlMsgType.StartApp;
-        buf[1] = (byte)Math.Min(bytes.Length, 255);
-        bytes.AsSpan(0, buf[1]).CopyTo(buf.AsSpan(2));
         Send(buf);
     }
 

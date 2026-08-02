@@ -22,6 +22,7 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
         <local:EmptyToVisibilityConverter x:Key="EmptyToVis" />
         <local:InverseBoolToVisibilityConverter x:Key="NotBoolToVis" />
+        <local:NullToCollapsedConverter x:Key="NullToCollapsed" />
 
         <Style x:Key="ToolBtn" TargetType="ui:Button"
                BasedOn="{StaticResource {x:Type ui:Button}}">
@@ -155,16 +156,6 @@
                                 BorderBrush="{DynamicResource AppBorderBrush}"
                                 BorderThickness="1">
                             <StackPanel Orientation="Horizontal">
-                                <ui:Button Style="{StaticResource ToolBtn}" Width="Auto" Padding="10,0"
-                                           Command="{Binding LaunchDofusTouchCommand}"
-                                           ToolTip="Lancer Dofus Touch sur le téléphone">
-                                    <StackPanel Orientation="Horizontal">
-                                        <ui:SymbolIcon Symbol="Games24" FontSize="15"
-                                                       Foreground="{DynamicResource DofusAccentBrush}"
-                                                       Margin="0,0,6,0" />
-                                        <TextBlock Text="Dofus" Foreground="{DynamicResource DofusAccentBrush}" FontWeight="SemiBold" />
-                                    </StackPanel>
-                                </ui:Button>
                                 <ui:Button Style="{StaticResource ToolBtn}" Width="Auto" Padding="9,0"
                                            Click="OnMoreClick" ToolTip="Captures et enregistrement">
                                     <StackPanel Orientation="Horizontal">
@@ -259,7 +250,7 @@
                                 <Separator />
                                 <MenuItem Header="Mode Dofus (preset optimal)"
                                           Command="{Binding ApplyDofusPresetCommand}"
-                                          ToolTip="1080p · 60 fps · 24 Mbps H.264 · audio · écran atténué · lancement auto — une seule reconnexion"
+                                          ToolTip="1080p · 60 fps · 24 Mbps H.264 · audio · écran atténué — une seule reconnexion"
                                           FontWeight="SemiBold"
                                           Foreground="{DynamicResource DofusAccentBrush}">
                                     <MenuItem.Icon><ui:SymbolIcon Symbol="Flash24" FontSize="14"
@@ -353,8 +344,13 @@
                                         <Ellipse Width="7" Height="7" Fill="#4EC98E"
                                                  VerticalAlignment="Center" Margin="0,0,7,0"
                                                  Visibility="{Binding ActiveMirror.IsConnected, Converter={StaticResource BoolToVis}}" />
-                                        <TextBlock Text="{Binding ActiveMirror.DeviceName}" FontSize="12"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <TextBox Text="{Binding ActiveMirror.DeviceName, Mode=OneWay}"
+                                                 FontSize="12" Padding="0" MinWidth="40"
+                                                 Background="Transparent" BorderThickness="0"
+                                                 Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                 ToolTip="Renommer — Entrée pour valider, Échap pour annuler"
+                                                 KeyDown="OnMirrorNameKeyDown"
+                                                 LostFocus="OnMirrorNameLostFocus" />
                                         <Ellipse Width="6" Height="6" Fill="#E05B4C" Margin="8,0,0,0"
                                                  VerticalAlignment="Center"
                                                  Visibility="{Binding ActiveMirror.IsRecording, Converter={StaticResource BoolToVis}}" />
@@ -405,8 +401,13 @@
                                                         <Ellipse Width="6" Height="6" Fill="#4EC98E"
                                                                  VerticalAlignment="Center" Margin="0,0,6,0"
                                                                  Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}" />
-                                                        <TextBlock Text="{Binding DeviceName}" FontSize="11"
-                                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                        <TextBox Text="{Binding DeviceName, Mode=OneWay}"
+                                                                 FontSize="11" Padding="0" MinWidth="30"
+                                                                 Background="Transparent" BorderThickness="0"
+                                                                 Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                 ToolTip="Renommer — Entrée pour valider, Échap pour annuler"
+                                                                 KeyDown="OnMirrorNameKeyDown"
+                                                                 LostFocus="OnMirrorNameLostFocus" />
                                                         <Ellipse Width="6" Height="6" Fill="#E05B4C" Margin="7,0,0,0"
                                                                  VerticalAlignment="Center"
                                                                  Visibility="{Binding IsRecording, Converter={StaticResource BoolToVis}}" />
@@ -419,6 +420,24 @@
                                                         <ui:SymbolIcon Symbol="Dismiss24" FontSize="10" />
                                                     </ui:Button>
                                                 </Grid>
+                                            </Border>
+                                            <Border VerticalAlignment="Bottom" HorizontalAlignment="Left"
+                                                    Margin="6" CornerRadius="6"
+                                                    Background="#C0101216">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <ui:Button Appearance="Transparent" Width="20" Height="16" Padding="0"
+                                                               Command="{Binding DataContext.MoveMirrorLeftCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                               CommandParameter="{Binding}"
+                                                               ToolTip="Monter dans la liste">
+                                                        <ui:SymbolIcon Symbol="ArrowUp24" FontSize="9" />
+                                                    </ui:Button>
+                                                    <ui:Button Appearance="Transparent" Width="20" Height="16" Padding="0"
+                                                               Command="{Binding DataContext.MoveMirrorRightCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                               CommandParameter="{Binding}"
+                                                               ToolTip="Descendre dans la liste">
+                                                        <ui:SymbolIcon Symbol="ArrowDown24" FontSize="9" />
+                                                    </ui:Button>
+                                                </StackPanel>
                                             </Border>
                                             <Border VerticalAlignment="Bottom" HorizontalAlignment="Right"
                                                     Margin="6" Padding="7,2" CornerRadius="6"
@@ -839,12 +858,6 @@
                                     </Grid>
                                     <Border Height="1" Background="#08FFFFFF" />
                                     <Grid MinHeight="38">
-                                        <TextBlock Text="Lancer Dofus à la connexion" FontSize="12" VerticalAlignment="Center" />
-                                        <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"
-                                                         IsChecked="{Binding AutoLaunchDofus}" />
-                                    </Grid>
-                                    <Border Height="1" Background="#08FFFFFF" />
-                                    <Grid MinHeight="38">
                                         <TextBlock Text="Plein écran automatique" FontSize="12" VerticalAlignment="Center" />
                                         <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"
                                                          IsChecked="{Binding AutoFullscreen}" />
@@ -933,20 +946,34 @@
                                     <ItemsControl ItemsSource="{Binding Plugins}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Grid MinHeight="38">
-                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                        <ui:SymbolIcon Symbol="ShieldCheckmark24" FontSize="12"
-                                                                       Foreground="#4EC98E" VerticalAlignment="Center"
-                                                                       Margin="0,0,7,0" ToolTip="Plugin officiel vérifié"
-                                                                       Visibility="{Binding IsVerified, Converter={StaticResource BoolToVis}}" />
-                                                        <ui:SymbolIcon Symbol="ShieldError24" FontSize="12"
-                                                                       Foreground="#E0A24C" VerticalAlignment="Center"
-                                                                       Margin="0,0,7,0" ToolTip="Non vérifié — lis le script avant de l'activer"
-                                                                       Visibility="{Binding IsVerified, Converter={StaticResource NotBoolToVis}}" />
-                                                        <TextBlock Text="{Binding Name}" FontSize="12"
-                                                                   VerticalAlignment="Center" />
+                                                <Grid Margin="0,8,0,10">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Icon}" FontSize="18"
+                                                               VerticalAlignment="Top" Margin="2,0,10,0" />
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="SemiBold" />
+                                                            <TextBlock Text="{Binding Version, StringFormat=' v{0}', FallbackValue=''}"
+                                                                       FontSize="10.5" VerticalAlignment="Center" Margin="4,0,0,0"
+                                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                            <ui:SymbolIcon Symbol="ShieldCheckmark24" FontSize="12"
+                                                                           Foreground="#4EC98E" VerticalAlignment="Center" Margin="5,0,0,0"
+                                                                           ToolTip="Plugin officiel vérifié"
+                                                                           Visibility="{Binding IsVerified, Converter={StaticResource BoolToVis}}" />
+                                                            <ui:SymbolIcon Symbol="ShieldError24" FontSize="12"
+                                                                           Foreground="#E0A24C" VerticalAlignment="Center" Margin="5,0,0,0"
+                                                                           ToolTip="Non vérifié — lis le code avant de l'activer"
+                                                                           Visibility="{Binding IsVerified, Converter={StaticResource NotBoolToVis}}" />
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding Description}" FontSize="10.5" TextWrapping="Wrap"
+                                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                                   Visibility="{Binding Description, Converter={StaticResource NullToCollapsed}, FallbackValue=Collapsed}" />
                                                     </StackPanel>
-                                                    <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                    <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
                                                                      IsChecked="{Binding Running, Mode=OneWay}"
                                                                      Command="{Binding DataContext.TogglePluginCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                                      CommandParameter="{Binding}" />
@@ -956,7 +983,7 @@
                                     </ItemsControl>
                                     <TextBlock FontSize="10.5" Margin="2,6,0,8" TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                               Text="Dépose des scripts .ps1 dans le dossier plugins — ils reçoivent TOUCHMIRROR_API_URL et TOUCHMIRROR_API_TOKEN automatiquement." />
+                                               Text="Dépose un plugin JS dans le dossier plugins (plugins/mon-plugin/plugin.js + plugin.json). API sandboxée : tm.getMirrors(), tm.connect(serial), tm.on('devices', fn)…" />
                                 </StackPanel>
                             </Border>
 
@@ -1167,7 +1194,7 @@
                     <TextBlock Text="{Binding WifiStatus}" FontSize="11.5" Margin="16,0,0,0"
                                Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                 </StackPanel>
-                <TextBlock Text="TouchMirror v0.1.1"
+                <TextBlock x:Name="VersionText"
                            FontSize="11"
                            Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                            HorizontalAlignment="Right" />

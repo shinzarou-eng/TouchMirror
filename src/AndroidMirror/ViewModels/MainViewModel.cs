@@ -86,7 +86,17 @@ public partial class MainViewModel : ObservableObject
         };
 
         _settings = SettingsStore.Load();
+        // migration : anciens plugins .ps1 → id sans extension
+        _settings.EnabledPlugins = _settings.EnabledPlugins
+            .Select(e => e.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase)
+                ? Path.GetFileNameWithoutExtension(e) : e).ToList();
         _apiHost = new LocalApiHost(this);
+        _apiHost.PluginEvent += json =>
+        {
+            foreach (var p in Plugins)
+                if (p.Running)
+                    p.DispatchEvent(json);
+        };
         _suppressReconnect = true;
         _suppressSave = true;
         MaxSize = _settings.MaxSize;
@@ -95,7 +105,6 @@ public partial class MainViewModel : ObservableObject
         VideoCodec = _settings.VideoCodec;
         StayAwake = _settings.StayAwake;
         EnableAudio = _settings.EnableAudio;
-        AutoLaunchDofus = _settings.AutoLaunchDofus;
         AutoFullscreen = _settings.AutoFullscreen;
         SyncDeviceClipboard = _settings.SyncDeviceClipboard;
         Topmost = _settings.Topmost;
@@ -124,7 +133,6 @@ public partial class MainViewModel : ObservableObject
         _settings.VideoCodec = VideoCodec;
         _settings.StayAwake = StayAwake;
         _settings.EnableAudio = EnableAudio;
-        _settings.AutoLaunchDofus = AutoLaunchDofus;
         _settings.AutoFullscreen = AutoFullscreen;
         _settings.SyncDeviceClipboard = SyncDeviceClipboard;
         _settings.Topmost = Topmost;
@@ -134,7 +142,7 @@ public partial class MainViewModel : ObservableObject
         _settings.LocalApiPort = LocalApiPort;
         _settings.LocalApiToken = string.IsNullOrEmpty(LocalApiToken) ? null : LocalApiToken;
         _settings.LastSelectedDeviceKey = SelectedDevice?.DeviceKey;
-        _settings.EnabledPlugins = Plugins.Where(p => p.Running).Select(p => p.Name).ToList();
+        _settings.EnabledPlugins = Plugins.Where(p => p.Running).Select(p => p.Id).ToList();
         SettingsStore.Save(_settings);
         if (LocalApiEnabled && _apiServer is { Port: { } p } && p != LocalApiPort)
             _ = RestartApiAsync();
@@ -146,7 +154,6 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _videoCodec = "h264";
     [ObservableProperty] private bool _stayAwake;
     [ObservableProperty] private bool _enableAudio = true;
-    [ObservableProperty] private bool _autoLaunchDofus;
     [ObservableProperty] private bool _autoFullscreen;
     [ObservableProperty] private bool _syncDeviceClipboard = true;
     [ObservableProperty] private bool _topmost;
@@ -334,31 +341,67 @@ public partial class MainViewModel : ObservableObject
 
     // ═══ Plugins — scripts utilisateurs du dossier plugins/ ═══
 
-    private string? ApiUrl =>
-        LocalApiEnabled && _apiServer?.Port is int p ? $"http://127.0.0.1:{p}/api" : null;
+    private PluginApi ApiFor(PluginInstance p) => new(_apiHost, msg => p.Emit(msg));
 
     [RelayCommand]
     private void RescanPlugins()
     {
         var dir = Path.Combine(AppContext.BaseDirectory, "plugins");
         Directory.CreateDirectory(dir);
-        var files = Directory.EnumerateFiles(dir, "*.ps1")
+        // plugins/<id>.js ou plugins/<id>/plugin.js (+ plugin.json optionnel)
+        var files = Directory.EnumerateFiles(dir, "*.js")
+            .Concat(Directory.EnumerateDirectories(dir)
+                .Select(d => Path.Combine(d, "plugin.js"))
+                .Where(File.Exists))
             .OrderBy(f => f)
             .ToList();
 
         for (var i = Plugins.Count - 1; i >= 0; i--)
             if (!files.Contains(Plugins[i].FilePath))
+            {
+                Plugins[i].Stop();
                 Plugins.RemoveAt(i);
+            }
         foreach (var f in files.Where(f => Plugins.All(p => p.FilePath != f)))
         {
+            // Garde-fou : un script >256 Ko est suspect pour un plugin control-plane.
+            if (new FileInfo(f).Length > 256 * 1024)
+            {
+                Log($"plugin ignoré : {Path.GetFileName(f)} — fichier trop volumineux");
+                continue;
+            }
             var plugin = new PluginInstance(f);
             plugin.Output += line => Log($"[{plugin.Name}] {line}");
             Plugins.Add(plugin);
         }
         foreach (var p in Plugins)
-            if (!p.Running && _settings.EnabledPlugins.Contains(p.Name))
-                p.Start(ApiUrl, _settings.LocalApiToken);
+        {
+            p.VerifyNow();
+            // Un plugin modifié en cours de route est arrêté : il devra être reconfirmé.
+            if (p.Running && !p.IsVerified && !IsApproved(p))
+            {
+                p.Stop();
+                _settings.EnabledPlugins.Remove(p.Id);
+                Log($"plugin arrêté : {p.Name} — fichier modifié, reconfirmation requise");
+                continue;
+            }
+            if (p.Running || !_settings.EnabledPlugins.Contains(p.Id))
+                continue;
+            // Un plugin non officiel modifié depuis sa validation ne redémarre pas seul.
+            if (!p.IsVerified && !IsApproved(p))
+            {
+                Log($"plugin {p.Name} non démarré — contenu non vérifié, confirmation requise");
+                continue;
+            }
+            p.Start(ApiFor(p));
+        }
     }
+
+    /// <summary>Hash déjà validé par l'utilisateur pour ce contenu exact.</summary>
+    private bool IsApproved(PluginInstance p)
+        => p.ContentHash != null
+           && _settings.ApprovedPlugins.TryGetValue(p.Id, out var h)
+           && h == p.ContentHash;
 
     /// <summary>Demande de confirmation avant d'activer un plugin non officiel. Posée par la vue.</summary>
     public Func<PluginInstance, Task<bool>>? ConfirmUnverified;
@@ -368,20 +411,25 @@ public partial class MainViewModel : ObservableObject
     {
         if (plugin == null)
             return;
-        if (!plugin.Running && !plugin.IsVerified
-            && ConfirmUnverified != null && !await ConfirmUnverified(plugin))
-            return;
         if (plugin.Running)
         {
             plugin.Stop();
-            _settings.EnabledPlugins.Remove(plugin.Name);
+            _settings.EnabledPlugins.Remove(plugin.Id);
             Log($"plugin arrêté : {plugin.Name}");
         }
         else
         {
-            plugin.Start(ApiUrl, _settings.LocalApiToken);
-            if (plugin.Running && !_settings.EnabledPlugins.Contains(plugin.Name))
-                _settings.EnabledPlugins.Add(plugin.Name);
+            plugin.VerifyNow();
+            if (!plugin.IsVerified && !IsApproved(plugin))
+            {
+                if (ConfirmUnverified == null || !await ConfirmUnverified(plugin))
+                    return;
+                if (plugin.ContentHash != null)
+                    _settings.ApprovedPlugins[plugin.Id] = plugin.ContentHash;
+            }
+            plugin.Start(ApiFor(plugin));
+            if (plugin.Running && !_settings.EnabledPlugins.Contains(plugin.Id))
+                _settings.EnabledPlugins.Add(plugin.Id);
             Log($"plugin lancé : {plugin.Name}");
         }
         ScheduleSave();
@@ -393,6 +441,49 @@ public partial class MainViewModel : ObservableObject
         var dir = Path.Combine(AppContext.BaseDirectory, "plugins");
         Directory.CreateDirectory(dir);
         System.Diagnostics.Process.Start("explorer.exe", dir);
+    }
+
+    [RelayCommand]
+    private void MoveMirrorLeft(MirrorInstance? m) => MoveMirror(m, -1);
+
+    [RelayCommand]
+    private void MoveMirrorRight(MirrorInstance? m) => MoveMirror(m, 1);
+
+    private void MoveMirror(MirrorInstance? m, int dir)
+    {
+        if (m == null)
+            return;
+        var i = Mirrors.IndexOf(m);
+        var j = i + dir;
+        if (i < 0 || j < 0 || j >= Mirrors.Count)
+            return;
+        Mirrors.Move(i, j);
+        RefreshInactiveMirrors();
+        _settings.MirrorOrder = Mirrors.Select(x => x.Device.DeviceKey).ToList();
+        ScheduleSave();
+    }
+
+    /// <summary>Réordonne les tuiles selon l'ordre mémorisé (clés d'appareil).</summary>
+    private void ApplyMirrorOrder()
+    {
+        var order = _settings.MirrorOrder;
+        if (order.Count == 0)
+            return;
+        var sorted = Mirrors
+            .OrderBy(m => order.IndexOf(m.Device.DeviceKey) is var k && k >= 0 ? k : int.MaxValue)
+            .ToList();
+        for (var i = 0; i < sorted.Count; i++)
+        {
+            var cur = Mirrors.IndexOf(sorted[i]);
+            if (cur > i)
+                Mirrors.Move(cur, i);
+        }
+    }
+
+    public void StopPlugins()
+    {
+        foreach (var p in Plugins)
+            p.Stop();
     }
 
     private void RefreshInactiveMirrors()
@@ -446,7 +537,6 @@ public partial class MainViewModel : ObservableObject
     partial void OnVideoCodecChanged(string value) { ScheduleSave(); if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
     partial void OnEnableAudioChanged(bool value) { ScheduleSave(); if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
     partial void OnStayAwakeChanged(bool value) => ScheduleSave();
-    partial void OnAutoLaunchDofusChanged(bool value) => ScheduleSave();
     partial void OnAutoFullscreenChanged(bool value) => ScheduleSave();
     partial void OnSyncDeviceClipboardChanged(bool value) => ScheduleSave();
     partial void OnTopmostChanged(bool value) => ScheduleSave();
@@ -537,6 +627,10 @@ public partial class MainViewModel : ObservableObject
                 }
             }
 
+            // Un appareil déconnecté volontairement puis débranché est oublié :
+            // à son retour, la reconnexion auto est de nouveau permise.
+            _voluntaryDisconnects.RemoveWhere(s => !list.Any(d => d.Serial == s));
+
             for (var i = 0; i < list.Count; i++)
             {
                 var d = list[i];
@@ -625,6 +719,7 @@ public partial class MainViewModel : ObservableObject
     private async Task ConnectDeviceAsync(AdbDevice device)
     {
         Services.AppLogger.Write($"connect start: {device.Serial}");
+        _voluntaryDisconnects.Remove(device.Serial);
         var existing = Mirrors.FirstOrDefault(m => m.Device.SharesIdentity(device));
         if (existing != null)
         {
@@ -653,17 +748,18 @@ public partial class MainViewModel : ObservableObject
             instance.Disconnected += m =>
             {
                 _apiHost.Publish("mirror.disconnected",
-                    new { name = m.DeviceName, serial = m.Device.Serial });
+                    new { name = m.DeviceName, serial = m.Device.Serial, manual = m.ManualDisconnect });
                 Mirrors.Remove(m);
                 PromoteNextActive(m);
             };
 
             Mirrors.Add(instance);
+            ApplyMirrorOrder();
             RefreshInactiveMirrors();
             SetActive(instance);
             MirrorAdded?.Invoke(instance);
             Services.AppLogger.Write("startasync begin");
-            await instance.StartAsync(BuildOptions(), AutoLaunchDofus);
+            await instance.StartAsync(BuildOptions());
             Services.AppLogger.Write("startasync done");
             RememberDevice(device);
         }
@@ -699,10 +795,21 @@ public partial class MainViewModel : ObservableObject
 
     private async Task RemoveMirrorInternalAsync(MirrorInstance instance)
     {
+        instance.ManualDisconnect = true;
+        // Déconnexion volontaire : un plugin/l'API ne doit pas reconnecter cet
+        // appareil tant qu'il reste détecté. Effacé à la prochaine connexion
+        // explicite ou quand l'appareil disparaît (débranché).
+        _voluntaryDisconnects.Add(instance.Device.Serial);
         Mirrors.Remove(instance);
         PromoteNextActive(instance);
         await instance.DisconnectAsync();
     }
+
+    /// <summary>Serials déconnectés volontairement — exclus de la reconnexion auto.</summary>
+    private readonly HashSet<string> _voluntaryDisconnects = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Vrai si l'appareil a été déconnecté à la demande et reste présent.</summary>
+    public bool IsVoluntarilyDisconnected(string serial) => _voluntaryDisconnects.Contains(serial);
 
     private void RememberDevice(AdbDevice device)
     {
@@ -826,7 +933,6 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand] private void SendRecents() => ActiveMirror?.Session?.Control?.InjectKeyPress(AndroidKeyCode.AppSwitch);
     [RelayCommand] private void SendPower() => ActiveMirror?.Session?.Control?.InjectKeyPress(AndroidKeyCode.Power);
     [RelayCommand] private void RotateDevice() => ActiveMirror?.Session?.Control?.SendSimple(ControlMsgType.RotateDevice);
-    [RelayCommand] private void LaunchDofusTouch() => ActiveMirror?.Session?.Control?.StartApp("com.ankama.dofustouch");
     [RelayCommand] private void Screenshot()
     {
         if (ActiveMirror != null)
@@ -844,17 +950,16 @@ public partial class MainViewModel : ObservableObject
         EnableAudio = true;
         StayAwake = true;
         TurnScreenOff = true;
-        AutoLaunchDofus = true;
         _suppressReconnect = false;
 
         if (ActiveMirror is { IsConnected: true })
         {
-            Status = "Preset Dofus appliqué — reconnexion du miroir…";
+            Status = "Preset appliqué — reconnexion du miroir…";
             await ReconnectActiveAsync();
         }
         else
         {
-            Status = "Preset Dofus appliqué — 1080p · 60 fps · 24 Mbps · écran atténué · lancement auto";
+            Status = "Preset appliqué — 1080p · 60 fps · 24 Mbps · écran atténué";
         }
     }
 

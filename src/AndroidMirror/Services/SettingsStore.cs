@@ -18,7 +18,6 @@ public sealed class AppSettings
     public string VideoCodec { get; set; } = "h264";
     public bool StayAwake { get; set; }
     public bool EnableAudio { get; set; } = true;
-    public bool AutoLaunchDofus { get; set; }
     public bool AutoFullscreen { get; set; }
     public bool SyncDeviceClipboard { get; set; } = true;
     public bool TurnScreenOff { get; set; }
@@ -29,6 +28,10 @@ public sealed class AppSettings
     public string? LocalApiToken { get; set; }
     public string? LastSelectedDeviceKey { get; set; }
     public List<string> EnabledPlugins { get; set; } = new();
+    /// <summary>Plugins non officiels approuvés par l'utilisateur : id → hash SHA-256 validé.</summary>
+    public Dictionary<string, string> ApprovedPlugins { get; set; } = new();
+    /// <summary>Ordre des tuiles miroir, par clé d'appareil.</summary>
+    public List<string> MirrorOrder { get; set; } = new();
     public Dictionary<string, DevicePrefs> Devices { get; set; } = new();
 }
 
@@ -45,7 +48,15 @@ public static class SettingsStore
         try
         {
             if (File.Exists(_path))
-                return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_path)) ?? new();
+            {
+                var s = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_path)) ?? new();
+                // Renommage watchdog → reconnect : conserve l'activation et l'approbation.
+                if (s.EnabledPlugins.Remove("watchdog"))
+                    s.EnabledPlugins.Add("reconnect");
+                if (s.ApprovedPlugins.Remove("watchdog", out var h))
+                    s.ApprovedPlugins["reconnect"] = h;
+                return s;
+            }
         }
         catch { }
         return new();
