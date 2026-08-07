@@ -6,7 +6,8 @@ using System.Text.RegularExpressions;
 namespace TouchMirror.Services;
 
 public sealed record AdbDevice(string Serial, string Model, string State, int? Battery = null,
-    string? HardwareSerial = null, string? AltSerial = null, string? CustomName = null)
+    string? HardwareSerial = null, string? AltSerial = null, string? CustomName = null,
+    string? Color = null)
 {
     public string DeviceKey => HardwareSerial is { Length: > 0 } h ? h : Serial;
     public string DisplayName => CustomName ?? (string.IsNullOrWhiteSpace(Model) ? Serial : $"{Model} ({Serial})");

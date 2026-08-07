@@ -22,6 +22,10 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     [ObservableProperty] private bool _isRecording;
     [ObservableProperty] private bool _isActive;
     [ObservableProperty] private int _slot;
+    /// <summary>Couleur d'accent hex de l'appareil (nulle = accent par défaut).</summary>
+    [ObservableProperty] private string? _accentHex;
+    /// <summary>Réglages propres de l'appareil dans l'espace de travail actif (nul = globaux).</summary>
+    public WorkspaceDevice? Prefs { get; set; }
 
     /// <summary>Vrai quand la déconnexion vient d'un geste utilisateur (pas d'une coupure session).</summary>
     public bool ManualDisconnect { get; set; }

@@ -1,0 +1,7 @@
+{
+  "name": "Session Log",
+  "description": "Journalise les événements de session — connexions, coupures, changements de miroir actif et enregistrements — dans le journal de l'app.",
+  "version": "1.0",
+  "author": "TouchMirror",
+  "icon": "📋"
+}

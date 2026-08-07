@@ -36,6 +36,8 @@ TouchMirror est une application **Windows native** qui affiche et contrôle ton 
 | **Mirroring HD** | Résolution native du téléphone, 60/90/120 fps, codecs H.264, H.265 et AV1 |
 | **Faible latence** | Décodage FFmpeg basse latence, dernière frame prioritaire, audio ~400 ms, sockets optimisés |
 | **Multicompte** | Plusieurs téléphones dans une seule fenêtre, en grille adaptative — un compte par téléphone |
+| **Espaces de travail** | « Solo », « Duo », « Stream » — appareils, ordre, miroir actif et réglages par appareil restaurés en un clic ; `Ctrl`+`Maj`+`1-9` pour basculer |
+| **Personnalisation** | Renomme chaque téléphone (tuiles + hub) et choisis sa couleur d'accent — clic droit sur l'appareil |
 | **USB & WiFi** | Bascule en sans-fil en un clic, puis débranche le câble — le flux continue |
 | **Souris = tactile** | Clic, glisser, molette = scroll, `Ctrl`+molette = pinch-to-zoom (zoom de la map) |
 | **Clavier** | Le texte tapé arrive sur le téléphone comme un clavier Bluetooth |

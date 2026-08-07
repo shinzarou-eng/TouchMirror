@@ -32,6 +32,24 @@ public sealed class NullToCollapsedConverter : IValueConverter
         => Binding.DoNothing;
 }
 
+/// <summary>Hex « #RRGGBB » → brush ; valeur nulle/invalide → accent par défaut.</summary>
+public sealed class HexToBrushConverter : IValueConverter
+{
+    private static readonly System.Windows.Media.SolidColorBrush Default =
+        new(System.Windows.Media.Color.FromRgb(0x4E, 0xC9, 0x8E));
+
+    public object Convert(object value, Type t, object p, System.Globalization.CultureInfo c)
+    {
+        if (value is string { Length: >= 4 } hex)
+            try { return new System.Windows.Media.SolidColorBrush(
+                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex)); }
+            catch { }
+        return Default;
+    }
+    public object ConvertBack(object v, Type t, object p, System.Globalization.CultureInfo c)
+        => Binding.DoNothing;
+}
+
 public partial class MainWindow : FluentWindow
 {
     private readonly MainViewModel _vm = new();
@@ -252,6 +270,107 @@ public partial class MainWindow : FluentWindow
         HelpBrowser.CoreWebView2.Navigate(url);
     }
 
+    // ═══ Espaces de travail ═══
+
+    /// <summary>Vrai si la source du clic est dans un bouton ou un champ texte
+    /// (évite de déclencher l'action du conteneur parent).</summary>
+    private static bool IsInteractiveSource(object? source)
+    {
+        for (var d = source as DependencyObject; d != null;
+             d = System.Windows.Media.VisualTreeHelper.GetParent(d))
+            if (d is System.Windows.Controls.Primitives.ButtonBase
+                or System.Windows.Controls.TextBox)
+                return true;
+        return false;
+    }
+
+    private void OnWorkspaceChipClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: WorkspaceItem { IsEditing: false } item }
+            && !IsInteractiveSource(e.OriginalSource))
+            _ = _vm.SelectWorkspaceAsync(item);
+    }
+
+    private void OnWorkspaceEditClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.MenuItem { DataContext: WorkspaceItem item })
+            item.IsEditing = true;
+    }
+
+    private void OnWorkspaceDuplicateClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.MenuItem { DataContext: WorkspaceItem item })
+            _vm.DuplicateWorkspaceCommand.Execute(item);
+    }
+
+    private void OnWorkspaceDeleteClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.MenuItem { DataContext: WorkspaceItem item }
+            && System.Windows.MessageBox.Show(this,
+                $"Supprimer l'espace « {item.Name} » ? Les téléphones ne seront pas déconnectés.",
+                "Supprimer l'espace",
+                System.Windows.MessageBoxButton.YesNo,
+                System.Windows.MessageBoxImage.Question) == System.Windows.MessageBoxResult.Yes)
+            _vm.DeleteWorkspaceCommand.Execute(item);
+    }
+
+    private void OnWorkspaceExitClick(object sender, RoutedEventArgs e) => _vm.ExitWorkspace();
+
+    private void OnWorkspaceNameVisible(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is true && sender is System.Windows.Controls.TextBox tb)
+        {
+            tb.Focus();
+            tb.SelectAll();
+        }
+    }
+
+    private void OnWorkspaceNameKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.TextBox tb
+            || tb.DataContext is not WorkspaceItem item)
+            return;
+        if (e.Key is Key.Enter or Key.Return)
+        {
+            _vm.RenameWorkspace(item, tb.Text);
+            Keyboard.ClearFocus();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            item.IsEditing = false;
+            tb.Text = item.Name;
+            Keyboard.ClearFocus();
+            e.Handled = true;
+        }
+    }
+
+    private void OnWorkspaceNameLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.TextBox tb
+            && tb.DataContext is WorkspaceItem { IsEditing: true } item)
+            _vm.RenameWorkspace(item, tb.Text);
+    }
+
+    private void OnMissingClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: MissingDeviceItem item }
+            && !IsInteractiveSource(e.OriginalSource))
+            _vm.ConnectMissingCommand.Execute(item);
+    }
+
+    private void OnDeviceColorClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.MenuItem { DataContext: Services.AdbDevice d } mi)
+            _vm.SetDeviceColor(d, mi.Tag is string s && s.Length > 0 ? s : null);
+    }
+
+    private void OnDeviceForgetClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.MenuItem { DataContext: Services.AdbDevice d })
+            _vm.ForgetDeviceCommand.Execute(d);
+    }
+
     private void OnMoreClick(object sender, RoutedEventArgs e)
     {
         var btn = (FrameworkElement)sender;
@@ -389,7 +508,12 @@ public partial class MainWindow : FluentWindow
         if (mods.HasFlag(ModifierKeys.Control) && !mods.HasFlag(ModifierKeys.Alt)
             && e.Key is >= Key.D1 and <= Key.D9 or >= Key.NumPad1 and <= Key.NumPad9)
         {
-            _vm.ActivateAt(e.Key <= Key.D9 ? e.Key - Key.D1 : e.Key - Key.NumPad1);
+            var index = e.Key <= Key.D9 ? e.Key - Key.D1 : e.Key - Key.NumPad1;
+            // Ctrl+Maj+N : espace de travail · Ctrl+N : tuile miroir (inchangé).
+            if (mods.HasFlag(ModifierKeys.Shift))
+                _vm.ActivateWorkspaceAt(index);
+            else
+                _vm.ActivateAt(index);
             e.Handled = true;
             return;
         }
