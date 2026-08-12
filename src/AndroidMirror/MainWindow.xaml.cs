@@ -114,6 +114,50 @@ public partial class MainWindow : FluentWindow
         => _vm.ActiveMirror?.View.CycleDisplayRotation();
     private void OnSettingsClick(object sender, RoutedEventArgs e) => _vm.ShowSettings = !_vm.ShowSettings;
 
+    private void ShowPluginModal(bool show)
+    {
+        var isOpen = PluginModalBackdrop.Visibility == Visibility.Visible;
+        if (show == isOpen)
+            return;
+        if (!show)
+        {
+            PluginModalBackdrop.Visibility = Visibility.Collapsed;
+            return;
+        }
+        PluginModalBackdrop.Visibility = Visibility.Visible;
+        var sb = new System.Windows.Media.Animation.Storyboard();
+        var lift = new System.Windows.Media.Animation.DoubleAnimation(22, 0, TimeSpan.FromMilliseconds(220))
+            { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } };
+        var fade = new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220));
+        System.Windows.Media.Animation.Storyboard.SetTarget(lift, PluginModal);
+        System.Windows.Media.Animation.Storyboard.SetTargetProperty(lift, new PropertyPath("RenderTransform.Y"));
+        System.Windows.Media.Animation.Storyboard.SetTarget(fade, PluginModalBackdrop);
+        System.Windows.Media.Animation.Storyboard.SetTargetProperty(fade, new PropertyPath("Opacity"));
+        sb.Children.Add(lift);
+        sb.Children.Add(fade);
+        sb.Begin();
+    }
+
+    private void OnPluginsClick(object sender, RoutedEventArgs e)
+    {
+        _vm.RescanPluginsCommand.Execute(null);
+        _vm.LoadCatalogCommand.Execute(null);
+        ShowPluginModal(true);
+    }
+
+    private void OnCatalogClick(object sender, RoutedEventArgs e)
+    {
+        _vm.RescanPluginsCommand.Execute(null);
+        ShowPluginModal(true);
+        _vm.LoadCatalogCommand.Execute(null);
+        Dispatcher.BeginInvoke(new Action(() => ModalCatalogSection.BringIntoView()),
+            System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    private void OnPluginModalClose(object sender, RoutedEventArgs e) => ShowPluginModal(false);
+    private void OnPluginModalBackdrop(object sender, MouseButtonEventArgs e) => ShowPluginModal(false);
+    private void OnPluginModalContent(object sender, MouseButtonEventArgs e) => e.Handled = true;
+
     private void OnDeviceNameKeyDown(object sender, KeyEventArgs e)
     {
         if (sender is not System.Windows.Controls.TextBox tb || tb.DataContext is not Services.AdbDevice d)
