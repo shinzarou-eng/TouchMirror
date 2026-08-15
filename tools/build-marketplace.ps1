@@ -22,6 +22,8 @@ Get-ChildItem "$root\marketplace" -Directory | Sort-Object Name | ForEach-Object
         icon        = "$($manifest.icon)"
         description = "$($manifest.description)"
         official    = $true
+        featured    = [bool]$manifest.featured
+        tags        = @($manifest.tags)
         hash        = $hash
     }
 }

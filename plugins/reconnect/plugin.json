@@ -3,5 +3,7 @@
   "description": "Restaure un miroir dont la session a lâché (câble, WiFi, plantage) — jamais après une déconnexion volontaire, jamais de lancement sur le téléphone.",
   "version": "2.0",
   "author": "TouchMirror",
-  "icon": "�"
+  "icon": "🔗",
+  "featured": true,
+  "tags": ["fiabilité", "connexion"]
 }

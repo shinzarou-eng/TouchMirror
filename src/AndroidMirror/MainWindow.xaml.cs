@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media.Animation;
@@ -114,24 +115,24 @@ public partial class MainWindow : FluentWindow
         => _vm.ActiveMirror?.View.CycleDisplayRotation();
     private void OnSettingsClick(object sender, RoutedEventArgs e) => _vm.ShowSettings = !_vm.ShowSettings;
 
-    private void ShowPluginModal(bool show)
+    private void ShowModal(Grid backdrop, Border modal, bool show)
     {
-        var isOpen = PluginModalBackdrop.Visibility == Visibility.Visible;
+        var isOpen = backdrop.Visibility == Visibility.Visible;
         if (show == isOpen)
             return;
         if (!show)
         {
-            PluginModalBackdrop.Visibility = Visibility.Collapsed;
+            backdrop.Visibility = Visibility.Collapsed;
             return;
         }
-        PluginModalBackdrop.Visibility = Visibility.Visible;
+        backdrop.Visibility = Visibility.Visible;
         var sb = new System.Windows.Media.Animation.Storyboard();
         var lift = new System.Windows.Media.Animation.DoubleAnimation(22, 0, TimeSpan.FromMilliseconds(220))
             { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } };
         var fade = new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220));
-        System.Windows.Media.Animation.Storyboard.SetTarget(lift, PluginModal);
+        System.Windows.Media.Animation.Storyboard.SetTarget(lift, modal);
         System.Windows.Media.Animation.Storyboard.SetTargetProperty(lift, new PropertyPath("RenderTransform.Y"));
-        System.Windows.Media.Animation.Storyboard.SetTarget(fade, PluginModalBackdrop);
+        System.Windows.Media.Animation.Storyboard.SetTarget(fade, backdrop);
         System.Windows.Media.Animation.Storyboard.SetTargetProperty(fade, new PropertyPath("Opacity"));
         sb.Children.Add(lift);
         sb.Children.Add(fade);
@@ -141,21 +142,25 @@ public partial class MainWindow : FluentWindow
     private void OnPluginsClick(object sender, RoutedEventArgs e)
     {
         _vm.RescanPluginsCommand.Execute(null);
-        _vm.LoadCatalogCommand.Execute(null);
-        ShowPluginModal(true);
+        ShowModal(MarketModalBackdrop, MarketModal, false);
+        ShowModal(PluginModalBackdrop, PluginModal, true);
     }
 
     private void OnCatalogClick(object sender, RoutedEventArgs e)
     {
-        _vm.RescanPluginsCommand.Execute(null);
-        ShowPluginModal(true);
         _vm.LoadCatalogCommand.Execute(null);
-        Dispatcher.BeginInvoke(new Action(() => ModalCatalogSection.BringIntoView()),
-            System.Windows.Threading.DispatcherPriority.Loaded);
+        ShowModal(PluginModalBackdrop, PluginModal, false);
+        ShowModal(MarketModalBackdrop, MarketModal, true);
     }
 
-    private void OnPluginModalClose(object sender, RoutedEventArgs e) => ShowPluginModal(false);
-    private void OnPluginModalBackdrop(object sender, MouseButtonEventArgs e) => ShowPluginModal(false);
+    private void OnPluginModalClose(object sender, RoutedEventArgs e)
+        => ShowModal(PluginModalBackdrop, PluginModal, false);
+    private void OnMarketModalClose(object sender, RoutedEventArgs e)
+        => ShowModal(MarketModalBackdrop, MarketModal, false);
+    private void OnPluginModalBackdrop(object sender, MouseButtonEventArgs e)
+        => ShowModal(PluginModalBackdrop, PluginModal, false);
+    private void OnMarketModalBackdrop(object sender, MouseButtonEventArgs e)
+        => ShowModal(MarketModalBackdrop, MarketModal, false);
     private void OnPluginModalContent(object sender, MouseButtonEventArgs e) => e.Handled = true;
 
     private void OnDeviceNameKeyDown(object sender, KeyEventArgs e)

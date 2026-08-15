@@ -7,8 +7,8 @@ public static class VerifiedPlugins
 {
     public static readonly HashSet<string> Hashes = new(System.StringComparer.OrdinalIgnoreCase)
     {
-        "22c369f0611fc9122047658ed8707c7f914cff3d2142e6287b5f0fc9694b59b2", // marketplace/reconnect/plugin.js
-        "82b3d462ae7ae3cfb941193e8dd5d10e5e16ddc24e4475c04170ae581a54526a", // marketplace/session-log/plugin.js
-        "22c369f0611fc9122047658ed8707c7f914cff3d2142e6287b5f0fc9694b59b2", // plugins/reconnect/plugin.js
+        "f52363adfb80b4dd62ef0c3d96ac36bb2cc178d9dd2a77b6e101d44ad6162630", // marketplace/reconnect/plugin.js
+        "72675b1735bde5fc8094103c83b0748a42a8dd794aedd507d9e06548e21a67e6", // marketplace/session-log/plugin.js
+        "f52363adfb80b4dd62ef0c3d96ac36bb2cc178d9dd2a77b6e101d44ad6162630", // plugins/reconnect/plugin.js
     };
 }

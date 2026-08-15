@@ -13,14 +13,18 @@ public partial class MarketplaceItem : ObservableObject
     public string Description => Entry.Description;
     public string Meta => $"v{Entry.Version} · {Entry.Author}";
     public bool Official => Entry.Official;
+    public bool Featured => Entry.Featured;
+    public List<string> Tags => Entry.Tags;
 
     [ObservableProperty] private string _actionLabel = "Installer";
     [ObservableProperty] private bool _canInstall = true;
     [ObservableProperty] private bool _isInstalled;
+    [ObservableProperty] private bool _isPresent;
 
     public void Refresh(IReadOnlyList<PluginInstance> installed)
     {
         var p = installed.FirstOrDefault(x => x.Id == Id);
+        IsPresent = p != null;
         IsInstalled = p?.ContentHash != null
                       && string.Equals(p.ContentHash, Entry.Hash, StringComparison.OrdinalIgnoreCase);
         if (IsInstalled)

@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -85,6 +87,8 @@ public partial class MainViewModel : ObservableObject
 
     public MainViewModel()
     {
+        CatalogView = CollectionViewSource.GetDefaultView(Catalog);
+        CatalogView.Filter = CatalogPredicate;
         _recTimer.Tick += (_, _) =>
         {
             var since = ActiveMirror?.RecordingSince;
@@ -757,11 +761,43 @@ public partial class MainViewModel : ObservableObject
     // ═══ Catalogue — plugins publiés sur le dépôt GitHub ═══
 
     public ObservableCollection<MarketplaceItem> Catalog { get; } = new();
+    public ICollectionView CatalogView { get; }
 
     [ObservableProperty] private string _catalogStatus = "";
     [ObservableProperty] private bool _catalogBusy;
+    [ObservableProperty] private string _catalogFilter = "";
+    [ObservableProperty] private int _catalogTab;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasFeatured))]
+    private MarketplaceItem? _featuredItem;
+    public bool HasFeatured => FeaturedItem != null;
 
     private bool _catalogLoaded;
+
+    partial void OnCatalogFilterChanged(string value) => CatalogView.Refresh();
+    partial void OnCatalogTabChanged(int value) => CatalogView.Refresh();
+
+    private bool CatalogPredicate(object o)
+    {
+        if (o is not MarketplaceItem m || m.Featured)
+            return false;
+        var ok = CatalogTab switch
+        {
+            1 => m.Official,
+            2 => m.IsPresent,
+            _ => true
+        };
+        return ok && (string.IsNullOrWhiteSpace(CatalogFilter)
+                      || m.Name.Contains(CatalogFilter, StringComparison.OrdinalIgnoreCase)
+                      || m.Description.Contains(CatalogFilter, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [RelayCommand]
+    private void SelectCatalogTab(string? tab)
+    {
+        if (int.TryParse(tab, out var t))
+            CatalogTab = t;
+    }
 
     [RelayCommand]
     private async Task LoadCatalog()
@@ -779,6 +815,7 @@ public partial class MainViewModel : ObservableObject
                 item.Refresh(Plugins);
                 Catalog.Add(item);
             }
+            FeaturedItem = Catalog.FirstOrDefault(i => i.Featured);
             CatalogStatus = Catalog.Count == 0 ? "catalogue vide" : "";
             _catalogLoaded = true;
         }

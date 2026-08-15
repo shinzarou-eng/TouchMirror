@@ -15,6 +15,8 @@ public sealed class MarketplaceEntry
     public string Icon { get; set; } = "";
     public string Description { get; set; } = "";
     public bool Official { get; set; }
+    public bool Featured { get; set; }
+    public List<string> Tags { get; set; } = new();
     public string Hash { get; set; } = "";
     public string? MinAppVersion { get; set; }
 }
