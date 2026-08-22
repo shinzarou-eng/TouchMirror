@@ -430,6 +430,12 @@
                                     <MenuItem.Icon><ui:SymbolIcon Symbol="Phone24" FontSize="14" /></MenuItem.Icon>
                                 </MenuItem>
                                 <Separator />
+                                <MenuItem Header="Ajouter un iPhone (AirPlay — affichage seul)"
+                                          Command="{Binding AddIosMirrorCommand}"
+                                          ToolTip="Miroir iOS par AirPlay : l'écran s'affiche, l'iPhone n'est pas contrôlable">
+                                    <MenuItem.Icon><ui:SymbolIcon Symbol="PhoneScreenTime24" FontSize="14" /></MenuItem.Icon>
+                                </MenuItem>
+                                <Separator />
                                 <MenuItem Header="Mode Dofus (preset optimal)"
                                           Command="{Binding ApplyDofusPresetCommand}"
                                           ToolTip="1080p · 60 fps · 24 Mbps H.264 · audio · écran atténué — une seule reconnexion"

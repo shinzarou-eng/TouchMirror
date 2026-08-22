@@ -94,6 +94,7 @@ public partial class MainWindow : FluentWindow
         {
             _vm.StopPlugins();
             _vm.SaveNow();
+            _vm.StopAirPlay();
             await _vm.ShutdownApiAsync();
             foreach (var m in _vm.Mirrors.ToList())
             {

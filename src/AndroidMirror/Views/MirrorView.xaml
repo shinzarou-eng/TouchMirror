@@ -17,6 +17,50 @@
               MouseWheel="OnMouseWheel"
               LostMouseCapture="OnLostCapture" />
 
+        <Border x:Name="IosBadge"
+                Padding="10,5"
+                CornerRadius="8"
+                Background="#B3161616"
+                BorderThickness="1"
+                BorderBrush="#3A5A8A"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Margin="12,40,0,0"
+                Visibility="Collapsed">
+            <StackPanel Orientation="Horizontal">
+                <ui:SymbolIcon Symbol="Phone24" FontSize="12"
+                               Foreground="#8AB4E8" Margin="0,0,7,0" />
+                <TextBlock Text="iOS · AFFICHAGE SEUL"
+                           Foreground="#8AB4E8"
+                           FontSize="10.5"
+                           FontWeight="SemiBold" />
+            </StackPanel>
+        </Border>
+
+        <Grid x:Name="WaitingOverlay"
+              Background="#E6101014"
+              Visibility="Collapsed">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <ui:SymbolIcon Symbol="PhoneScreenTime24" FontSize="40"
+                               Foreground="#5A7FA8"
+                               HorizontalAlignment="Center" />
+                <TextBlock Text="En attente d'un iPhone…"
+                           FontSize="16" FontWeight="SemiBold"
+                           Foreground="#DDE6F0"
+                           HorizontalAlignment="Center"
+                           Margin="0,16,0,6" />
+                <TextBlock Text="Centre de contrôle → Recopie de l'écran → « TouchMirror »"
+                           FontSize="12.5"
+                           Foreground="#9FB2C8"
+                           HorizontalAlignment="Center" />
+                <TextBlock Text="Même réseau Wi-Fi — affichage seul, aucun contrôle"
+                           FontSize="11"
+                           Foreground="#6E7E92"
+                           HorizontalAlignment="Center"
+                           Margin="0,8,0,0" />
+            </StackPanel>
+        </Grid>
+
         <StackPanel Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Top"

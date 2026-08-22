@@ -1295,6 +1295,78 @@ public partial class MainViewModel : ObservableObject
         await instance.DisconnectAsync();
     }
 
+    // ── iOS / AirPlay (affichage seul) ────────────────────────────────────
+    private AirPlayService? _airPlay;
+
+    [RelayCommand]
+    private async Task AddIosMirrorAsync()
+    {
+        var existing = Mirrors.OfType<IosMirrorInstance>().FirstOrDefault();
+        if (existing != null)
+        {
+            SetActive(existing);
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            _airPlay ??= new AirPlayService();
+            if (!_airPlay.IsRunning)
+                await _airPlay.StartAsync();
+
+            var instance = new IosMirrorInstance
+            {
+                ShouldSyncClipboard = () => false
+            };
+            instance.Log += Log;
+            instance.Connected += m =>
+            {
+                SetActive(m);
+                AnyConnected?.Invoke();
+                _apiHost.Publish("mirror.connected",
+                    new { slot = m.Slot, name = m.DeviceName, serial = m.Device.Serial });
+            };
+            instance.Disconnected += m =>
+            {
+                _apiHost.Publish("mirror.disconnected",
+                    new { name = m.DeviceName, serial = m.Device.Serial, manual = m.ManualDisconnect });
+                Mirrors.Remove(m);
+                PromoteNextActive(m);
+                StopAirPlayIfUnused();
+            };
+
+            Mirrors.Add(instance);
+            ApplyMirrorOrder();
+            RefreshInactiveMirrors();
+            SetActive(instance);
+            MirrorAdded?.Invoke(instance);
+            await instance.StartAsync(_airPlay);
+            Status = "AirPlay prêt — iPhone : Centre de contrôle → Recopie de l'écran → « TouchMirror »";
+        }
+        catch (Exception ex)
+        {
+            Log(ex.ToString());
+            _hasError = true;
+            Status = $"AirPlay indisponible : {ex.Message}";
+            OnPropertyChanged(nameof(StatusDotColor));
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private void StopAirPlayIfUnused()
+    {
+        if (Mirrors.OfType<IosMirrorInstance>().Any())
+            return;
+        _airPlay?.Dispose();
+        _airPlay = null;
+    }
+
+    public void StopAirPlay() => _airPlay?.Dispose();
+
     /// <summary>Serials déconnectés volontairement — exclus de la reconnexion auto.</summary>
     private readonly HashSet<string> _voluntaryDisconnects = new(StringComparer.OrdinalIgnoreCase);
 

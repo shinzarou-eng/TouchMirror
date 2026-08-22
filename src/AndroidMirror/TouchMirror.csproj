@@ -16,6 +16,7 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="FFmpeg.AutoGen" Version="9.0.1.1" />
     <PackageReference Include="Jint" Version="4.16.2" />
+    <PackageReference Include="Makaretu.Dns.Multicast" Version="0.27.0" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="WPF-UI" Version="4.3.0" />
@@ -28,6 +29,7 @@
     <None Include="..\..\plugins\**\*.js;..\..\plugins\**\*.json" Link="plugins\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\ffmpeg.zip" Link="assets\ffmpeg.zip" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\ffmpeg\*.dll" Link="assets\ffmpeg\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\assets\ffmpeg')" />
+    <None Include="..\..\assets\airplay\*" Link="assets\airplay\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\assets\airplay')" />
   </ItemGroup>
 
 </Project>

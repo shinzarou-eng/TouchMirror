@@ -45,6 +45,10 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public event Action<MirrorInstance>? Disconnected;
     public event Action<MirrorInstance>? Connected;
 
+    protected void RaiseLog(string message) => Log?.Invoke(message);
+    protected void RaiseConnected() => Connected?.Invoke(this);
+    protected void RaiseDisconnected() => Disconnected?.Invoke(this);
+
     public MirrorInstance(AdbDevice device)
     {
         Device = device;
@@ -120,6 +124,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
 
     public async Task SetScreenDimmedAsync(bool dimmed)
     {
+        if (Session == null)
+            return; // iOS : pas de session scrcpy, rien à atténuer
         try
         {
             if (dimmed && !_screenDimmed)
@@ -158,7 +164,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         try { if (Audio != null) Audio.Volume = muted ? 0f : 1f; } catch { }
     }
 
-    public string ToggleRecording(string videoCodec)
+    public virtual string ToggleRecording(string videoCodec)
     {
         if (IsRecording)
         {

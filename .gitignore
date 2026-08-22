@@ -21,3 +21,6 @@ assets/ffmpeg/
 mockups/
 wiki/
 *_wpftmp.csproj
+assets/airplay/
+native/**/*.exe
+native/**/*.obj

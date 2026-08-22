@@ -12,7 +12,7 @@ namespace TouchMirror.Views;
 
 public partial class MirrorView : UserControl
 {
-    private VideoDecoder? _decoder;
+    private IFrameSource? _decoder;
     private WriteableBitmap? _bitmap;
     private ControlChannel? _control;
 
@@ -39,7 +39,19 @@ public partial class MirrorView : UserControl
         Focusable = true;
     }
 
-    public void AttachDecoder(VideoDecoder decoder) => _decoder = decoder;
+    public void AttachDecoder(IFrameSource decoder) => _decoder = decoder;
+
+    /// <summary>Badge « iOS · affichage seul » — rappel permanent qu'aucun contrôle n'existe.</summary>
+    public void SetIosReadOnly(bool readOnly)
+    {
+        IosBadge.Visibility = readOnly ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>Voile « en attente d'iPhone » avec les étapes de recopie d'écran.</summary>
+    public void SetWaitingOverlay(bool waiting)
+    {
+        WaitingOverlay.Visibility = waiting ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     public void AttachControl(ControlChannel control) => _control = control;
 
@@ -52,6 +64,7 @@ public partial class MirrorView : UserControl
         _bitmap = new WriteableBitmap(w, h, 96, 96, PixelFormats.Bgra32, null);
         VideoImage.Source = _bitmap;
         StatsBadge.Visibility = _statsVisible ? Visibility.Visible : Visibility.Collapsed;
+        SetWaitingOverlay(false);
         VideoSizeChanged?.Invoke(w, h);
     }
 
