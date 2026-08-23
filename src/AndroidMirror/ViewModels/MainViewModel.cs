@@ -1347,6 +1347,8 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             Log(ex.ToString());
+            _airPlay?.Dispose();
+            _airPlay = null; // retry propre au prochain clic
             _hasError = true;
             Status = $"AirPlay indisponible : {ex.Message}";
             OnPropertyChanged(nameof(StatusDotColor));

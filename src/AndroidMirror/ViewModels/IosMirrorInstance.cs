@@ -11,6 +11,7 @@ namespace TouchMirror.ViewModels;
 public sealed class IosMirrorInstance : MirrorInstance
 {
     private AirPlayService? _service;
+    private Video.AirPlayAudioPlayer? _audio;
 
     public bool IsIos => true;
 
@@ -42,8 +43,15 @@ public sealed class IosMirrorInstance : MirrorInstance
             {
                 IsConnected = false;
                 DeviceName = "iPhone (AirPlay)";
+                _audio?.Dispose();
+                _audio = null;
                 View.SetWaitingOverlay(true);
             });
+        service.AudioFrame += (rate, ch, bits, data, len) =>
+        {
+            _audio ??= CreateAudio();
+            _audio?.Feed(rate, ch, bits, data, len);
+        };
         service.Exited += () =>
             View.Dispatcher.Invoke(() =>
             {
@@ -53,12 +61,31 @@ public sealed class IosMirrorInstance : MirrorInstance
             });
         service.Log += m => RaiseLog(m);
 
+        // L'iPhone peut s'être connecté avant la souscription — on resynchronise.
+        var already = service.ConnectedDeviceName;
         return View.Dispatcher.InvokeAsync(() =>
         {
             View.AttachDecoder(service.Frames);
             View.SetIosReadOnly(true);
-            View.SetWaitingOverlay(true);
+            if (already != null)
+            {
+                IsConnected = true;
+                DeviceName = string.IsNullOrWhiteSpace(already) ? "iPhone (AirPlay)" : already;
+            }
+            View.SetWaitingOverlay(already == null);
         }).Task;
+    }
+
+    private Video.AirPlayAudioPlayer CreateAudio()
+    {
+        var a = new Video.AirPlayAudioPlayer();
+        a.Error += m => RaiseLog($"audio: {m}");
+        return a;
+    }
+
+    public override void SetAudioMuted(bool muted)
+    {
+        try { if (_audio != null) _audio.Volume = muted ? 0f : 1f; } catch { }
     }
 
     public override string ToggleRecording(string videoCodec)
@@ -67,6 +94,8 @@ public sealed class IosMirrorInstance : MirrorInstance
     public new async Task DisconnectAsync()
     {
         _service = null;
+        _audio?.Dispose();
+        _audio = null;
         await base.DisconnectAsync();
     }
 }

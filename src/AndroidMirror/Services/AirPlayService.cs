@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
-using System.Net.NetworkInformation;
 using System.Text;
 using System.Text.Json;
 using Makaretu.Dns;
@@ -45,6 +44,8 @@ public sealed class AirPlayService : IDisposable
     public event Action<string, string>? DeviceDisconnected;
     public event Action<string>? Log;
     public event Action? Exited;
+    /// <summary>PCM décodé : (sampleRate, channels, bitsPerSample, data, length).</summary>
+    public event Action<int, int, int, byte[], int>? AudioFrame;
 
     public async Task StartAsync(CancellationToken ct = default)
     {
@@ -91,9 +92,26 @@ public sealed class AirPlayService : IDisposable
         _host.Start();
         _host.BeginErrorReadLine();
 
-        await Task.WhenAll(
+        // Timeout + mort du host : sans ça, un host qui crashe avant de se
+        // connecter laisse la commande pendue (menu grisé pour toujours).
+        var hostDead = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void onExit(object? s, EventArgs e) => hostDead.TrySetResult();
+        _host.Exited += onExit;
+        var connect = Task.WhenAll(
             _videoPipe.WaitForConnectionAsync(_cts.Token),
             _eventPipe.WaitForConnectionAsync(_cts.Token));
+        var done = await Task.WhenAny(connect, hostDead.Task,
+            Task.Delay(TimeSpan.FromSeconds(15), _cts.Token));
+        _host.Exited -= onExit;
+        if (done != connect)
+        {
+            var why = _host.HasExited
+                ? $"AirPlayHost s'est arrêté (code {_host.ExitCode})"
+                : "AirPlayHost n'a pas répondu en 15 s";
+            Dispose();
+            throw new InvalidOperationException(why);
+        }
+        await connect; // propage une éventuelle annulation
 
         IsRunning = true;
         _videoTask = Task.Run(PumpVideoAsync);
@@ -129,7 +147,8 @@ public sealed class AirPlayService : IDisposable
                 var msg = BitConverter.ToUInt32(payload, 0);
                 if (msg == MsgVideo)
                     ParseVideo(payload);
-                // msg == MsgAudio : vidéo seule pour l'instant — le flux est drainé.
+                else if (msg == MsgAudio)
+                    ParseAudio(payload);
             }
         }
         catch (Exception ex) when (ex is IOException or OperationCanceledException or ObjectDisposedException)
@@ -167,6 +186,20 @@ public sealed class AirPlayService : IDisposable
         var frame = new byte[dataLen];
         Buffer.BlockCopy(p, dataOff, frame, 0, dataLen);
         _frames.Publish((int)w, (int)h, pitch0, pitch1, pitch2, len0, len1, len2, frame);
+    }
+
+    private void ParseAudio(byte[] p)
+    {
+        // [msg u32][pts u64][sampleRate u32][channels u16][bits u16][dataLen u32][data]
+        if (p.Length < 24)
+            return;
+        var rate = BitConverter.ToInt32(p, 12);
+        var channels = BitConverter.ToUInt16(p, 16);
+        var bits = BitConverter.ToUInt16(p, 18);
+        var dataLen = BitConverter.ToInt32(p, 20);
+        if (dataLen <= 0 || 24 + dataLen > p.Length)
+            return;
+        AudioFrame?.Invoke(rate, channels, bits, p[24..(24 + dataLen)], dataLen);
     }
 
     private async Task PumpEventsAsync()
@@ -236,20 +269,29 @@ public sealed class AirPlayAdvertiser : IDisposable
 {
     private ServiceDiscovery? _sd;
 
+    // Identité fixe locale administrée — doit matcher le deviceID/macAddress
+    // exposés par /info (airplay2dll). Une vraie MAC fuiterait sur le LAN.
+    private const string DeviceId = "aa:54:01:af:c3:c1";
+    private const string PairingIdentity = "2e388006-13ba-4041-9a67-25dd4a43d536";
+    private const string PairingPublicKey =
+        "b07727d6f6cd6e08b58ede525ec3cdeaa252ad9f683feb212ef8a205246554e7";
+
     public void Start(string name, int raopPort, int airplayPort)
     {
-        var mac = PrimaryMacAddress(); // "aa:bb:cc:dd:ee:ff"
-        var macCompact = mac.Replace(":", "").ToUpperInvariant();
+        var macCompact = DeviceId.Replace(":", "").ToUpperInvariant();
 
         _sd = new ServiceDiscovery();
 
         var airplay = new ServiceProfile(name, "_airplay._tcp", (ushort)airplayPort);
-        airplay.AddProperty("srcvers", "845.5.1");
-        airplay.AddProperty("deviceid", mac);
+        airplay.AddProperty("srcvers", "220.68");
+        airplay.AddProperty("deviceid", DeviceId);
         airplay.AddProperty("features", "0x5A7FFEE6,0x0");
-        airplay.AddProperty("model", "AppleTV14,1");
+        airplay.AddProperty("model", "AppleTV3,2");
         airplay.AddProperty("flags", "0x4");
         airplay.AddProperty("vv", "2");
+        airplay.AddProperty("pi", PairingIdentity);
+        airplay.AddProperty("pk", PairingPublicKey);
+        airplay.AddProperty("pw", "false");
         _sd.Advertise(airplay);
 
         var raop = new ServiceProfile($"{macCompact}@{name}", "_raop._tcp", (ushort)raopPort);
@@ -268,29 +310,10 @@ public sealed class AirPlayAdvertiser : IDisposable
         raop.AddProperty("sv", "false");
         raop.AddProperty("tp", "TCP,UDP");
         raop.AddProperty("vn", "3");
-        raop.AddProperty("vs", "845.5.1");
+        raop.AddProperty("vs", "220.68");
         raop.AddProperty("ft", "0x5A7FFEE6,0x0");
-        raop.AddProperty("am", "AppleTV14,1");
+        raop.AddProperty("am", "AppleTV3,2");
         _sd.Advertise(raop);
-    }
-
-    private static string PrimaryMacAddress()
-    {
-        foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
-        {
-            if (ni.OperationalStatus != OperationalStatus.Up ||
-                ni.NetworkInterfaceType == NetworkInterfaceType.Loopback)
-                continue;
-            var props = ni.GetIPProperties();
-            if (props.UnicastAddresses.Any(a => a.Address.AddressFamily ==
-                    System.Net.Sockets.AddressFamily.InterNetwork))
-            {
-                var b = ni.GetPhysicalAddress().GetAddressBytes();
-                if (b.Length == 6)
-                    return string.Join(':', b.Select(x => x.ToString("x2")));
-            }
-        }
-        return "02:00:00:00:00:01"; // MAC locale administrée — jamais routée
     }
 
     public void Dispose()

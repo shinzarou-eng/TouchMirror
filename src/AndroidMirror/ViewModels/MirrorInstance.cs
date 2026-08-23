@@ -159,7 +159,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         }
     }
 
-    public void SetAudioMuted(bool muted)
+    public virtual void SetAudioMuted(bool muted)
     {
         try { if (Audio != null) Audio.Volume = muted ? 0f : 1f; } catch { }
     }
