@@ -35,6 +35,8 @@ public sealed unsafe class AirPlayFrameSource : IFrameSource, IDisposable
             if (_disposed || width <= 0 || height <= 0)
                 return;
 
+            VideoDecoder.InitializeFFmpeg(); // idempotent — pose ffmpeg.RootPath
+
             if (width != _swsW || height != _swsH)
             {
                 if (_sws != null)

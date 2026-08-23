@@ -135,25 +135,29 @@ public sealed class AirPlayService : IDisposable
         catch (Exception ex) when (ex is IOException or OperationCanceledException or ObjectDisposedException)
         {
         }
+        catch (Exception ex)
+        {
+            Log?.Invoke($"airplay: lecture vidéo interrompue — {ex.Message}");
+        }
     }
 
     private void ParseVideo(byte[] p)
     {
         // [msg u32][pts u64][w u32][h u32][pitch u32×3][dataLen u32×3][isKey u8][idLen u32][id][data]
-        var w = BitConverter.ToUInt32(p, 16);
-        var h = BitConverter.ToUInt32(p, 20);
-        var pitch0 = BitConverter.ToUInt32(p, 24);
-        var pitch1 = BitConverter.ToUInt32(p, 28);
-        var pitch2 = BitConverter.ToUInt32(p, 32);
-        var len0 = BitConverter.ToUInt32(p, 36);
-        var len1 = BitConverter.ToUInt32(p, 40);
-        var len2 = BitConverter.ToUInt32(p, 44);
-        var idLen = BitConverter.ToInt32(p, 49);
-        var dataOff = 53 + idLen;
-        if (dataOff >= p.Length || w == 0 || h == 0)
+        var w = BitConverter.ToUInt32(p, 12);
+        var h = BitConverter.ToUInt32(p, 16);
+        var pitch0 = BitConverter.ToUInt32(p, 20);
+        var pitch1 = BitConverter.ToUInt32(p, 24);
+        var pitch2 = BitConverter.ToUInt32(p, 28);
+        var len0 = BitConverter.ToUInt32(p, 32);
+        var len1 = BitConverter.ToUInt32(p, 36);
+        var len2 = BitConverter.ToUInt32(p, 40);
+        var idLen = BitConverter.ToInt32(p, 45);
+        var dataOff = 49 + idLen;
+        if (idLen < 0 || dataOff >= p.Length || w == 0 || h == 0)
             return;
 
-        var deviceId = idLen > 0 ? Encoding.UTF8.GetString(p, 53, idLen) : "";
+        var deviceId = idLen > 0 ? Encoding.UTF8.GetString(p, 49, idLen) : "";
         if (!string.IsNullOrEmpty(ConnectedDeviceId) && deviceId != ConnectedDeviceId)
             return; // un iPhone déjà retenu pour cette tuile
 
