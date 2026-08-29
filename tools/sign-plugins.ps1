@@ -1,4 +1,4 @@
-# Régénère la liste des hash SHA-256 des plugins officiels.
+﻿# Régénère la liste des hash SHA-256 des plugins officiels.
 # Le hash couvre plugin.js + plugin.json — aligné sur PluginInstance.VerifyNow().
 # À relancer après toute modification d'un plugin dans plugins/.
 #   .\tools\sign-plugins.ps1

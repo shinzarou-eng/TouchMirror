@@ -1,4 +1,4 @@
-﻿// GÃ©nÃ©rÃ© par tools/sign-plugins.ps1 â€” ne pas Ã©diter Ã  la main.
+﻿// Généré par tools/sign-plugins.ps1 — ne pas éditer à la main.
 using System.Collections.Generic;
 
 namespace TouchMirror.Services;

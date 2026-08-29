@@ -22,6 +22,7 @@ public enum ControlMsgType : byte
     UhidInput = 13,
     UhidDestroy = 14,
     OpenHardKeyboardSettings = 15,
+    StartApp = 16,
     ResetVideo = 17,
     CameraSetTorch = 18,
     CameraZoomIn = 19,
@@ -165,7 +166,13 @@ public sealed class ControlChannel : IDisposable
     {
         var bytes = Encoding.UTF8.GetBytes(text);
         if (bytes.Length > 300)
-            bytes = bytes[..300];
+        {
+            // Troncature sur une limite UTF-8 : pas de séquence coupée en deux.
+            var end = 300;
+            while (end > 0 && (bytes[end - 1] & 0xC0) == 0x80)
+                end--;
+            bytes = bytes[..end];
+        }
         var buf = new byte[5 + bytes.Length];
         buf[0] = (byte)ControlMsgType.InjectText;
         BinaryPrimitives.WriteUInt32BigEndian(buf.AsSpan(1, 4), (uint)bytes.Length);
@@ -203,6 +210,19 @@ public sealed class ControlChannel : IDisposable
             cx, Math.Min((uint)(h - 1), cy + d1), w, h, 1f, AndroidMotionEvent.ButtonPrimary, 0);
         InjectTouch(AndroidMotionEvent.ActionUp, id1,
             cx, (uint)Math.Max(0, (long)cy - d1), w, h, 0f, AndroidMotionEvent.ButtonPrimary, 0);
+    }
+
+    /// <summary>Lance une app sur l'appareil (« pkg », « +pkg » force-stop, « pkg@user » profil).</summary>
+    public void StartApp(string spec)
+    {
+        var bytes = Encoding.UTF8.GetBytes(spec);
+        if (bytes.Length > 255)
+            bytes = bytes[..255];
+        var buf = new byte[2 + bytes.Length];
+        buf[0] = (byte)ControlMsgType.StartApp;
+        buf[1] = (byte)bytes.Length; // longueur sur 1 octet (parseString(1) côté serveur)
+        bytes.CopyTo(buf, 2);
+        Send(buf);
     }
 
     public void BackOrScreenOn(byte action)

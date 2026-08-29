@@ -87,11 +87,36 @@ public partial class MainWindow : FluentWindow
                 "Plugin non vérifié",
                 System.Windows.MessageBoxButton.YesNo,
                 System.Windows.MessageBoxImage.Warning) == System.Windows.MessageBoxResult.Yes);
+        // « Détails » depuis une carte : bascule le dock sur la fiche marketplace.
+        // ShowSettings piloté par le VM (restauration, plein écran) synchronise le dock.
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.SelectedPlugin)
+                && _vm.SelectedPlugin != null
+                && _activeDock != "market")
+            {
+                ShowDock("market");
+            }
+            else if (e.PropertyName == nameof(MainViewModel.ShowSettings))
+            {
+                if (_vm.ShowSettings && _activeDock != "settings")
+                    ShowDock("settings");
+                else if (!_vm.ShowSettings && _activeDock == "settings")
+                    ShowDock(null);
+            }
+        };
 
         VersionText.Text = $"TouchMirror v{GetType().Assembly.GetName().Version?.ToString(3)}";
-        Loaded += async (_, _) => await _vm.InitializeAsync();
+        Loaded += async (_, _) =>
+        {
+            // Le réglage « panneau réglages ouvert » est persisté : rouvre le dock.
+            if (_vm.ShowSettings)
+                ShowDock("settings");
+            await _vm.InitializeAsync();
+        };
         Closed += async (_, _) =>
         {
+            _vm.StopTracking();
             _vm.StopPlugins();
             _vm.SaveNow();
             _vm.StopAirPlay();
@@ -105,6 +130,29 @@ public partial class MainWindow : FluentWindow
     }
 
     private void OnFullscreenClick(object sender, RoutedEventArgs e) => ToggleFullscreen();
+
+    // ═══ Barre de titre custom ═══
+    private void OnTitleBarMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2)
+        {
+            WindowState = WindowState == WindowState.Maximized
+                ? WindowState.Normal : WindowState.Maximized;
+            return;
+        }
+        if (e.ButtonState == MouseButtonState.Pressed)
+            try { DragMove(); } catch { }
+    }
+
+    private void OnMinimizeClick(object sender, RoutedEventArgs e)
+        => WindowState = WindowState.Minimized;
+
+    private void OnMaximizeClick(object sender, RoutedEventArgs e)
+        => WindowState = WindowState == WindowState.Maximized
+            ? WindowState.Normal : WindowState.Maximized;
+
+    private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
+
     private void OnOpenCapturesClick(object sender, RoutedEventArgs e)
     {
         var dir = Path.Combine(
@@ -114,55 +162,88 @@ public partial class MainWindow : FluentWindow
     }
     private void OnRotateDisplayClick(object sender, RoutedEventArgs e)
         => _vm.ActiveMirror?.View.CycleDisplayRotation();
-    private void OnSettingsClick(object sender, RoutedEventArgs e) => _vm.ShowSettings = !_vm.ShowSettings;
+    // ═══ Rail + panneau docké ═══
 
-    private void ShowModal(Grid backdrop, Border modal, bool show)
+    /// <summary>Panneau actuellement docké : "guides" | "plugins" | "market" | "settings" | null.</summary>
+    private string? _activeDock;
+
+    private void OnSettingsClick(object sender, RoutedEventArgs e)
+        => ShowDock(_activeDock == "settings" ? null : "settings");
+
+    private void ShowDock(string? panel)
     {
-        var isOpen = backdrop.Visibility == Visibility.Visible;
-        if (show == isOpen)
+        _activeDock = panel;
+        DockPanel.Visibility = panel == null ? Visibility.Collapsed : Visibility.Visible;
+        HelpPanel.Visibility = panel == "guides" ? Visibility.Visible : Visibility.Collapsed;
+        PluginsPanel.Visibility = panel == "plugins" ? Visibility.Visible : Visibility.Collapsed;
+        MarketPanel.Visibility = panel == "market" ? Visibility.Visible : Visibility.Collapsed;
+        SettingsDock.Visibility = panel == "settings" ? Visibility.Visible : Visibility.Collapsed;
+
+        SetRailState(RailGuides, RailGuidesIndicator, panel == "guides");
+        SetRailState(RailPlugins, RailPluginsIndicator, panel == "plugins");
+        SetRailState(RailMarket, RailMarketIndicator, panel == "market");
+        SetRailState(RailSettings, RailSettingsIndicator, panel == "settings");
+
+        // Le réglage persisté « panneau réglages ouvert » suit l'état du dock.
+        var wantSettings = panel == "settings";
+        if (_vm.ShowSettings != wantSettings)
+            _vm.ShowSettings = wantSettings;
+
+        if (panel == null)
             return;
-        if (!show)
+        Border target = panel switch
         {
-            backdrop.Visibility = Visibility.Collapsed;
-            return;
-        }
-        backdrop.Visibility = Visibility.Visible;
+            "guides" => HelpPanel,
+            "plugins" => PluginsPanel,
+            "market" => MarketPanel,
+            _ => SettingsDock
+        };
         var sb = new System.Windows.Media.Animation.Storyboard();
-        var lift = new System.Windows.Media.Animation.DoubleAnimation(22, 0, TimeSpan.FromMilliseconds(220))
+        var slide = new System.Windows.Media.Animation.DoubleAnimation(-24, 0, TimeSpan.FromMilliseconds(220))
             { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } };
         var fade = new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220));
-        System.Windows.Media.Animation.Storyboard.SetTarget(lift, modal);
-        System.Windows.Media.Animation.Storyboard.SetTargetProperty(lift, new PropertyPath("RenderTransform.Y"));
-        System.Windows.Media.Animation.Storyboard.SetTarget(fade, backdrop);
+        System.Windows.Media.Animation.Storyboard.SetTarget(slide, target);
+        System.Windows.Media.Animation.Storyboard.SetTargetProperty(slide, new PropertyPath("RenderTransform.X"));
+        System.Windows.Media.Animation.Storyboard.SetTarget(fade, target);
         System.Windows.Media.Animation.Storyboard.SetTargetProperty(fade, new PropertyPath("Opacity"));
-        sb.Children.Add(lift);
+        sb.Children.Add(slide);
         sb.Children.Add(fade);
         sb.Begin();
+    }
+
+    private static void SetRailState(Wpf.Ui.Controls.Button btn, Border indicator, bool active)
+    {
+        btn.Appearance = active
+            ? Wpf.Ui.Controls.ControlAppearance.Secondary
+            : Wpf.Ui.Controls.ControlAppearance.Transparent;
+        indicator.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnPluginsClick(object sender, RoutedEventArgs e)
     {
         _vm.RescanPluginsCommand.Execute(null);
-        ShowModal(MarketModalBackdrop, MarketModal, false);
-        ShowModal(PluginModalBackdrop, PluginModal, true);
+        ShowDock(_activeDock == "plugins" ? null : "plugins");
     }
 
     private void OnCatalogClick(object sender, RoutedEventArgs e)
     {
+        _vm.SelectedPlugin = null;
         _vm.LoadCatalogCommand.Execute(null);
-        ShowModal(PluginModalBackdrop, PluginModal, false);
-        ShowModal(MarketModalBackdrop, MarketModal, true);
+        ShowDock(_activeDock == "market" ? null : "market");
     }
 
-    private void OnPluginModalClose(object sender, RoutedEventArgs e)
-        => ShowModal(PluginModalBackdrop, PluginModal, false);
-    private void OnMarketModalClose(object sender, RoutedEventArgs e)
-        => ShowModal(MarketModalBackdrop, MarketModal, false);
-    private void OnPluginModalBackdrop(object sender, MouseButtonEventArgs e)
-        => ShowModal(PluginModalBackdrop, PluginModal, false);
-    private void OnMarketModalBackdrop(object sender, MouseButtonEventArgs e)
-        => ShowModal(MarketModalBackdrop, MarketModal, false);
-    private void OnPluginModalContent(object sender, MouseButtonEventArgs e) => e.Handled = true;
+    private void OnDockClose(object sender, RoutedEventArgs e)
+    {
+        _vm.SelectedPlugin = null;
+        ShowDock(null);
+    }
+
+    private void OnCopyPluginHash(object sender, RoutedEventArgs e)
+    {
+        var hash = _vm.SelectedPlugin?.Entry.Hash;
+        if (!string.IsNullOrEmpty(hash))
+            System.Windows.Clipboard.SetText(hash);
+    }
 
     private void OnDeviceNameKeyDown(object sender, KeyEventArgs e)
     {
@@ -235,29 +316,8 @@ public partial class MainWindow : FluentWindow
 
     private async void OnHelpClick(object sender, RoutedEventArgs e)
     {
-        var show = HelpPanel.Visibility != Visibility.Visible;
-        if (show)
-        {
-            HelpPanel.Visibility = Visibility.Visible;
-            var sb = new System.Windows.Media.Animation.Storyboard();
-            var slide = new System.Windows.Media.Animation.DoubleAnimation(-40, 0, TimeSpan.FromMilliseconds(220))
-                { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } };
-            var fade = new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220));
-            System.Windows.Media.Animation.Storyboard.SetTarget(slide, HelpPanel);
-            System.Windows.Media.Animation.Storyboard.SetTargetProperty(slide, new PropertyPath("RenderTransform.X"));
-            System.Windows.Media.Animation.Storyboard.SetTarget(fade, HelpPanel);
-            System.Windows.Media.Animation.Storyboard.SetTargetProperty(fade, new PropertyPath("Opacity"));
-            sb.Children.Add(slide);
-            sb.Children.Add(fade);
-            sb.Begin();
-        }
-        else
-        {
-            HelpPanel.Visibility = Visibility.Collapsed;
-        }
-        HelpButton.Appearance = show
-            ? Wpf.Ui.Controls.ControlAppearance.Secondary
-            : Wpf.Ui.Controls.ControlAppearance.Transparent;
+        var show = _activeDock != "guides";
+        ShowDock(show ? "guides" : null);
         if (!show || _browserReady)
             return;
         try
@@ -278,7 +338,7 @@ public partial class MainWindow : FluentWindow
         catch (Exception ex)
         {
             _vm.Status = $"WebView2 indisponible : {ex.Message}";
-            HelpPanel.Visibility = Visibility.Collapsed;
+            ShowDock(null);
         }
     }
 
@@ -334,7 +394,7 @@ public partial class MainWindow : FluentWindow
         return false;
     }
 
-    private void OnWorkspaceChipClick(object sender, MouseButtonEventArgs e)
+    private void OnWorkspaceTabClick(object sender, MouseButtonEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: WorkspaceItem { IsEditing: false } item }
             && !IsInteractiveSource(e.OriginalSource))
@@ -355,7 +415,7 @@ public partial class MainWindow : FluentWindow
 
     private void OnWorkspaceDeleteClick(object sender, RoutedEventArgs e)
     {
-        if (sender is System.Windows.Controls.MenuItem { DataContext: WorkspaceItem item }
+        if (sender is FrameworkElement { DataContext: WorkspaceItem item }
             && System.Windows.MessageBox.Show(this,
                 $"Supprimer l'espace « {item.Name} » ? Les téléphones ne seront pas déconnectés.",
                 "Supprimer l'espace",
@@ -441,8 +501,7 @@ public partial class MainWindow : FluentWindow
     private readonly System.Windows.Threading.DispatcherTimer _fsHideTimer = new()
         { Interval = TimeSpan.FromSeconds(2.5) };
 
-    private bool _fsHelpWasVisible;
-    private bool _fsSettingsWasVisible;
+    private string? _fsDockPanel;
     private Rect _fsBounds;
     private bool _fsWasMaximized;
 
@@ -453,10 +512,8 @@ public partial class MainWindow : FluentWindow
         {
             _fsWasMaximized = WindowState == WindowState.Maximized;
             _fsBounds = RestoreBounds;
-            _fsHelpWasVisible = HelpPanel.Visibility == Visibility.Visible;
-            _fsSettingsWasVisible = _vm.ShowSettings;
-            HelpPanel.Visibility = Visibility.Collapsed;
-            _vm.ShowSettings = false;
+            _fsDockPanel = _activeDock;
+            ShowDock(null);
             ExtendsContentIntoTitleBar = false;
             TitleBarElement.Visibility = Visibility.Collapsed;
             TitleBarRow.Height = new GridLength(0);
@@ -491,22 +548,23 @@ public partial class MainWindow : FluentWindow
                 Width = _fsBounds.Width;
                 Height = _fsBounds.Height;
             }
-            VideoFrame.Margin = new Thickness(20);
-            VideoFrame.CornerRadius = new CornerRadius(14);
+            VideoFrame.Margin = new Thickness(12);
+            VideoFrame.CornerRadius = new CornerRadius(6);
             VideoFrame.BorderThickness = new Thickness(1);
             TitleBarRow.Height = GridLength.Auto;
             ToolbarRow.Height = GridLength.Auto;
             StatusBarRow.Height = GridLength.Auto;
             TitleBarElement.Visibility = Visibility.Visible;
             ExtendsContentIntoTitleBar = true;
-            if (_fsHelpWasVisible)
-                HelpPanel.Visibility = Visibility.Visible;
-            _vm.ShowSettings = _fsSettingsWasVisible;
+            ShowDock(_fsDockPanel);
         }
     }
 
     private void OnFsHideTick(object? sender, EventArgs e)
-        => FullscreenBar.Visibility = Visibility.Collapsed;
+    {
+        _fsHideTimer.Stop();
+        FullscreenBar.Visibility = Visibility.Collapsed;
+    }
 
     private void OnPreviewMouseMove(object sender, MouseEventArgs e)
     {
@@ -585,7 +643,7 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
-        if (view.HandleKey(e.Key, true))
+        if (view.HandleKey(e.Key, true, e.IsRepeat))
             e.Handled = true;
     }
 
@@ -594,7 +652,7 @@ public partial class MainWindow : FluentWindow
         var view = _vm.ActiveMirror?.View;
         if (view == null || IsTextInputTarget(e.OriginalSource))
             return;
-        if (view.HandleKey(e.Key, false))
+        if (view.HandleKey(e.Key, false, e.IsRepeat))
             e.Handled = true;
     }
 

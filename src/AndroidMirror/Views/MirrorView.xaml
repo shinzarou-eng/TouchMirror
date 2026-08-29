@@ -17,6 +17,35 @@
               MouseWheel="OnMouseWheel"
               LostMouseCapture="OnLostCapture" />
 
+        <!-- Raccourcis plaqués sur la vidéo (touche clavier → tap) -->
+        <Canvas x:Name="KeybindLayer" IsHitTestVisible="False" />
+
+        <Border x:Name="KeybindHint"
+                VerticalAlignment="Top" HorizontalAlignment="Center"
+                Margin="0,12,0,0" Padding="14,10" CornerRadius="6"
+                Background="#F214181F" BorderBrush="#3ECF8E" BorderThickness="1"
+                Visibility="Collapsed" IsHitTestVisible="False">
+            <StackPanel>
+                <TextBlock FontSize="10.5" Foreground="#9AA6B5" HorizontalAlignment="Center"
+                           Text="Clic : placer · touche : assigner · glisser : déplacer · clic droit : supprimer · Échap : quitter" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
+                    <TextBlock Text="Style" FontSize="10.5" Foreground="#9AA6B5" VerticalAlignment="Center" />
+                    <ComboBox SelectedIndex="{Binding KeybindStyle}" Width="92" Height="24"
+                              FontSize="11" Margin="6,0,14,0" VerticalContentAlignment="Center">
+                        <ComboBoxItem Content="Pastille" />
+                        <ComboBoxItem Content="Cercle" />
+                        <ComboBoxItem Content="Minimal" />
+                    </ComboBox>
+                    <TextBlock Text="Opacité" FontSize="10.5" Foreground="#9AA6B5" VerticalAlignment="Center" />
+                    <Slider Value="{Binding KeybindOpacity}" Minimum="0.3" Maximum="1"
+                            Width="72" Margin="6,0,14,0" VerticalAlignment="Center" />
+                    <TextBlock Text="Taille" FontSize="10.5" Foreground="#9AA6B5" VerticalAlignment="Center" />
+                    <Slider Value="{Binding KeybindSize}" Minimum="22" Maximum="44"
+                            Width="72" Margin="6,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
         <Border x:Name="IosBadge"
                 Padding="10,5"
                 CornerRadius="8"
@@ -53,11 +82,24 @@
                            FontSize="12.5"
                            Foreground="#9FB2C8"
                            HorizontalAlignment="Center" />
-                <TextBlock Text="Même réseau Wi-Fi — affichage seul, aucun contrôle"
+                <TextBlock Text="Même réseau Wi-Fi — affichage seul sans le contrôle Bluetooth"
                            FontSize="11"
                            Foreground="#6E7E92"
                            HorizontalAlignment="Center"
                            Margin="0,8,0,0" />
+                <TextBlock Text="Contrôle tactile : bouton « iPhone » dans la barre d'outils, puis AssistiveTouch → Appareils"
+                           FontSize="10.5"
+                           Foreground="#5E7A95"
+                           HorizontalAlignment="Center"
+                           TextWrapping="Wrap" MaxWidth="420" TextAlignment="Center"
+                           Margin="0,6,0,0" />
+                <TextBlock x:Name="WaitingHint"
+                           FontSize="11.5"
+                           Foreground="#D8A04C"
+                           HorizontalAlignment="Center"
+                           TextWrapping="Wrap" MaxWidth="420" TextAlignment="Center"
+                           Margin="0,14,0,0"
+                           Visibility="Collapsed" />
             </StackPanel>
         </Grid>
 

@@ -35,6 +35,8 @@ public sealed class AirPlayService : IDisposable
 
     public IFrameSource Frames => _frames;
     public bool IsRunning { get; private set; }
+    /// <summary>PID du process host (pour exclure ses ports du diagnostic).</summary>
+    public int HostPid { get; private set; }
 
     /// <summary>Nom et deviceId de l'iPhone actuellement connecté (vide sinon).</summary>
     public string? ConnectedDeviceName { get; private set; }
@@ -56,6 +58,14 @@ public sealed class AirPlayService : IDisposable
         var exe = Path.Combine(dir, "AirPlayHost.exe");
         if (!File.Exists(exe))
             throw new FileNotFoundException($"Récepteur AirPlay introuvable : {exe}");
+
+        // Règles entrantes créées/vérifiées au premier lancement : le host
+        // pour RAOP/AirPlay/RTP, l'app elle-même pour l'écoute mDNS (5353)
+        // — sans elle l'iPhone ne voit jamais le récepteur.
+        var rules = new List<(string Exe, string Name)> { (exe, "TouchMirror AirPlay") };
+        if (Environment.ProcessPath is { } self)
+            rules.Add((self, "TouchMirror"));
+        await FirewallHelper.EnsureRulesAsync(rules, s => Log?.Invoke(s));
 
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var vname = $"tm-airplay-v-{Environment.ProcessId}";
@@ -90,6 +100,7 @@ public sealed class AirPlayService : IDisposable
             Exited?.Invoke();
         };
         _host.Start();
+        HostPid = _host.Id;
         _host.BeginErrorReadLine();
 
         // Timeout + mort du host : sans ça, un host qui crashe avant de se

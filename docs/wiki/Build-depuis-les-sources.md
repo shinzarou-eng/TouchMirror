@@ -38,7 +38,7 @@ src/AndroidMirror/
 └── Video/                   # VideoDecoder (FFmpeg.AutoGen), AudioPlayer (NAudio),
                              # Mp4Recorder (remux)
 assets/
-├── scrcpy-server.jar        # Poussé sur le téléphone au démarrage
+├── touchmirror-engine.jar     # Poussé sur le téléphone au démarrage
 ├── platform-tools/          # adb embarqué
 └── ffmpeg.zip               # DLLs natives, extraites au premier lancement
 ```

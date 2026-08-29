@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
@@ -25,7 +25,7 @@
   <ItemGroup>
     <Resource Include="..\..\assets\mascot.png" Link="assets\mascot.png" />
     <None Include="..\..\assets\platform-tools\*" Link="assets\platform-tools\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\assets\scrcpy-server.jar" Link="assets\scrcpy-server.jar" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\assets\touchmirror-engine.jar" Link="assets\touchmirror-engine.jar" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\plugins\**\*.js;..\..\plugins\**\*.json" Link="plugins\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\ffmpeg.zip" Link="assets\ffmpeg.zip" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\ffmpeg\*.dll" Link="assets\ffmpeg\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\assets\ffmpeg')" />

@@ -53,6 +53,12 @@ public static class MarketplaceService
         return list;
     }
 
+    public static async Task<string> FetchCodeAsync(string id, CancellationToken ct = default)
+    {
+        using var http = NewHttp();
+        return await http.GetStringAsync($"{BaseUrl}{id}/plugin.js", ct);
+    }
+
     public static async Task InstallAsync(MarketplaceEntry entry, string pluginsDir, CancellationToken ct = default)
     {
         using var http = NewHttp();

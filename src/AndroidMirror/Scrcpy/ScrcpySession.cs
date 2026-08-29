@@ -17,6 +17,10 @@ public sealed class ScrcpyOptions
     public bool StayAwake { get; init; }
     public bool Audio { get; init; } = true;
     public bool TurnScreenOff { get; init; }
+    /// <summary>Écran virtuel Android : null = écran physique, "" = auto, "WxH/DPI" sinon.</summary>
+    public string? NewDisplay { get; init; }
+    /// <summary>Package Android lancé automatiquement au démarrage de la session (ex: com.ankama.dofustouch).</summary>
+    public string? AutoLaunchPackage { get; init; }
 }
 
 public sealed class VideoPacket
@@ -29,8 +33,8 @@ public sealed class VideoPacket
 
 public sealed class ScrcpySession : IAsyncDisposable
 {
-    private const string ServerVersion = "4.1";
-    private const string RemoteJarPath = "/data/local/tmp/scrcpy-server-touchmirror.jar";
+    private const string ServerVersion = "4.1-tm.1"; // protocole hérité scrcpy 4.1, révision TouchMirror 1
+    private const string RemoteJarPath = "/data/local/tmp/touchmirror-engine.jar";
 
     private readonly AdbDevice _device;
     private readonly ScrcpyOptions _options;
@@ -68,9 +72,9 @@ public sealed class ScrcpySession : IAsyncDisposable
 
     public async Task StartAsync()
     {
-        var jarPath = Path.Combine(AppContext.BaseDirectory, "assets", "scrcpy-server.jar");
+        var jarPath = Path.Combine(AppContext.BaseDirectory, "assets", "touchmirror-engine.jar");
         if (!File.Exists(jarPath))
-            throw new FileNotFoundException("scrcpy-server.jar manquant", jarPath);
+            throw new FileNotFoundException("touchmirror-engine.jar manquant", jarPath);
 
         Services.AppLogger.Write("session: push begin");
         await AdbService.PushAsync(_device.Serial, jarPath, RemoteJarPath, _cts.Token);
@@ -78,7 +82,7 @@ public sealed class ScrcpySession : IAsyncDisposable
 
         var scid = Random.Shared.Next(0, 0x7fffffff);
         var scidHex = scid.ToString("x8");
-        _socketName = $"scrcpy_{scidHex}";
+        _socketName = $"touchmirror_{scidHex}"; // doit matcher SOCKET_NAME_PREFIX de l'engine
 
         var port = FindFreePort();
         _listener = new TcpListener(IPAddress.Loopback, port);
@@ -135,6 +139,10 @@ public sealed class ScrcpySession : IAsyncDisposable
         _control = new ControlChannel(controlSocket);
         _control.ClipboardReceived += t => DeviceClipboard?.Invoke(t);
 
+        // Écran virtuel : le contrôleur attend l'ID du VD puis lance l'app dessus.
+        if (!string.IsNullOrWhiteSpace(_options.AutoLaunchPackage) && _options.NewDisplay != null)
+            try { _control.StartApp(_options.AutoLaunchPackage); } catch { }
+
         _videoTask = Task.Run(VideoReadLoopAsync);
         if (_audioSocket != null)
             _audioTask = Task.Run(AudioReadLoopAsync);
@@ -159,6 +167,12 @@ public sealed class ScrcpySession : IAsyncDisposable
             sb.Append($" video_bit_rate={_options.VideoBitRate}");
         if (_options.StayAwake)
             sb.Append(" stay_awake=true");
+        if (_options.NewDisplay != null)
+            sb.Append($" new_display={_options.NewDisplay}");
+        // start_app au boot part toujours sur l'écran principal — en mode écran
+        // virtuel on passe par le canal de contrôle qui attend l'ID du VD.
+        if (!string.IsNullOrWhiteSpace(_options.AutoLaunchPackage) && _options.NewDisplay == null)
+            sb.Append($" start_app={_options.AutoLaunchPackage}");
         return sb.ToString();
     }
 

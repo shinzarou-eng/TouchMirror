@@ -15,16 +15,30 @@ public partial class MarketplaceItem : ObservableObject
     public bool Official => Entry.Official;
     public bool Featured => Entry.Featured;
     public List<string> Tags => Entry.Tags;
+    public string ShortHash => Entry.Hash.Length > 16 ? Entry.Hash[..16] + "…" : Entry.Hash;
 
     [ObservableProperty] private string _actionLabel = "Installer";
     [ObservableProperty] private bool _canInstall = true;
     [ObservableProperty] private bool _isInstalled;
-    [ObservableProperty] private bool _isPresent;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanUninstall))]
+    private bool _isPresent;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ToggleLabel))]
+    private bool _isActive;
+    [ObservableProperty] private string _code = "";
+    [ObservableProperty] private bool _codeBusy;
+    [ObservableProperty] private bool _codeError;
+    [ObservableProperty] private List<string> _capabilities = new();
+
+    public bool CanUninstall => IsPresent;
+    public string ToggleLabel => IsActive ? "Désactiver" : "Activer";
 
     public void Refresh(IReadOnlyList<PluginInstance> installed)
     {
         var p = installed.FirstOrDefault(x => x.Id == Id);
         IsPresent = p != null;
+        IsActive = p?.Running == true;
         IsInstalled = p?.ContentHash != null
                       && string.Equals(p.ContentHash, Entry.Hash, StringComparison.OrdinalIgnoreCase);
         if (IsInstalled)
@@ -44,6 +58,6 @@ public partial class MarketplaceItem : ObservableObject
         CanInstall = true;
         ActionLabel = p == null ? "Installer"
             : p.Version != Entry.Version ? "Mettre à jour"
-            : "Remplacer";
+            : "Reconfirmer";
     }
 }

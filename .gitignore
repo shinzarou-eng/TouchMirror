@@ -24,3 +24,9 @@ wiki/
 assets/airplay/
 native/**/*.exe
 native/**/*.obj
+
+# TouchMirror Engine (fork scrcpy-server) — artefacts de build
+engine/**/build/
+engine/.gradle/
+engine/local.properties
+engine/bin/

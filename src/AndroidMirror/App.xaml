@@ -9,26 +9,46 @@
                 <ui:ThemesDictionary Theme="Dark" />
                 <ui:ControlsDictionary />
             </ResourceDictionary.MergedDictionaries>
-            <SolidColorBrush x:Key="DofusAccentBrush" Color="#4EC98E" />
-            <SolidColorBrush x:Key="DofusAccentDimBrush" Color="#357B58" />
-            <SolidColorBrush x:Key="SystemAccentColorPrimaryBrush" Color="#4EC98E" />
-            <SolidColorBrush x:Key="SystemAccentColorSecondaryBrush" Color="#7BD9AB" />
-            <SolidColorBrush x:Key="SystemAccentColorTertiaryBrush" Color="#2E7D55" />
+            <!-- Accent unique -->
+            <SolidColorBrush x:Key="DofusAccentBrush" Color="#3ECF8E" />
+            <SolidColorBrush x:Key="DofusAccentDimBrush" Color="#2F8F66" />
+            <SolidColorBrush x:Key="SystemAccentColorPrimaryBrush" Color="#3ECF8E" />
+            <SolidColorBrush x:Key="SystemAccentColorSecondaryBrush" Color="#6EDCAD" />
+            <SolidColorBrush x:Key="SystemAccentColorTertiaryBrush" Color="#2A7D58" />
             <SolidColorBrush x:Key="TextOnAccentFillColorPrimaryBrush" Color="#0A120E" />
-            <SolidColorBrush x:Key="AccentButtonBackground" Color="#4EC98E" />
-            <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="#63D6A0" />
-            <SolidColorBrush x:Key="AccentButtonBackgroundPressed" Color="#3DA879" />
+            <SolidColorBrush x:Key="AccentButtonBackground" Color="#3ECF8E" />
+            <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="#57DAA6" />
+            <SolidColorBrush x:Key="AccentButtonBackgroundPressed" Color="#33AC77" />
             <SolidColorBrush x:Key="AccentButtonForeground" Color="#0A120E" />
             <SolidColorBrush x:Key="AccentButtonBorderBrush" Color="#002E1F" />
-            <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="#4EC98E" />
-            <SolidColorBrush x:Key="AccentFillColorSecondaryBrush" Color="#994EC98E" />
-            <SolidColorBrush x:Key="AccentFillColorTertiaryBrush" Color="#664EC98E" />
-            <SolidColorBrush x:Key="AccentTextFillColorPrimaryBrush" Color="#63D6A0" />
-            <SolidColorBrush x:Key="AccentTextFillColorSecondaryBrush" Color="#63D6A0" />
-            <SolidColorBrush x:Key="AccentTextFillColorTertiaryBrush" Color="#4EC98E" />
-            <SolidColorBrush x:Key="AppSurfaceBrush" Color="#111218" />
-            <SolidColorBrush x:Key="AppSurfaceAltBrush" Color="#1A1C23" />
-            <SolidColorBrush x:Key="AppBorderBrush" Color="#12FFFFFF" />
+            <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="#3ECF8E" />
+            <SolidColorBrush x:Key="AccentFillColorSecondaryBrush" Color="#993ECF8E" />
+            <SolidColorBrush x:Key="AccentFillColorTertiaryBrush" Color="#663ECF8E" />
+            <SolidColorBrush x:Key="AccentTextFillColorPrimaryBrush" Color="#57DAA6" />
+            <SolidColorBrush x:Key="AccentTextFillColorSecondaryBrush" Color="#57DAA6" />
+            <SolidColorBrush x:Key="AccentTextFillColorTertiaryBrush" Color="#3ECF8E" />
+            <SolidColorBrush x:Key="AccentSubtleBrush" Color="#1F3ECF8E" />
+            <SolidColorBrush x:Key="AccentBorderBrush" Color="#403ECF8E" />
+            <!-- Surfaces — sombre industriel -->
+            <SolidColorBrush x:Key="AppWindowBrush" Color="#0C0E11" />
+            <SolidColorBrush x:Key="AppSurfaceBrush" Color="#111419" />
+            <SolidColorBrush x:Key="AppSurfaceAltBrush" Color="#171A20" />
+            <SolidColorBrush x:Key="AppCardBrush" Color="#1B1F26" />
+            <SolidColorBrush x:Key="AppModalBrush" Color="#F515181E" />
+            <SolidColorBrush x:Key="AppBorderBrush" Color="#14FFFFFF" />
+            <SolidColorBrush x:Key="AppBorderSubtleBrush" Color="#0AFFFFFF" />
+            <SolidColorBrush x:Key="AppBorderStrongBrush" Color="#26FFFFFF" />
+            <SolidColorBrush x:Key="SurfaceFaintBrush" Color="#08FFFFFF" />
+            <SolidColorBrush x:Key="CodeBackgroundBrush" Color="#0D000000" />
+            <!-- Sémantique -->
+            <SolidColorBrush x:Key="WarnBrush" Color="#E0A24C" />
+            <SolidColorBrush x:Key="WarnBorderBrush" Color="#40E0A24C" />
+            <SolidColorBrush x:Key="DangerBrush" Color="#E05B4C" />
+            <SolidColorBrush x:Key="DangerSubtleBrush" Color="#26E05B4C" />
+            <SolidColorBrush x:Key="GoldBrush" Color="#E8C14A" />
+            <SolidColorBrush x:Key="GoldBorderBrush" Color="#40E8C14A" />
+            <SolidColorBrush x:Key="InfoBrush" Color="#5B9BD5" />
+            <SolidColorBrush x:Key="MutedBrush" Color="#5A5E66" />
 
             <Style TargetType="ScrollBar">
                 <Setter Property="Width" Value="8" />
