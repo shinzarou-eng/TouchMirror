@@ -1,3 +1,6 @@
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -17,14 +20,76 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public VideoDecoder? Decoder { get; private set; }
     public AudioPlayer? Audio { get; private set; }
 
+    /// <summary>Vrai pour les miroirs iOS/AirPlay (affichage seul).</summary>
+    public virtual bool IsIos => false;
+
     [ObservableProperty] private string _deviceName = "";
     [ObservableProperty] private bool _isConnected;
     [ObservableProperty] private bool _isRecording;
     [ObservableProperty] private bool _isActive;
     [ObservableProperty] private int _slot;
+    /// <summary>Couleur d'accent hex de l'appareil (nulle = accent par défaut).</summary>
+    [ObservableProperty] private string? _accentHex;
+    /// <summary>Réglages propres de l'appareil dans l'espace de travail actif (nul = globaux).</summary>
+    public WorkspaceDevice? Prefs { get; set; }
 
     /// <summary>Vrai quand la déconnexion vient d'un geste utilisateur (pas d'une coupure session).</summary>
     public bool ManualDisconnect { get; set; }
+
+    /// <summary>Raccourcis clavier plaqués sur la vidéo (touche → tap, contrôle manuel).</summary>
+    public ObservableCollection<KeybindItem> Keybinds { get; } = new();
+    /// <summary>Mode édition des raccourcis (placement / assignation sur la vidéo).</summary>
+    [ObservableProperty] private bool _keybindEditMode;
+    /// <summary>Style des raccourcis : 0 = pastille, 1 = cercle, 2 = minimal.</summary>
+    [ObservableProperty] private int _keybindStyle;
+    /// <summary>Opacité des raccourcis (0.3–1).</summary>
+    [ObservableProperty] private double _keybindOpacity = 0.92;
+    /// <summary>Taille des raccourcis en px (22–44).</summary>
+    [ObservableProperty] private double _keybindSize = 30;
+    /// <summary>Levée quand les raccourcis changent — à persister.</summary>
+    public event Action? KeybindsChanged;
+
+    private bool _suppressKeybindEvents;
+
+    private void ApplyKeybindAppearance() =>
+        View.Dispatcher.Invoke(() => View.SetKeybindAppearance(KeybindStyle, KeybindOpacity, KeybindSize));
+
+    private void RaiseKeybindsChanged()
+    {
+        if (!_suppressKeybindEvents)
+            KeybindsChanged?.Invoke();
+    }
+
+    partial void OnKeybindStyleChanged(int value) { ApplyKeybindAppearance(); RaiseKeybindsChanged(); }
+    partial void OnKeybindOpacityChanged(double value) { ApplyKeybindAppearance(); RaiseKeybindsChanged(); }
+    partial void OnKeybindSizeChanged(double value) { ApplyKeybindAppearance(); RaiseKeybindsChanged(); }
+    /// <summary>Levée quand la vue demande à quitter le mode édition (Échap).</summary>
+    public event Action? EditModeExitRequested;
+
+    partial void OnKeybindEditModeChanged(bool value) =>
+        View.Dispatcher.Invoke(() => View.SetKeybindEditMode(value));
+
+    public void LoadKeybinds(IEnumerable<KeybindData> data,
+        int style = 0, double opacity = 0.92, double size = 30)
+    {
+        _suppressKeybindEvents = true;
+        try
+        {
+            KeybindStyle = style;
+            KeybindOpacity = opacity;
+            KeybindSize = size;
+            foreach (var d in data)
+                Keybinds.Add(new KeybindItem { Key = d.Key, Rx = d.Rx, Ry = d.Ry });
+        }
+        finally
+        {
+            _suppressKeybindEvents = false;
+        }
+        ApplyKeybindAppearance();
+    }
+
+    public List<KeybindData> SaveKeybinds() =>
+        Keybinds.Select(k => new KeybindData { Key = k.Key, Rx = k.Rx, Ry = k.Ry }).ToList();
 
     private FileStream? _recordStream;
     private Mp4Recorder? _recorder;
@@ -41,10 +106,34 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public event Action<MirrorInstance>? Disconnected;
     public event Action<MirrorInstance>? Connected;
 
+    protected void RaiseLog(string message) => Log?.Invoke(message);
+    protected void RaiseConnected() => Connected?.Invoke(this);
+    protected void RaiseDisconnected() => Disconnected?.Invoke(this);
+
     public MirrorInstance(AdbDevice device)
     {
         Device = device;
         DeviceName = device.DisplayName;
+        View.BindKeybinds(Keybinds);
+        View.EditModeExitRequested += () => EditModeExitRequested?.Invoke();
+        Keybinds.CollectionChanged += OnKeybindsCollectionChanged;
+    }
+
+    private void OnKeybindsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.NewItems != null)
+            foreach (KeybindItem k in e.NewItems)
+                k.PropertyChanged += OnKeybindPropertyChanged;
+        if (e.OldItems != null)
+            foreach (KeybindItem k in e.OldItems)
+                k.PropertyChanged -= OnKeybindPropertyChanged;
+        RaiseKeybindsChanged();
+    }
+
+    private void OnKeybindPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(KeybindItem.Key) or nameof(KeybindItem.Rx) or nameof(KeybindItem.Ry))
+            RaiseKeybindsChanged();
     }
 
     public async Task StartAsync(ScrcpyOptions options)
@@ -62,19 +151,27 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             try { Application.Current.Dispatcher.Invoke(() => Clipboard.SetText(text)); } catch { }
         };
         session.Disconnected += () =>
-            Application.Current.Dispatcher.Invoke(() => _ = DisconnectAsync());
+        {
+            try { Application.Current.Dispatcher.Invoke(() => _ = DisconnectAsync()); }
+            catch (InvalidOperationException) { } // dispatcher arrêté (fermeture de l'app)
+        };
 
         session.VideoPacketReceived += packet =>
         {
-            lock (_decoderLock)
+            // Miroir inactif : on saute le décodage (CPU/GPU économisés,
+            // l'enregistrement écrit les paquets bruts et continue).
+            if (!_videoHidden)
             {
-                if (Decoder == null)
+                lock (_decoderLock)
                 {
-                    Decoder = new VideoDecoder(session.VideoCodecId ?? "h264");
-                    Decoder.Error += m => Log?.Invoke($"decoder: {m}");
-                    View.Dispatcher.Invoke(() => View.AttachDecoder(Decoder));
+                    if (Decoder == null)
+                    {
+                        Decoder = new VideoDecoder(session.VideoCodecId ?? "h264");
+                        Decoder.Error += m => Log?.Invoke($"decoder: {m}");
+                        View.Dispatcher.Invoke(() => View.AttachDecoder(Decoder));
+                    }
+                    Decoder.Feed(packet.Data);
                 }
-                Decoder.Feed(packet.Data);
             }
             try
             {
@@ -116,6 +213,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
 
     public async Task SetScreenDimmedAsync(bool dimmed)
     {
+        if (Session == null)
+            return; // iOS : pas de session scrcpy, rien à atténuer
         try
         {
             if (dimmed && !_screenDimmed)
@@ -149,12 +248,34 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         }
     }
 
-    public void SetAudioMuted(bool muted)
+    public virtual void SetAudioMuted(bool muted)
     {
         try { if (Audio != null) Audio.Volume = muted ? 0f : 1f; } catch { }
     }
 
-    public string ToggleRecording(string videoCodec)
+    private volatile bool _videoHidden;
+
+    /// <summary>
+    /// Met le décodage vidéo en pause tant que le miroir est en miniature.
+    /// À la reprise : decoder recréé + ResetVideo — scrcpy renvoie la config
+    /// codec et une keyframe, donc l'image repart nette sans artefacts.
+    /// </summary>
+    public virtual void SetVideoHidden(bool hidden)
+    {
+        if (_videoHidden == hidden)
+            return;
+        _videoHidden = hidden;
+        if (hidden)
+            return;
+        lock (_decoderLock)
+        {
+            Decoder?.Dispose();
+            Decoder = null;
+        }
+        try { Session?.Control?.SendSimple(ControlMsgType.ResetVideo); } catch { }
+    }
+
+    public virtual string ToggleRecording(string videoCodec)
     {
         if (IsRecording)
         {
@@ -191,7 +312,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         _recordStream = null;
     }
 
-    public async Task DisconnectAsync()
+    public virtual async Task DisconnectAsync()
     {
         if (_screenDimmed)
             await SetScreenDimmedAsync(false);

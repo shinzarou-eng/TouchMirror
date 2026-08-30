@@ -6,7 +6,8 @@ using System.Text.RegularExpressions;
 namespace TouchMirror.Services;
 
 public sealed record AdbDevice(string Serial, string Model, string State, int? Battery = null,
-    string? HardwareSerial = null, string? AltSerial = null, string? CustomName = null)
+    string? HardwareSerial = null, string? AltSerial = null, string? CustomName = null,
+    string? Color = null, string? Diag = null)
 {
     public string DeviceKey => HardwareSerial is { Length: > 0 } h ? h : Serial;
     public string DisplayName => CustomName ?? (string.IsNullOrWhiteSpace(Model) ? Serial : $"{Model} ({Serial})");
@@ -15,6 +16,8 @@ public sealed record AdbDevice(string Serial, string Model, string State, int? B
     public bool NeedsAuthorization => State == "unauthorized";
     public bool IsOffline => State == "offline";
     public bool IsRememberedOnly => State == "remembered";
+    /// <summary>Verdict du diagnostic USB (câble, instabilité…) — null si tout va bien.</summary>
+    public bool HasDiag => Diag != null;
     public string StateText => State switch
     {
         "device" => "Prêt",
@@ -134,6 +137,46 @@ public static class AdbService
         }
     }
 
+    /// <summary>
+    /// Flux long « adb track-devices » : invoque <paramref name="onChanged"/> à
+    /// chaque changement d'état (branchement, autorisation, débranchement).
+    /// Reconnecte le flux automatiquement s'il se coupe.
+    /// </summary>
+    public static async Task TrackDevicesAsync(Action onChanged, CancellationToken ct)
+    {
+        var adb = FindAdb();
+        if (adb == null)
+            return;
+        var buf = new char[256];
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                var psi = new ProcessStartInfo(adb, "track-devices")
+                {
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    StandardOutputEncoding = Encoding.UTF8
+                };
+                using var p = Process.Start(psi)!;
+                // Chaque bloc du flux = un nouvel état de la liste. Le contenu
+                // est ignoré : on réinterroge « devices -l » via onChanged.
+                while (!p.HasExited && !ct.IsCancellationRequested)
+                {
+                    var n = await p.StandardOutput.ReadAsync(buf, ct);
+                    if (n == 0)
+                        break;
+                    onChanged();
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+            catch { }
+            try { await Task.Delay(2000, ct); } catch { }
+        }
+    }
+
     public static async Task<IReadOnlyList<AdbDevice>> GetDevicesAsync(CancellationToken ct = default)
     {
         var output = await RunAsync("devices -l", ct);
@@ -145,7 +188,9 @@ public static class AdbService
                 continue;
             var modelMatch = Regex.Match(line, @"model:([^\s]+)");
             var model = modelMatch.Success ? modelMatch.Groups[1].Value.Replace('_', ' ') : "";
-            devices.Add(new AdbDevice(parts[0], model, parts[1]));
+            AdbDiagnostics.Record(parts[0], parts[1]);
+            devices.Add(new AdbDevice(parts[0], model, parts[1],
+                Diag: AdbDiagnostics.Verdict(parts[0], parts[1])));
         }
 
         var enriched = await Task.WhenAll(devices.Select(async d =>
@@ -278,7 +323,7 @@ public static class AdbService
     {
         var adb = FindAdb() ?? throw new InvalidOperationException("adb introuvable");
         var psi = new ProcessStartInfo(adb,
-            $"-s {serial} shell CLASSPATH={remoteJar} app_process / com.genymobile.scrcpy.Server {arguments}")
+            $"-s {serial} shell CLASSPATH={remoteJar} app_process / com.touchmirror.engine.Server {arguments}")
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,

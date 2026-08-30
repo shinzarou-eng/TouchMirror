@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -24,6 +26,61 @@ public partial class MainViewModel : ObservableObject
     public CodecOption[] CodecOptions { get; } =
         { new("H.264 (compatible)", "h264"), new("H.265 (qualité+)", "h265"), new("AV1 (expérimental)", "av1") };
 
+    /// <summary>Presets qualité : appliquent résolution + fps + débit d'un coup.</summary>
+    public sealed record QualityPreset(string Label, string Detail, int MaxSize, int MaxFps, int BitRate);
+    public QualityPreset[] QualityPresets { get; } =
+    {
+        new("Performance", "720p · 30 fps · 4 Mbps — fluide sur Wi-Fi chargé", 720, 30, 4_000_000),
+        new("Équilibré", "1080p · 60 fps · 16 Mbps", 1080, 60, 16_000_000),
+        new("Qualité+", "1440p · 60 fps · 24 Mbps", 1440, 60, 24_000_000),
+        new("Maximal", "Natif · 60 fps · 40 Mbps", 0, 60, 40_000_000),
+    };
+
+    /// <summary>Choix « Écran » : écran physique ou écran virtuel Android.</summary>
+    public sealed record DisplayModeOption(string Label, string? Spec);
+    public DisplayModeOption[] DisplayModeOptions { get; } =
+    {
+        new("Écran du téléphone", null),
+        new("Virtuel · auto", ""),
+        new("Virtuel · 1920×1080 paysage", "1920x1080/240"),
+        new("Virtuel · 1600×900 paysage", "1600x900/200"),
+        new("Virtuel · 1280×720 paysage", "1280x720/160"),
+        new("Virtuel · 1080×1920 portrait", "1080x1920/300"),
+        // DPI bas → smallest-width ≥600dp → Android/apps passent en mode tablette.
+        new("Tablette · 8″ (1920×1200)", "1920x1200/280"),
+        new("Tablette · 10″ (2560×1600)", "2560x1600/240"),
+    };
+
+    [ObservableProperty] private DisplayModeOption? _selectedDisplayMode;
+
+    partial void OnSelectedDisplayModeChanged(DisplayModeOption? value)
+    {
+        if (value == null || _suppressSave)
+            return;
+        if (ActivePrefs() is { } o) o.NewDisplay = value.Spec; else _settings.NewDisplay = value.Spec;
+        ScheduleSave();
+        if (!_suppressReconnect)
+            _ = ReconnectActiveAsync();
+    }
+
+    [ObservableProperty] private QualityPreset? _selectedQualityPreset;
+
+    partial void OnSelectedQualityPresetChanged(QualityPreset? value)
+    {
+        if (value == null || _suppressSave)
+            return;
+        // Une seule reconnexion pour les trois réglages.
+        _suppressReconnect = true;
+        MaxSize = value.MaxSize;
+        MaxFps = value.MaxFps;
+        VideoBitRate = value.BitRate;
+        _suppressReconnect = false;
+        if (ActiveMirror != null)
+            _ = ReconnectActiveAsync();
+        Status = $"Preset « {value.Label} » appliqué" +
+                 (ActiveMirror?.Prefs != null ? $" à « {ActiveMirror.DeviceName} »" : " (global)");
+    }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsConnected))]
     [NotifyPropertyChangedFor(nameof(StatusDotColor))]
@@ -33,9 +90,29 @@ public partial class MainViewModel : ObservableObject
 
     public ObservableCollection<PluginInstance> Plugins { get; } = new();
 
+    /// <summary>Espaces de travail mémorisés (dispositions multi-téléphones).</summary>
+    public ObservableCollection<WorkspaceItem> Workspaces { get; } = new();
+    [ObservableProperty] private WorkspaceItem? _activeWorkspace;
+    /// <summary>Membres de l'espace actif non connectés — tuiles fantômes.</summary>
+    public ObservableCollection<MissingDeviceItem> MissingDevices { get; } = new();
+    public bool HasMissingDevices => MissingDevices.Count > 0;
+    public bool HasStripContent => HasInactiveMirrors || HasMissingDevices;
+    /// <summary>Portée des réglages affichés : appareil actif (espace) ou globaux.</summary>
+    public string ActiveSettingsScope =>
+        ActiveMirror?.Prefs != null
+            ? $"Réglages de « {ActiveMirror.DeviceName} » — propres à cet espace"
+            : "Réglages globaux";
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActiveMirrorName))]
+    [NotifyPropertyChangedFor(nameof(IsActiveMirrorIos))]
+    [NotifyPropertyChangedFor(nameof(IosBleActive))]
     private MirrorInstance? _activeMirror;
+
+    /// <summary>Vrai si le miroir actif est un iPhone AirPlay.</summary>
+    public bool IsActiveMirrorIos => ActiveMirror?.IsIos == true;
+    /// <summary>Souris Bluetooth HID active sur le miroir iOS actif.</summary>
+    public bool IosBleActive => (ActiveMirror as IosMirrorInstance)?.BleActive == true;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DetectedDeviceCount))]
@@ -45,6 +122,30 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanConnect))]
     private AdbDevice? _selectedDevice;
+    /// <summary>Mode édition des raccourcis plaqués sur la vidéo du miroir actif.</summary>
+    [ObservableProperty] private bool _keybindEditMode;
+
+    partial void OnKeybindEditModeChanged(bool value)
+    {
+        foreach (var m in Mirrors)
+            m.KeybindEditMode = value && m == ActiveMirror;
+    }
+
+    /// <summary>Active/coupe la souris Bluetooth HID du miroir iOS actif.</summary>
+    [RelayCommand]
+    private async Task ToggleIosBleAsync()
+    {
+        if (ActiveMirror is not IosMirrorInstance ios)
+            return;
+        if (!ios.BleActive)
+            await ios.EnableBleControlAsync();
+        else
+            ios.DisableBleControl();
+        OnPropertyChanged(nameof(IosBleActive));
+        if (!string.IsNullOrEmpty(ios.BleStatus))
+            Status = ios.BleStatus;
+    }
+
     [ObservableProperty] private string _status = "Sélectionne un appareil et connecte-toi";
     [ObservableProperty] private string _adbStatus = "";
     [ObservableProperty] private string _wifiStatus = "";
@@ -72,6 +173,8 @@ public partial class MainViewModel : ObservableObject
 
     public MainViewModel()
     {
+        CatalogView = CollectionViewSource.GetDefaultView(Catalog);
+        CatalogView.Filter = CatalogPredicate;
         _recTimer.Tick += (_, _) =>
         {
             var since = ActiveMirror?.RecordingSince;
@@ -109,12 +212,21 @@ public partial class MainViewModel : ObservableObject
         SyncDeviceClipboard = _settings.SyncDeviceClipboard;
         Topmost = _settings.Topmost;
         TurnScreenOff = _settings.TurnScreenOff;
+        AutoLaunchDofus = _settings.AutoLaunchDofus;
         ShowSettings = _settings.ShowSettings;
         LocalApiPort = _settings.LocalApiPort;
         LocalApiToken = _settings.LocalApiToken ?? "";
         LocalApiEnabled = _settings.LocalApiEnabled;
         _suppressSave = false;
         _suppressReconnect = false;
+        foreach (var w in _settings.Workspaces)
+            Workspaces.Add(new WorkspaceItem(w));
+        if (_settings.ActiveWorkspaceId is { } wid)
+        {
+            ActiveWorkspace = Workspaces.FirstOrDefault(w => w.Model.Id == wid);
+            if (ActiveWorkspace != null)
+                ActiveWorkspace.IsActive = true;
+        }
     }
 
     private void ScheduleSave()
@@ -127,22 +239,33 @@ public partial class MainViewModel : ObservableObject
     public void SaveNow()
     {
         _saveTimer.Stop();
-        _settings.MaxSize = MaxSize;
-        _settings.MaxFps = MaxFps;
-        _settings.VideoBitRate = VideoBitRate;
-        _settings.VideoCodec = VideoCodec;
+        // En mode espace, les propriétés vidéo/audio reflètent l'appareil actif :
+        // les valeurs globales ne sont réécrites que hors espace (les handlers
+        // de changement écrivent déjà directement dans _settings ou l'override).
+        if (ActiveWorkspace == null)
+        {
+            _settings.MaxSize = MaxSize;
+            _settings.MaxFps = MaxFps;
+            _settings.VideoBitRate = VideoBitRate;
+            _settings.VideoCodec = VideoCodec;
+            _settings.EnableAudio = EnableAudio;
+            _settings.TurnScreenOff = TurnScreenOff;
+        }
+        _settings.AutoLaunchDofus = AutoLaunchDofus;
         _settings.StayAwake = StayAwake;
-        _settings.EnableAudio = EnableAudio;
         _settings.AutoFullscreen = AutoFullscreen;
         _settings.SyncDeviceClipboard = SyncDeviceClipboard;
         _settings.Topmost = Topmost;
-        _settings.TurnScreenOff = TurnScreenOff;
         _settings.ShowSettings = ShowSettings;
         _settings.LocalApiEnabled = LocalApiEnabled;
         _settings.LocalApiPort = LocalApiPort;
         _settings.LocalApiToken = string.IsNullOrEmpty(LocalApiToken) ? null : LocalApiToken;
         _settings.LastSelectedDeviceKey = SelectedDevice?.DeviceKey;
         _settings.EnabledPlugins = Plugins.Where(p => p.Running).Select(p => p.Id).ToList();
+        _settings.MirrorOrder = Mirrors.Select(x => x.Device.DeviceKey).ToList();
+        _settings.Workspaces = Workspaces.Select(w => w.Model).ToList();
+        _settings.ActiveWorkspaceId = ActiveWorkspace?.Id;
+        SyncActiveWorkspace();
         SettingsStore.Save(_settings);
         if (LocalApiEnabled && _apiServer is { Port: { } p } && p != LocalApiPort)
             _ = RestartApiAsync();
@@ -160,6 +283,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TurnScreenOffText))]
     private bool _turnScreenOff;
+    [ObservableProperty] private bool _autoLaunchDofus;
     public string TurnScreenOffText => TurnScreenOff ? "Activé" : "Désactivé";
 
     [ObservableProperty]
@@ -193,9 +317,12 @@ public partial class MainViewModel : ObservableObject
         {
             m.IsActive = m == instance;
             m.SetAudioMuted(m != instance);
+            m.SetVideoHidden(m != instance);
+            m.KeybindEditMode = KeybindEditMode && m == instance;
         }
         RefreshInactiveMirrors();
         UpdateStatus();
+        LoadEffectiveSettings();
         _apiHost.Publish("mirror.active", new { slot = instance.Slot, name = instance.DeviceName });
     }
 
@@ -339,6 +466,289 @@ public partial class MainViewModel : ObservableObject
             p.Stop();
     }
 
+    // ═══ Espaces de travail — dispositions multi-téléphones mémorisées ═══
+
+    /// <summary>Entrée d'espace correspondant à cet appareil (clé matérielle ou dernier serial).</summary>
+    private WorkspaceDevice? FindWorkspaceDevice(AdbDevice device)
+        => ActiveWorkspace?.Model.Devices.FirstOrDefault(d =>
+            d.DeviceKey == device.DeviceKey
+            || (d.LastSerial != null && device.MatchesSerial(d.LastSerial)));
+
+    /// <summary>Capture l'état courant (membres, ordre, actif) dans l'espace actif.</summary>
+    private void SyncActiveWorkspace()
+    {
+        var item = ActiveWorkspace;
+        if (item == null)
+            return;
+        var ws = item.Model;
+        var stale = ws.Devices.ToDictionary(d => d.DeviceKey);
+        var next = new List<WorkspaceDevice>();
+        foreach (var m in Mirrors)
+        {
+            if (stale.Remove(m.Device.DeviceKey, out var e))
+            {
+                e.Model = m.Device.Model;
+                e.LastSerial = m.Device.Serial;
+                next.Add(e);
+            }
+            else
+            {
+                next.Add(new WorkspaceDevice
+                {
+                    DeviceKey = m.Device.DeviceKey,
+                    Model = m.Device.Model,
+                    LastSerial = m.Device.Serial
+                });
+            }
+            m.Prefs = next[^1];
+        }
+        // Les membres non connectés restent dans l'espace (tuiles « absentes »).
+        next.AddRange(stale.Values);
+        ws.Devices = next;
+        ws.ActiveDeviceKey = ActiveMirror?.Device.DeviceKey;
+        item.Refresh();
+    }
+
+    [RelayCommand]
+    private void NewWorkspace()
+    {
+        var item = new WorkspaceItem(new Workspace { Name = $"Espace {Workspaces.Count + 1}" });
+        Workspaces.Add(item);
+        _ = SelectWorkspaceAsync(item);
+    }
+
+    /// <summary>Bascule vers un espace : sauvegarde le courant puis applique la cible.</summary>
+    public async Task SelectWorkspaceAsync(WorkspaceItem? item)
+    {
+        if (item == null || ReferenceEquals(item, ActiveWorkspace))
+            return;
+        if (IsBusy)
+        {
+            Status = "Une connexion est en cours — réessaie dans un instant";
+            return;
+        }
+        SaveNow();
+        if (ActiveWorkspace != null)
+            ActiveWorkspace.IsActive = false;
+        ActiveWorkspace = item;
+        item.IsActive = true;
+        await RestoreWorkspaceAsync(item);
+    }
+
+    /// <summary>Applique un espace : déconnecte les hors-espace, connecte les membres
+    /// présents, restaure ordre, miroir actif et réglages par appareil.</summary>
+    private async Task RestoreWorkspaceAsync(WorkspaceItem item)
+    {
+        var ws = item.Model;
+        var keys = ws.Devices.Select(d => d.DeviceKey).ToHashSet();
+        foreach (var m in Mirrors.ToList())
+            if (!keys.Contains(m.Device.DeviceKey))
+                await RemoveMirrorInternalAsync(m);
+
+        await RefreshDevicesAsync();
+        foreach (var wd in ws.Devices)
+        {
+            var existing = Mirrors.FirstOrDefault(m => m.Device.DeviceKey == wd.DeviceKey);
+            if (existing != null)
+            {
+                existing.Prefs = wd;
+                continue;
+            }
+            var dev = Devices.FirstOrDefault(d => d.DeviceKey == wd.DeviceKey)
+                      ?? (wd.LastSerial != null
+                          ? Devices.FirstOrDefault(d => d.MatchesSerial(wd.LastSerial))
+                          : null);
+            if (dev is { IsReady: true })
+                await ConnectDeviceAsync(dev, wd);
+        }
+
+        _settings.MirrorOrder = ws.Devices.Select(d => d.DeviceKey).ToList();
+        ApplyMirrorOrder();
+        RefreshInactiveMirrors();
+        var active = Mirrors.FirstOrDefault(m => m.Device.DeviceKey == ws.ActiveDeviceKey)
+                     ?? Mirrors.FirstOrDefault();
+        if (active != null)
+            SetActive(active);
+        RefreshMissingDevices();
+        LoadEffectiveSettings();
+        SaveNow();
+        var missing = MissingDevices.Count;
+        Status = missing == 0
+            ? $"Espace « {item.Name} » — {Mirrors.Count} téléphone(s)"
+            : $"Espace « {item.Name} » — {Mirrors.Count} connecté(s), {missing} absent(s)";
+    }
+
+    public bool HasActiveWorkspace => ActiveWorkspace != null;
+
+    partial void OnActiveWorkspaceChanged(WorkspaceItem? value)
+        => OnPropertyChanged(nameof(HasActiveWorkspace));
+
+    /// <summary>Sort de l'espace actif : les réglages redeviennent globaux.</summary>
+    public void ExitWorkspace()
+    {
+        if (ActiveWorkspace == null)
+            return;
+        SaveNow();
+        ActiveWorkspace.IsActive = false;
+        ActiveWorkspace = null;
+        MissingDevices.Clear();
+        OnPropertyChanged(nameof(HasMissingDevices));
+        OnPropertyChanged(nameof(HasStripContent));
+        LoadEffectiveSettings();
+        SaveNow();
+    }
+
+    public void RenameWorkspace(WorkspaceItem item, string? name)
+    {
+        var trimmed = name?.Trim();
+        item.IsEditing = false;
+        if (string.IsNullOrEmpty(trimmed) || trimmed == item.Model.Name)
+        {
+            item.Name = item.Model.Name;
+            return;
+        }
+        item.Model.Name = trimmed;
+        item.Name = trimmed;
+        ScheduleSave();
+    }
+
+    [RelayCommand]
+    private void DuplicateWorkspace(WorkspaceItem? item)
+    {
+        if (item == null)
+            return;
+        var copy = new Workspace
+        {
+            Name = item.Model.Name + " (copie)",
+            ActiveDeviceKey = item.Model.ActiveDeviceKey,
+            Devices = item.Model.Devices.Select(d => new WorkspaceDevice
+            {
+                DeviceKey = d.DeviceKey,
+                Model = d.Model,
+                LastSerial = d.LastSerial,
+                MaxSize = d.MaxSize,
+                MaxFps = d.MaxFps,
+                VideoBitRate = d.VideoBitRate,
+                VideoCodec = d.VideoCodec,
+                EnableAudio = d.EnableAudio,
+                TurnScreenOff = d.TurnScreenOff,
+                NewDisplay = d.NewDisplay
+            }).ToList()
+        };
+        Workspaces.Insert(Workspaces.IndexOf(item) + 1, new WorkspaceItem(copy));
+        ScheduleSave();
+    }
+
+    [RelayCommand]
+    private void DeleteWorkspace(WorkspaceItem? item)
+    {
+        if (item == null)
+            return;
+        if (ReferenceEquals(item, ActiveWorkspace))
+            ExitWorkspace();
+        Workspaces.Remove(item);
+        SaveNow();
+        Log($"espace supprimé : {item.Name}");
+    }
+
+    /// <summary>Ctrl+Maj+N : bascule vers l'espace n° index+1.</summary>
+    public void ActivateWorkspaceAt(int index)
+    {
+        if (index >= 0 && index < Workspaces.Count)
+            _ = SelectWorkspaceAsync(Workspaces[index]);
+    }
+
+    /// <summary>Membres de l'espace actif sans miroir — tuiles fantômes « absentes ».</summary>
+    private void RefreshMissingDevices()
+    {
+        MissingDevices.Clear();
+        var ws = ActiveWorkspace?.Model;
+        if (ws != null)
+            foreach (var wd in ws.Devices)
+            {
+                if (Mirrors.Any(m => m.Device.DeviceKey == wd.DeviceKey))
+                    continue;
+                _settings.Devices.TryGetValue(wd.DeviceKey, out var p);
+                MissingDevices.Add(new MissingDeviceItem(
+                    wd, p?.CustomName ?? wd.Model ?? wd.DeviceKey, p?.Color));
+            }
+        OnPropertyChanged(nameof(HasMissingDevices));
+        OnPropertyChanged(nameof(HasStripContent));
+    }
+
+    /// <summary>Reconnecte les membres de l'espace redevenus prêts (décos volontaires respectées).</summary>
+    private bool _connectingMissing;
+    private async Task TryConnectMissingAsync()
+    {
+        if (_connectingMissing || ActiveWorkspace == null || IsBusy)
+            return;
+        _connectingMissing = true;
+        try
+        {
+            foreach (var wd in ActiveWorkspace.Model.Devices)
+            {
+                if (Mirrors.Any(m => m.Device.DeviceKey == wd.DeviceKey))
+                    continue;
+                var dev = Devices.FirstOrDefault(d => d.DeviceKey == wd.DeviceKey
+                    || (wd.LastSerial != null && d.MatchesSerial(wd.LastSerial)));
+                if (dev is { IsReady: true } && !_voluntaryDisconnects.Contains(dev.Serial))
+                    await ConnectDeviceAsync(dev, wd);
+            }
+            RefreshMissingDevices();
+        }
+        finally
+        {
+            _connectingMissing = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task ConnectMissingAsync(MissingDeviceItem? item)
+    {
+        if (item == null)
+            return;
+        await RefreshDevicesAsync();
+        var wd = item.Prefs;
+        var dev = Devices.FirstOrDefault(d => d.DeviceKey == wd.DeviceKey)
+                  ?? (wd.LastSerial != null
+                      ? Devices.FirstOrDefault(d => d.MatchesSerial(wd.LastSerial))
+                      : null);
+        if (dev is { IsReady: true })
+            await ConnectDeviceAsync(dev, wd);
+        else
+            Status = $"« {item.Name} » n'est pas détecté — rebranche-le";
+    }
+
+    [RelayCommand]
+    private void RemoveMissing(MissingDeviceItem? item)
+    {
+        var ws = ActiveWorkspace?.Model;
+        if (item == null || ws == null)
+            return;
+        ws.Devices.Remove(item.Prefs);
+        RefreshMissingDevices();
+        ActiveWorkspace?.Refresh();
+        ScheduleSave();
+    }
+
+    /// <summary>Couleur d'accent d'un appareil (nulle = couleur par défaut).</summary>
+    public void SetDeviceColor(AdbDevice device, string? hex)
+    {
+        var key = device.DeviceKey;
+        if (!_settings.Devices.TryGetValue(key, out var prefs))
+            _settings.Devices[key] = prefs = new DevicePrefs();
+        prefs.Color = hex;
+        prefs.Model = device.Model;
+        prefs.LastSerial = device.Serial;
+        for (var i = 0; i < Devices.Count; i++)
+            if (Devices[i].SharesIdentity(device))
+                Devices[i] = Devices[i] with { Color = hex };
+        foreach (var m in Mirrors.Where(m => m.Device.SharesIdentity(device)))
+            m.AccentHex = hex;
+        RefreshMissingDevices();
+        SaveNow();
+    }
+
     // ═══ Plugins — scripts utilisateurs du dossier plugins/ ═══
 
     private PluginApi ApiFor(PluginInstance p) => new(_apiHost, msg => p.Emit(msg));
@@ -395,6 +805,8 @@ public partial class MainViewModel : ObservableObject
             }
             p.Start(ApiFor(p));
         }
+        foreach (var c in Catalog)
+            c.Refresh(Plugins);
     }
 
     /// <summary>Hash déjà validé par l'utilisateur pour ce contenu exact.</summary>
@@ -441,6 +853,196 @@ public partial class MainViewModel : ObservableObject
         var dir = Path.Combine(AppContext.BaseDirectory, "plugins");
         Directory.CreateDirectory(dir);
         System.Diagnostics.Process.Start("explorer.exe", dir);
+    }
+
+    // ═══ Catalogue — plugins publiés sur le dépôt GitHub ═══
+
+    public ObservableCollection<MarketplaceItem> Catalog { get; } = new();
+    public ICollectionView CatalogView { get; }
+
+    [ObservableProperty] private string _catalogStatus = "";
+    [ObservableProperty] private bool _catalogBusy;
+    [ObservableProperty] private string _catalogFilter = "";
+    [ObservableProperty] private int _catalogTab;
+
+    private bool _catalogLoaded;
+
+    partial void OnCatalogFilterChanged(string value) => CatalogView.Refresh();
+    partial void OnCatalogTabChanged(int value) => CatalogView.Refresh();
+
+    private bool CatalogPredicate(object o)
+    {
+        if (o is not MarketplaceItem m)
+            return false;
+        var ok = CatalogTab switch
+        {
+            1 => m.Official,
+            2 => m.IsPresent,
+            _ => true
+        };
+        return ok && (string.IsNullOrWhiteSpace(CatalogFilter)
+                      || m.Name.Contains(CatalogFilter, StringComparison.OrdinalIgnoreCase)
+                      || m.Description.Contains(CatalogFilter, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [RelayCommand]
+    private void SelectCatalogTab(string? tab)
+    {
+        if (int.TryParse(tab, out var t))
+            CatalogTab = t;
+    }
+
+    [RelayCommand]
+    private async Task LoadCatalog()
+    {
+        if (CatalogBusy)
+            return;
+        CatalogBusy = true;
+        try
+        {
+            var entries = await MarketplaceService.FetchAsync();
+            Catalog.Clear();
+            foreach (var e in entries)
+            {
+                var item = new MarketplaceItem { Entry = e };
+                item.Refresh(Plugins);
+                Catalog.Add(item);
+            }
+            CatalogStatus = Catalog.Count == 0 ? "catalogue vide" : "";
+            _catalogLoaded = true;
+        }
+        catch
+        {
+            CatalogStatus = "catalogue indisponible — vérifie la connexion";
+        }
+        finally
+        {
+            CatalogBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task InstallPlugin(MarketplaceItem? item)
+    {
+        if (item == null || !item.CanInstall)
+            return;
+        item.CanInstall = false;
+        item.ActionLabel = "Installation…";
+        try
+        {
+            var dir = Path.Combine(AppContext.BaseDirectory, "plugins");
+            await MarketplaceService.InstallAsync(item.Entry, dir);
+            // L'installation est le consentement : le hash du catalogue est approuvé tel quel.
+            _settings.ApprovedPlugins[item.Id] = item.Entry.Hash;
+            if (!_settings.EnabledPlugins.Contains(item.Id))
+                _settings.EnabledPlugins.Add(item.Id);
+            RescanPlugins();
+            ScheduleSave();
+            item.Refresh(Plugins);
+            Log($"plugin installé : {item.Name}");
+        }
+        catch (Exception ex)
+        {
+            Log($"installation de {item.Name} impossible : {ex.Message}");
+            item.Refresh(Plugins);
+        }
+    }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSelectedPlugin))]
+    private MarketplaceItem? _selectedPlugin;
+    public bool HasSelectedPlugin => SelectedPlugin != null;
+
+    [RelayCommand]
+    private void SelectPlugin(MarketplaceItem? item)
+    {
+        SelectedPlugin = item;
+        if (item != null)
+            _ = LoadDetailAsync(item);
+    }
+
+    [RelayCommand]
+    private void BackToCatalog() => SelectedPlugin = null;
+
+    /// <summary>Charge le code du plugin : fichier local s'il est installé, sinon le dépôt.</summary>
+    private async Task LoadDetailAsync(MarketplaceItem item)
+    {
+        if (item.CodeBusy)
+            return;
+        item.CodeBusy = true;
+        item.CodeError = false;
+        item.Code = "";
+        try
+        {
+            var local = Plugins.FirstOrDefault(x => x.Id == item.Id);
+            var code = local != null && File.Exists(local.FilePath)
+                ? await File.ReadAllTextAsync(local.FilePath)
+                : await MarketplaceService.FetchCodeAsync(item.Id);
+            item.Code = code;
+            item.Capabilities = PluginAudit.Extract(code);
+        }
+        catch
+        {
+            item.CodeError = true;
+            item.Capabilities = new List<string>();
+        }
+        finally
+        {
+            item.CodeBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task ToggleCatalogPlugin(MarketplaceItem? item)
+    {
+        if (item == null)
+            return;
+        var p = Plugins.FirstOrDefault(x => x.Id == item.Id);
+        if (p == null)
+            return;
+        await TogglePlugin(p);
+        item.Refresh(Plugins);
+    }
+
+    [RelayCommand]
+    private void UninstallCatalogPlugin(MarketplaceItem? item)
+    {
+        if (item == null)
+            return;
+        try
+        {
+            var p = Plugins.FirstOrDefault(x => x.Id == item.Id);
+            if (p != null)
+            {
+                if (p.Running)
+                    p.Stop();
+                // plugins/<id>/plugin.js → dossier entier ; plugins/<id>.js → fichier seul
+                if (Path.GetFileName(p.FilePath).Equals("plugin.js", StringComparison.OrdinalIgnoreCase))
+                    Directory.Delete(Path.GetDirectoryName(p.FilePath)!, true);
+                else
+                    File.Delete(p.FilePath);
+            }
+            else
+            {
+                var dir = Path.Combine(AppContext.BaseDirectory, "plugins", item.Id);
+                if (Directory.Exists(dir))
+                    Directory.Delete(dir, true);
+                var loose = Path.Combine(AppContext.BaseDirectory, "plugins", item.Id + ".js");
+                if (File.Exists(loose))
+                    File.Delete(loose);
+            }
+            _settings.ApprovedPlugins.Remove(item.Id);
+            _settings.EnabledPlugins.Remove(item.Id);
+            ScheduleSave();
+            RescanPlugins();
+            foreach (var c in Catalog)
+                c.Refresh(Plugins);
+            Log($"plugin désinstallé : {item.Name}");
+        }
+        catch (Exception ex)
+        {
+            Log($"désinstallation de {item.Name} impossible : {ex.Message}");
+        }
     }
 
     [RelayCommand]
@@ -500,6 +1102,7 @@ public partial class MainViewModel : ObservableObject
             if (!ReferenceEquals(m, ActiveMirror) && !InactiveMirrors.Contains(m))
                 InactiveMirrors.Add(m);
         OnPropertyChanged(nameof(HasInactiveMirrors));
+        RefreshMissingDevices();
     }
 
     public bool HasInactiveMirrors => InactiveMirrors.Count > 0;
@@ -518,25 +1121,82 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(RecordingVisibility));
     }
 
-    private ScrcpyOptions BuildOptions() => new()
+    /// <summary>Options scrcpy : réglages propres de l'appareil (espace) sinon globaux.</summary>
+    private ScrcpyOptions BuildOptions(WorkspaceDevice? o = null) => new()
     {
-        MaxSize = MaxSize,
-        MaxFps = MaxFps,
-        VideoBitRate = VideoBitRate,
-        VideoCodec = VideoCodec,
+        MaxSize = o?.MaxSize ?? _settings.MaxSize,
+        MaxFps = o?.MaxFps ?? _settings.MaxFps,
+        VideoBitRate = o?.VideoBitRate ?? _settings.VideoBitRate,
+        VideoCodec = o?.VideoCodec ?? _settings.VideoCodec,
         StayAwake = StayAwake,
-        Audio = EnableAudio,
-        TurnScreenOff = TurnScreenOff,
+        Audio = o?.EnableAudio ?? _settings.EnableAudio,
+        TurnScreenOff = o?.TurnScreenOff ?? _settings.TurnScreenOff,
+        NewDisplay = o?.NewDisplay ?? _settings.NewDisplay,
+        AutoLaunchPackage = AutoLaunchDofus ? "com.ankama.dofustouch" : null,
     };
+
+    /// <summary>Réglages propres de l'appareil actif dans l'espace courant (nul hors espace/membre).</summary>
+    private WorkspaceDevice? ActivePrefs() => ActiveMirror?.Prefs;
+
+    /// <summary>Recharge les propriétés affichées avec les réglages effectifs du miroir actif.</summary>
+    private void LoadEffectiveSettings()
+    {
+        var o = ActivePrefs();
+        _suppressSave = true;
+        _suppressReconnect = true;
+        MaxSize = o?.MaxSize ?? _settings.MaxSize;
+        MaxFps = o?.MaxFps ?? _settings.MaxFps;
+        VideoBitRate = o?.VideoBitRate ?? _settings.VideoBitRate;
+        VideoCodec = o?.VideoCodec ?? _settings.VideoCodec;
+        EnableAudio = o?.EnableAudio ?? _settings.EnableAudio;
+        TurnScreenOff = o?.TurnScreenOff ?? _settings.TurnScreenOff;
+        SelectedDisplayMode = DisplayModeOptions
+            .FirstOrDefault(d => d.Spec == (o?.NewDisplay ?? _settings.NewDisplay))
+            ?? DisplayModeOptions[0];
+        _suppressSave = false;
+        _suppressReconnect = false;
+        OnPropertyChanged(nameof(ActiveSettingsScope));
+    }
 
     private bool _suppressReconnect;
 
-    partial void OnMaxSizeChanged(int value) { ScheduleSave(); if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
-    partial void OnMaxFpsChanged(int value) { ScheduleSave(); if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
-    partial void OnVideoBitRateChanged(int value) { ScheduleSave(); if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
-    partial void OnVideoCodecChanged(string value) { ScheduleSave(); if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
-    partial void OnEnableAudioChanged(bool value) { ScheduleSave(); if (!_suppressReconnect) _ = ReconnectActiveAsync(); }
+    partial void OnMaxSizeChanged(int value)
+    {
+        if (_suppressSave) return;
+        if (ActivePrefs() is { } o) o.MaxSize = value; else _settings.MaxSize = value;
+        ScheduleSave();
+        if (!_suppressReconnect) _ = ReconnectActiveAsync();
+    }
+    partial void OnMaxFpsChanged(int value)
+    {
+        if (_suppressSave) return;
+        if (ActivePrefs() is { } o) o.MaxFps = value; else _settings.MaxFps = value;
+        ScheduleSave();
+        if (!_suppressReconnect) _ = ReconnectActiveAsync();
+    }
+    partial void OnVideoBitRateChanged(int value)
+    {
+        if (_suppressSave) return;
+        if (ActivePrefs() is { } o) o.VideoBitRate = value; else _settings.VideoBitRate = value;
+        ScheduleSave();
+        if (!_suppressReconnect) _ = ReconnectActiveAsync();
+    }
+    partial void OnVideoCodecChanged(string value)
+    {
+        if (_suppressSave) return;
+        if (ActivePrefs() is { } o) o.VideoCodec = value; else _settings.VideoCodec = value;
+        ScheduleSave();
+        if (!_suppressReconnect) _ = ReconnectActiveAsync();
+    }
+    partial void OnEnableAudioChanged(bool value)
+    {
+        if (_suppressSave) return;
+        if (ActivePrefs() is { } o) o.EnableAudio = value; else _settings.EnableAudio = value;
+        ScheduleSave();
+        if (!_suppressReconnect) _ = ReconnectActiveAsync();
+    }
     partial void OnStayAwakeChanged(bool value) => ScheduleSave();
+    partial void OnAutoLaunchDofusChanged(bool value) => ScheduleSave();
     partial void OnAutoFullscreenChanged(bool value) => ScheduleSave();
     partial void OnSyncDeviceClipboardChanged(bool value) => ScheduleSave();
     partial void OnTopmostChanged(bool value) => ScheduleSave();
@@ -544,14 +1204,29 @@ public partial class MainViewModel : ObservableObject
     {
         ScheduleSave();
         if (value)
+        {
             RescanPlugins();
+            if (!_catalogLoaded)
+                _ = LoadCatalog();
+        }
     }
     partial void OnSelectedDeviceChanged(AdbDevice? value) => ScheduleSave();
     partial void OnTurnScreenOffChanged(bool value)
     {
+        if (_suppressSave) return;
+        if (ActivePrefs() is { } o)
+        {
+            o.TurnScreenOff = value;
+            if (ActiveMirror != null)
+                _ = ActiveMirror.SetScreenDimmedAsync(value);
+        }
+        else
+        {
+            _settings.TurnScreenOff = value;
+            foreach (var m in Mirrors)
+                _ = m.SetScreenDimmedAsync(value);
+        }
         ScheduleSave();
-        foreach (var m in Mirrors)
-            _ = m.SetScreenDimmedAsync(value);
     }
 
     private async Task ReconnectActiveAsync()
@@ -561,8 +1236,9 @@ public partial class MainViewModel : ObservableObject
             return;
         Log("Réglage modifié — reconnexion de la tuile active…");
         var device = m.Device;
+        var prefs = m.Prefs;
         await RemoveMirrorInternalAsync(m);
-        await ConnectDeviceAsync(device);
+        await ConnectDeviceAsync(device, prefs);
     }
 
     public async Task InitializeAsync()
@@ -577,7 +1253,36 @@ public partial class MainViewModel : ObservableObject
         await RefreshDevicesAsync();
         RescanPlugins();
         _ = CheckUpdateAsync();
+        _ = TrackDevicesLoopAsync();
+        if (ActiveWorkspace != null)
+            _ = RestoreWorkspaceAsync(ActiveWorkspace);
     }
+
+    // ═══ Détection événementielle des appareils (adb track-devices) ═══
+
+    private readonly CancellationTokenSource _trackCts = new();
+    private bool _trackQueued;
+
+    /// <summary>Flux adb track-devices : chaque changement déclenche un refresh
+    /// (debounce 350 ms — adb émet plusieurs blocs lors d'un seul branchement).
+    /// Le timer 5 s reste en fallback pour les états transitoires.</summary>
+    private async Task TrackDevicesLoopAsync()
+    {
+        await AdbService.TrackDevicesAsync(() =>
+        {
+            if (_trackQueued)
+                return;
+            _trackQueued = true;
+            _ = Application.Current.Dispatcher.InvokeAsync(async () =>
+            {
+                await Task.Delay(350);
+                _trackQueued = false;
+                try { await RefreshDevicesAsync(); } catch { }
+            });
+        }, _trackCts.Token);
+    }
+
+    public void StopTracking() => _trackCts.Cancel();
 
     private async Task CheckUpdateAsync()
     {
@@ -638,8 +1343,9 @@ public partial class MainViewModel : ObservableObject
                     continue;
                 prefs.Model = d.Model;
                 prefs.LastSerial = d.Serial;
-                if (prefs.CustomName != null && prefs.CustomName != d.CustomName)
-                    list[i] = d with { CustomName = prefs.CustomName };
+                if ((prefs.CustomName != null && prefs.CustomName != d.CustomName)
+                    || prefs.Color != d.Color)
+                    list[i] = d with { CustomName = prefs.CustomName ?? d.CustomName, Color = prefs.Color };
             }
 
             foreach (var (key, prefs) in _settings.Devices)
@@ -648,7 +1354,7 @@ public partial class MainViewModel : ObservableObject
                     || (prefs.LastSerial != null && d.MatchesSerial(prefs.LastSerial)));
                 if (!present)
                     list.Add(new AdbDevice(prefs.LastSerial ?? key, prefs.Model ?? "",
-                        "remembered", CustomName: prefs.CustomName));
+                        "remembered", CustomName: prefs.CustomName, Color: prefs.Color));
             }
 
             Devices = new ObservableCollection<AdbDevice>(list);
@@ -669,6 +1375,8 @@ public partial class MainViewModel : ObservableObject
             // Relance la détection tant qu'un appareil attend une action
             // (autorisation, hors ligne) ou qu'un appareil mémorisé est absent.
             _pollTimer.IsEnabled = list.Any(d => !d.IsReady);
+            RefreshMissingDevices();
+            _ = TryConnectMissingAsync();
         }
         catch (Exception ex)
         {
@@ -716,7 +1424,7 @@ public partial class MainViewModel : ObservableObject
         _ => $"« {device.ShortName} » n'est pas prêt"
     };
 
-    private async Task ConnectDeviceAsync(AdbDevice device)
+    private async Task ConnectDeviceAsync(AdbDevice device, WorkspaceDevice? prefs = null)
     {
         Services.AppLogger.Write($"connect start: {device.Serial}");
         _voluntaryDisconnects.Remove(device.Serial);
@@ -727,13 +1435,17 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
+        // Membre de l'espace actif ? → ses réglages propres s'appliquent.
+        prefs ??= FindWorkspaceDevice(device);
         IsBusy = true;
         _hasError = false;
         OnPropertyChanged(nameof(StatusDotColor));
         Status = $"Connexion — {device.DisplayName}…";
         var instance = new MirrorInstance(device)
         {
-            ShouldSyncClipboard = () => SyncDeviceClipboard
+            ShouldSyncClipboard = () => SyncDeviceClipboard,
+            Prefs = prefs,
+            AccentHex = _settings.Devices.TryGetValue(device.DeviceKey, out var dp) ? dp.Color : null
         };
         try
         {
@@ -759,9 +1471,10 @@ public partial class MainViewModel : ObservableObject
             SetActive(instance);
             MirrorAdded?.Invoke(instance);
             Services.AppLogger.Write("startasync begin");
-            await instance.StartAsync(BuildOptions());
+            await instance.StartAsync(BuildOptions(prefs));
             Services.AppLogger.Write("startasync done");
             RememberDevice(device);
+            BindKeybindPersistence(instance);
         }
         catch (Exception ex)
         {
@@ -805,11 +1518,144 @@ public partial class MainViewModel : ObservableObject
         await instance.DisconnectAsync();
     }
 
+    // ── iOS / AirPlay (affichage seul) ────────────────────────────────────
+    private AirPlayService? _airPlay;
+
+    [RelayCommand]
+    private async Task AddIosMirrorAsync()
+    {
+        var existing = Mirrors.OfType<IosMirrorInstance>().FirstOrDefault();
+        if (existing != null && _airPlay is { IsRunning: true })
+        {
+            SetActive(existing);
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            var needRebind = existing != null && _airPlay == null;
+            _airPlay ??= new AirPlayService();
+            if (!_airPlay.IsRunning)
+                await _airPlay.StartAsync();
+
+            if (existing != null)
+            {
+                SetActive(existing);
+                if (needRebind)
+                    await existing.StartAsync(_airPlay);
+                Status = AirPlayStatusText(existing);
+                return;
+            }
+
+            var instance = new IosMirrorInstance
+            {
+                ShouldSyncClipboard = () => false
+            };
+            instance.Log += Log;
+            instance.BleStatusChanged += s =>
+            {
+                Status = s;
+                OnPropertyChanged(nameof(IosBleActive));
+            };
+            instance.Connected += m =>
+            {
+                SetActive(m);
+                AnyConnected?.Invoke();
+                _apiHost.Publish("mirror.connected",
+                    new { slot = m.Slot, name = m.DeviceName, serial = m.Device.Serial });
+            };
+            instance.Disconnected += m =>
+            {
+                _apiHost.Publish("mirror.disconnected",
+                    new { name = m.DeviceName, serial = m.Device.Serial, manual = m.ManualDisconnect });
+                Mirrors.Remove(m);
+                PromoteNextActive(m);
+                StopAirPlayIfUnused();
+            };
+
+            Mirrors.Add(instance);
+            ApplyMirrorOrder();
+            RefreshInactiveMirrors();
+            SetActive(instance);
+            MirrorAdded?.Invoke(instance);
+            await instance.StartAsync(_airPlay);
+            BindKeybindPersistence(instance);
+            Status = AirPlayStatusText(instance);
+        }
+        catch (Exception ex)
+        {
+            Log(ex.ToString());
+            _airPlay?.Dispose();
+            _airPlay = null; // retry propre au prochain clic
+            _hasError = true;
+            Status = $"AirPlay indisponible : {ex.Message}";
+            OnPropertyChanged(nameof(StatusDotColor));
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>Statut AirPlay + diagnostic réseau (pare-feu, ports, profil, IP).</summary>
+    private string AirPlayStatusText(IosMirrorInstance? tile = null)
+    {
+        var dir = Path.Combine(AppContext.BaseDirectory, "assets", "airplay", "AirPlayHost.exe");
+        var diag = AirPlayDiagnostics.Run(dir, _airPlay?.HostPid ?? 0,
+            AirPlayService.RaopPort, AirPlayService.AirPlayPort, 7100);
+        if (diag.LocalIPv4 != null)
+            Log($"airplay diag: ip={diag.LocalIPv4} profil={diag.ProfileKind ?? "?"}");
+        foreach (var c in diag.PortConflicts)
+            Log($"airplay diag: port occupé {c}");
+        var warn = AirPlayDiagnostics.Summarize(diag);
+        tile?.View.SetWaitingHint(warn);
+        var howto = "iPhone : Centre de contrôle → Recopie de l'écran → « TouchMirror »";
+        return warn == null
+            ? $"AirPlay prêt ({diag.LocalIPv4}) — {howto}"
+            : $"{warn}\n{howto}";
+    }
+
+    private void StopAirPlayIfUnused()
+    {
+        if (Mirrors.OfType<IosMirrorInstance>().Any())
+            return;
+        _airPlay?.Dispose();
+        _airPlay = null;
+    }
+
+    public void StopAirPlay() => _airPlay?.Dispose();
+
     /// <summary>Serials déconnectés volontairement — exclus de la reconnexion auto.</summary>
     private readonly HashSet<string> _voluntaryDisconnects = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Vrai si l'appareil a été déconnecté à la demande et reste présent.</summary>
     public bool IsVoluntarilyDisconnected(string serial) => _voluntaryDisconnects.Contains(serial);
+
+    /// <summary>
+    /// Raccourcis plaqués sur la vidéo : chargés depuis les prefs de l'appareil
+    /// et re-sauvegardés à chaque changement (position, touche, suppression).
+    /// </summary>
+    private void BindKeybindPersistence(MirrorInstance instance)
+    {
+        var key = instance.Device.DeviceKey;
+        if (_settings.Devices.TryGetValue(key, out var prefs))
+            instance.LoadKeybinds(prefs.Keybinds,
+                prefs.KeybindStyle, prefs.KeybindOpacity, prefs.KeybindSize);
+        else
+            instance.LoadKeybinds(Enumerable.Empty<KeybindData>());
+        instance.KeybindsChanged += () =>
+        {
+            if (!_settings.Devices.TryGetValue(key, out var p))
+                _settings.Devices[key] = p = new DevicePrefs();
+            p.Keybinds = instance.SaveKeybinds();
+            p.KeybindStyle = instance.KeybindStyle;
+            p.KeybindOpacity = instance.KeybindOpacity;
+            p.KeybindSize = instance.KeybindSize;
+            ScheduleSave();
+        };
+        instance.EditModeExitRequested += () => KeybindEditMode = false;
+    }
 
     private void RememberDevice(AdbDevice device)
     {
@@ -850,6 +1696,14 @@ public partial class MainViewModel : ObservableObject
             kv.Value.LastSerial != null && device.MatchesSerial(kv.Value.LastSerial));
         if (stale.Key != null)
             _settings.Devices.Remove(stale.Key);
+        // Retire aussi l'appareil des espaces : sinon il réapparaît en tuile « absente ».
+        foreach (var w in Workspaces)
+        {
+            var removed = w.Model.Devices.RemoveAll(d => d.DeviceKey == device.DeviceKey
+                || (d.LastSerial != null && device.MatchesSerial(d.LastSerial)));
+            if (removed > 0)
+                w.Refresh();
+        }
         var i = Devices.IndexOf(device);
         if (i >= 0)
         {
@@ -858,6 +1712,7 @@ public partial class MainViewModel : ObservableObject
             else
                 Devices[i] = Devices[i] with { CustomName = null };
         }
+        RefreshMissingDevices();
         SaveNow();
     }
 
@@ -931,6 +1786,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand] private void SendBack() => ActiveMirror?.Session?.Control?.InjectKeyPress(AndroidKeyCode.Back);
     [RelayCommand] private void SendHome() => ActiveMirror?.Session?.Control?.InjectKeyPress(AndroidKeyCode.Home);
     [RelayCommand] private void SendRecents() => ActiveMirror?.Session?.Control?.InjectKeyPress(AndroidKeyCode.AppSwitch);
+    [RelayCommand] private void LaunchDofus() => ActiveMirror?.Session?.Control?.StartApp("com.ankama.dofustouch");
     [RelayCommand] private void SendPower() => ActiveMirror?.Session?.Control?.InjectKeyPress(AndroidKeyCode.Power);
     [RelayCommand] private void RotateDevice() => ActiveMirror?.Session?.Control?.SendSimple(ControlMsgType.RotateDevice);
     [RelayCommand] private void Screenshot()
@@ -972,11 +1828,18 @@ public partial class MainViewModel : ObservableObject
     private void Log(string message)
     {
         AppLogger.Write(message);
-        Application.Current.Dispatcher.Invoke(() =>
+        var d = Application.Current?.Dispatcher;
+        if (d == null || d.HasShutdownFinished)
+            return;
+        try
         {
-            Logs.Add(message);
-            if (Logs.Count > 300)
-                Logs.RemoveAt(0);
-        });
+            d.Invoke(() =>
+            {
+                Logs.Add(message);
+                if (Logs.Count > 300)
+                    Logs.RemoveAt(0);
+            });
+        }
+        catch (InvalidOperationException) { }
     }
 }

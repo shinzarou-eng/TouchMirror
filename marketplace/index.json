@@ -1,0 +1,34 @@
+{
+    "plugins":  [
+                    {
+                        "id":  "reconnect",
+                        "name":  "Reconnect",
+                        "version":  "2.0",
+                        "author":  "TouchMirror",
+                        "icon":  "🔗",
+                        "description":  "Restaure un miroir dont la session a lâché (câble, WiFi, plantage) — jamais après une déconnexion volontaire, jamais de lancement sur le téléphone.",
+                        "official":  true,
+                        "featured":  true,
+                        "tags":  [
+                                     "fiabilité",
+                                     "connexion"
+                                 ],
+                        "hash":  "f52363adfb80b4dd62ef0c3d96ac36bb2cc178d9dd2a77b6e101d44ad6162630"
+                    },
+                    {
+                        "id":  "session-log",
+                        "name":  "Session Log",
+                        "version":  "1.0",
+                        "author":  "TouchMirror",
+                        "icon":  "📋",
+                        "description":  "Journalise les événements de session — connexions, coupures, changements de miroir actif et enregistrements — dans le journal de l\u0027app.",
+                        "official":  true,
+                        "featured":  false,
+                        "tags":  [
+                                     "journal",
+                                     "diagnostic"
+                                 ],
+                        "hash":  "72675b1735bde5fc8094103c83b0748a42a8dd794aedd507d9e06548e21a67e6"
+                    }
+                ]
+}

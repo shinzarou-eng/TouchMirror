@@ -23,57 +23,294 @@
         <local:EmptyToVisibilityConverter x:Key="EmptyToVis" />
         <local:InverseBoolToVisibilityConverter x:Key="NotBoolToVis" />
         <local:NullToCollapsedConverter x:Key="NullToCollapsed" />
+        <local:HexToBrushConverter x:Key="HexToBrush" />
 
         <Style x:Key="ToolBtn" TargetType="ui:Button"
                BasedOn="{StaticResource {x:Type ui:Button}}">
             <Setter Property="Width" Value="34" />
             <Setter Property="Height" Value="30" />
-            <Setter Property="Margin" Value="1,0" />
+            <Setter Property="Margin" Value="2,0" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="Appearance" Value="Transparent" />
+        </Style>
+
+        <Style x:Key="ToolToggle" TargetType="ToggleButton">
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                CornerRadius="3" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#14FFFFFF" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#2E3ECF8E" />
+                                <Setter Property="Foreground" Value="{DynamicResource DofusAccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CaptionBtn" TargetType="Button">
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#1AFFFFFF" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#28FFFFFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="CaptionCloseBtn" TargetType="Button" BasedOn="{StaticResource CaptionBtn}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#E81123" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#C50F1F" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="QCard" TargetType="ui:Card"
                BasedOn="{StaticResource {x:Type ui:Card}}">
             <Setter Property="Padding" Value="15,14" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="BorderBrush" Value="#12FFFFFF" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
         </Style>
+
+        <DataTemplate x:Key="PluginCardTemplate">
+            <Border Margin="0,3" Padding="11,9" CornerRadius="6"
+                    Background="{DynamicResource AppCardBrush}" BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border Width="36" Height="36" CornerRadius="4" Margin="0,0,11,0"
+                            Background="{DynamicResource AccentSubtleBrush}" VerticalAlignment="Top">
+                        <TextBlock Text="{Binding Icon}" FontSize="17"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Version, StringFormat=' v{0}', FallbackValue=''}"
+                                       FontSize="10.5" VerticalAlignment="Center" Margin="4,0,0,0"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            <ui:SymbolIcon Symbol="ShieldCheckmark24" FontSize="12"
+                                           Foreground="{DynamicResource DofusAccentBrush}" VerticalAlignment="Center" Margin="5,0,0,0"
+                                           ToolTip="Plugin officiel vérifié"
+                                           Visibility="{Binding IsVerified, Converter={StaticResource BoolToVis}}" />
+                            <ui:SymbolIcon Symbol="ShieldError24" FontSize="12"
+                                           Foreground="{DynamicResource WarnBrush}" VerticalAlignment="Center" Margin="5,0,0,0"
+                                           ToolTip="Non vérifié — lis le code avant de l'activer"
+                                           Visibility="{Binding IsVerified, Converter={StaticResource NotBoolToVis}}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding Description}" FontSize="10.5" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                   Visibility="{Binding Description, Converter={StaticResource NullToCollapsed}, FallbackValue=Collapsed}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right">
+                        <ui:ToggleSwitch HorizontalAlignment="Right"
+                                         IsChecked="{Binding Running, Mode=OneWay}"
+                                         Command="{Binding DataContext.TogglePluginCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                         CommandParameter="{Binding}" />
+                        <TextBlock Text="actif" FontSize="9.5" Margin="0,2,0,0"
+                                   Foreground="{DynamicResource DofusAccentBrush}" HorizontalAlignment="Right"
+                                   Visibility="{Binding Running, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="CatalogCardTemplate">
+            <Border Padding="12,11" BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="0,0,0,1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border Width="38" Height="38" CornerRadius="4" Margin="0,0,12,0"
+                            Background="{DynamicResource SurfaceFaintBrush}" BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1"
+                            VerticalAlignment="Top">
+                        <TextBlock Text="{Binding Icon}" FontSize="16"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Meta, StringFormat=' · {0}'}"
+                                       FontSize="10.5" VerticalAlignment="Center" Margin="4,0,0,0"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            <Border Padding="5,1" CornerRadius="3" Margin="6,0,0,0"
+                                    VerticalAlignment="Center"
+                                    BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1"
+                                    Visibility="{Binding Official, Converter={StaticResource BoolToVis}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="ShieldCheckmark24" FontSize="9"
+                                                   Foreground="{DynamicResource DofusAccentBrush}" Margin="0,0,3,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="Officiel" FontSize="8.5" Foreground="{DynamicResource DofusAccentBrush}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Padding="5,1" CornerRadius="3" Margin="6,0,0,0"
+                                    VerticalAlignment="Center"
+                                    BorderBrush="{DynamicResource GoldBorderBrush}" BorderThickness="1"
+                                    Visibility="{Binding Featured, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="Recommandé" FontSize="8.5" Foreground="{DynamicResource GoldBrush}" />
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Text="{Binding Description}" FontSize="10.5" TextWrapping="Wrap"
+                                   Margin="0,2,0,0"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                        <ItemsControl ItemsSource="{Binding Tags}" Margin="0,5,0,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="5,1" CornerRadius="3" Margin="0,0,5,0"
+                                            BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1">
+                                        <TextBlock Text="{Binding}" FontSize="9"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="10,0,0,0">
+                        <Grid>
+                            <ui:Button Appearance="Primary" FontSize="11" Padding="12,4"
+                                       Content="{Binding ActionLabel}"
+                                       IsEnabled="{Binding CanInstall}"
+                                       Command="{Binding DataContext.InstallPluginCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                       CommandParameter="{Binding}"
+                                       Visibility="{Binding IsInstalled, Converter={StaticResource NotBoolToVis}}" />
+                            <StackPanel Orientation="Horizontal"
+                                        Visibility="{Binding IsInstalled, Converter={StaticResource BoolToVis}}">
+                                <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="12"
+                                               Foreground="{DynamicResource DofusAccentBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
+                                <TextBlock Text="Installé" FontSize="10.5" Foreground="{DynamicResource DofusAccentBrush}"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+                        <ui:Button Appearance="Transparent" Padding="6,2" Margin="0,3,0,0"
+                                   HorizontalAlignment="Right"
+                                   Command="{Binding DataContext.SelectPluginCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                   CommandParameter="{Binding}"
+                                   ToolTip="Voir la fiche détail">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Détails" FontSize="10" VerticalAlignment="Center" />
+                                <ui:SymbolIcon Symbol="ChevronRight24" FontSize="10"
+                                               Margin="3,0,0,0" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ui:Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
     </ui:FluentWindow.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition x:Name="TitleBarRow" Height="Auto" />
             <RowDefinition x:Name="ToolbarRow" Height="Auto" />
+            <RowDefinition x:Name="TabsRow" Height="Auto" />
             <RowDefinition x:Name="UpdateRow" Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition x:Name="StatusBarRow" Height="Auto" />
         </Grid.RowDefinitions>
 
-        <ui:TitleBar x:Name="TitleBarElement" Grid.Row="0" Title="TouchMirror" ShowMaximize="True" ShowMinimize="True" />
+        <!-- ══ Barre de titre custom (fine) ══ -->
+        <Border x:Name="TitleBarElement" Grid.Row="0" Height="32"
+                MouseLeftButtonDown="OnTitleBarMouseDown">
+            <Grid>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                    <Image Source="assets/mascot.png" Width="14" Height="14" Margin="0,0,8,0" />
+                    <TextBlock Text="TouchMirror" FontSize="11.5" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Style="{StaticResource CaptionBtn}" Click="OnMinimizeClick" ToolTip="Réduire">
+                        <TextBlock Text="&#xE921;" FontFamily="Segoe MDL2 Assets" FontSize="9" />
+                    </Button>
+                    <Button Style="{StaticResource CaptionBtn}" Click="OnMaximizeClick" ToolTip="Agrandir / restaurer">
+                        <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="9">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="&#xE922;" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}" Value="Maximized">
+                                            <Setter Property="Text" Value="&#xE923;" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Button>
+                    <Button Style="{StaticResource CaptionCloseBtn}" Click="OnCloseClick" ToolTip="Fermer">
+                        <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="9" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
 
                 <!-- ══ Toolbar ══ -->
         <Border Grid.Row="1" x:Name="Toolbar"
                 Background="{DynamicResource AppSurfaceBrush}"
                 BorderThickness="0,0,0,1"
                 BorderBrush="{DynamicResource AppBorderBrush}"
-                Padding="14,5">
+                Padding="14,6">
             <Grid>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <ui:Button x:Name="HelpButton" Style="{StaticResource ToolBtn}" Click="OnHelpClick"
-                               Height="32" Width="Auto" Padding="10,0" Margin="0,0,10,0"
-                               ToolTip="Guides Dofus Touch — navigateur intégré">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="BookOpenGlobe24" FontSize="15"
-                                           Foreground="{DynamicResource DofusAccentBrush}"
-                                           Margin="0,0,7,0" />
-                            <TextBlock Text="Guides" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource DofusAccentBrush}" />
-                        </StackPanel>
-                    </ui:Button>
+                    <ui:SymbolIcon Symbol="Phone24" FontSize="14" Margin="2,0,8,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                     <ComboBox ItemsSource="{Binding Devices}"
                               SelectedItem="{Binding SelectedDevice}"
-                              Width="225" MaxWidth="225" MinWidth="120"
+                              Width="205" MaxWidth="205" MinWidth="110"
                               VerticalAlignment="Center">
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
@@ -87,6 +324,7 @@
                         </ComboBox.ItemTemplate>
                     </ComboBox>
                     <ui:Button Style="{StaticResource ToolBtn}"
+                               Margin="6,0,0,0"
                                Command="{Binding RefreshDevicesCommand}"
                                ToolTip="Rafraîchir les appareils">
                         <ui:SymbolIcon Symbol="ArrowClockwise24" FontSize="15" />
@@ -94,7 +332,7 @@
                     <ui:Button Appearance="Primary"
                                Command="{Binding ConnectCommand}"
                                IsEnabled="{Binding CanConnect}"
-                               Margin="12,0,0,0" Padding="16,0" Height="32"
+                               Margin="10,0,0,0" Padding="16,0" Height="30"
                                FontWeight="SemiBold"
                                Visibility="{Binding IsDisconnected, Converter={StaticResource BoolToVis}}">
                         <Grid>
@@ -111,11 +349,11 @@
                             </StackPanel>
                         </Grid>
                     </ui:Button>
-                    <StackPanel Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center"
+                    <StackPanel Orientation="Horizontal" Margin="10,0,0,0" VerticalAlignment="Center"
                                 Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}">
                         <ui:Button Command="{Binding ConnectCommand}"
                                    IsEnabled="{Binding CanConnect}"
-                                   Padding="12,0" Height="32"
+                                   Padding="12,0" Height="30"
                                    FontWeight="SemiBold"
                                    ToolTip="Ajouter un autre téléphone à la grille (multicompte)">
                             <StackPanel Orientation="Horizontal">
@@ -124,9 +362,6 @@
                                 <TextBlock Text="Ajouter" Foreground="{DynamicResource DofusAccentBrush}" />
                             </StackPanel>
                         </ui:Button>
-                        <Ellipse Width="7" Height="7" Fill="#4EC98E" Margin="12,0,0,0" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding ActiveMirrorName}" FontSize="12" Margin="7,0,0,0"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
                 </StackPanel>
 
@@ -134,108 +369,146 @@
                             VerticalAlignment="Center" Margin="0,0,6,0">
                     <StackPanel Orientation="Horizontal"
                                 Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}">
-                        <Border CornerRadius="9" Padding="2"
+                        <Border CornerRadius="4" Padding="2"
                                 Background="{DynamicResource AppSurfaceAltBrush}"
                                 BorderBrush="{DynamicResource AppBorderBrush}"
                                 BorderThickness="1">
                             <StackPanel Orientation="Horizontal">
-                                <ui:Button Style="{StaticResource ToolBtn}" Command="{Binding SendBackCommand}" ToolTip="Retour">
+                                <ui:Button Style="{StaticResource ToolBtn}" Height="26" Command="{Binding SendBackCommand}" ToolTip="Retour">
                                     <ui:SymbolIcon Symbol="ArrowLeft24" FontSize="15" />
                                 </ui:Button>
-                                <ui:Button Style="{StaticResource ToolBtn}" Command="{Binding SendHomeCommand}" ToolTip="Accueil Android">
+                                <ui:Button Style="{StaticResource ToolBtn}" Height="26" Command="{Binding SendHomeCommand}" ToolTip="Accueil Android">
                                     <ui:SymbolIcon Symbol="Home24" FontSize="15" />
                                 </ui:Button>
-                                <ui:Button Style="{StaticResource ToolBtn}" Command="{Binding SendRecentsCommand}" ToolTip="Récents">
+                                <ui:Button Style="{StaticResource ToolBtn}" Height="26" Command="{Binding SendRecentsCommand}" ToolTip="Récents">
                                     <ui:SymbolIcon Symbol="SquareMultiple24" FontSize="15" />
+                                </ui:Button>
+                                <ui:Button Style="{StaticResource ToolBtn}" Height="26" Padding="8,0" Width="Auto"
+                                           Command="{Binding LaunchDofusCommand}"
+                                           ToolTip="Lancer Dofus Touch sur le téléphone affiché">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="Games24" FontSize="15"
+                                                       Foreground="{DynamicResource DofusAccentBrush}" Margin="0,0,5,0" />
+                                        <TextBlock Text="Dofus" FontSize="11.5" VerticalAlignment="Center" />
+                                    </StackPanel>
                                 </ui:Button>
                             </StackPanel>
                         </Border>
 
-                        <Border CornerRadius="9" Padding="2" Margin="8,0,0,0"
+                        <Border CornerRadius="4" Padding="2" Margin="8,0,0,0"
                                 Background="{DynamicResource AppSurfaceAltBrush}"
                                 BorderBrush="{DynamicResource AppBorderBrush}"
                                 BorderThickness="1">
-                            <StackPanel Orientation="Horizontal">
-                                <ui:Button Style="{StaticResource ToolBtn}" Width="Auto" Padding="9,0"
-                                           Click="OnMoreClick" ToolTip="Captures et enregistrement">
-                                    <StackPanel Orientation="Horizontal">
-                                        <ui:SymbolIcon Symbol="Camera24" FontSize="15" Margin="0,0,6,0" />
-                                        <TextBlock Text="Capturer" />
-                                        <ui:SymbolIcon Symbol="ChevronDown24" FontSize="10" Margin="4,0,0,0"
-                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                    </StackPanel>
-                                    <ui:Button.ContextMenu>
-                                        <ContextMenu>
-                                            <MenuItem Header="Capture PNG (Images\TouchMirror)"
-                                                      Command="{Binding ScreenshotCommand}">
-                                                <MenuItem.Icon><ui:SymbolIcon Symbol="Camera24" FontSize="14" /></MenuItem.Icon>
-                                            </MenuItem>
-                                            <MenuItem Header="Enregistrer en vidéo (Vidéos\TouchMirror)"
-                                                      Command="{Binding ToggleRecordingCommand}">
-                                                <MenuItem.Icon><ui:SymbolIcon Symbol="Record24" FontSize="14" /></MenuItem.Icon>
-                                            </MenuItem>
-                                            <Separator />
-                                            <MenuItem Header="Ouvrir le dossier des captures" Click="OnOpenCapturesClick">
-                                                <MenuItem.Icon><ui:SymbolIcon Symbol="FolderOpen24" FontSize="14" /></MenuItem.Icon>
-                                            </MenuItem>
-                                        </ContextMenu>
-                                    </ui:Button.ContextMenu>
-                                </ui:Button>
-                                <ui:Button Style="{StaticResource ToolBtn}" Width="Auto" Padding="9,0"
-                                           Click="OnMoreClick" ToolTip="Affichage et disposition">
-                                    <StackPanel Orientation="Horizontal">
-                                        <ui:SymbolIcon Symbol="FullScreenMaximize24" FontSize="15" Margin="0,0,6,0" />
-                                        <TextBlock Text="Affichage" />
-                                        <ui:SymbolIcon Symbol="ChevronDown24" FontSize="10" Margin="4,0,0,0"
-                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                    </StackPanel>
-                                    <ui:Button.ContextMenu>
-                                        <ContextMenu>
-                                            <MenuItem Header="Plein écran (F11)" Click="OnFullscreenClick">
-                                                <MenuItem.Icon><ui:SymbolIcon Symbol="FullScreenMaximize24" FontSize="14" /></MenuItem.Icon>
-                                            </MenuItem>
-                                            <MenuItem Header="Tourner l'image affichée" Click="OnRotateDisplayClick">
-                                                <MenuItem.Icon><ui:SymbolIcon Symbol="ArrowRotateClockwise24" FontSize="14" /></MenuItem.Icon>
-                                            </MenuItem>
-                                            <MenuItem Header="Pivoter l'écran du téléphone"
-                                                      Command="{Binding RotateDeviceCommand}">
-                                                <MenuItem.Icon><ui:SymbolIcon Symbol="PhoneScreenTime24" FontSize="14" /></MenuItem.Icon>
-                                            </MenuItem>
-                                            <Separator />
-                                            <MenuItem Header="Fenêtre au-dessus des autres" IsCheckable="True"
-                                                      IsChecked="{Binding Topmost}">
-                                                <MenuItem.Icon><ui:SymbolIcon Symbol="Pin24" FontSize="14" /></MenuItem.Icon>
-                                            </MenuItem>
-                                        </ContextMenu>
-                                    </ui:Button.ContextMenu>
-                                </ui:Button>
-                            </StackPanel>
+                            <ToggleButton Style="{StaticResource ToolToggle}"
+                                          IsChecked="{Binding KeybindEditMode, Mode=TwoWay}"
+                                          ToolTip="Raccourcis plaqués sur l'écran — une touche = un tap à cet endroit">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="Keyboard24" FontSize="15" Margin="0,0,6,0" />
+                                    <TextBlock Text="Raccourcis" />
+                                </StackPanel>
+                            </ToggleButton>
                         </Border>
 
-                        <Border CornerRadius="9" Padding="2" Margin="8,0,0,0"
-                                Background="#22E05B4C" BorderBrush="#55E05B4C" BorderThickness="1"
-                                Visibility="{Binding RecordingVisibility}">
-                            <ui:Button Style="{StaticResource ToolBtn}" Width="Auto" Padding="8,0"
-                                       Command="{Binding ToggleRecordingCommand}"
-                                       ToolTip="Arrêter l'enregistrement">
+                        <Border CornerRadius="4" Padding="2" Margin="8,0,0,0"
+                                Background="{DynamicResource AppSurfaceAltBrush}"
+                                BorderBrush="{DynamicResource AppBorderBrush}"
+                                BorderThickness="1"
+                                Visibility="{Binding IsActiveMirrorIos, Converter={StaticResource BoolToVis}}">
+                            <ToggleButton Style="{StaticResource ToolToggle}"
+                                          IsChecked="{Binding IosBleActive, Mode=OneWay}"
+                                          Command="{Binding ToggleIosBleCommand}"
+                                          ToolTip="Contrôle tactile par Bluetooth — iPhone : Réglages → Accessibilité → Toucher → AssistiveTouch → Appareils → jumele ce PC">
                                 <StackPanel Orientation="Horizontal">
-                                    <Ellipse Width="7" Height="7" Fill="#E05B4C"
-                                             VerticalAlignment="Center" Margin="0,0,6,0" />
-                                    <TextBlock Text="{Binding RecordingElapsed}" FontSize="11"
-                                               FontWeight="SemiBold" Foreground="#E05B4C" />
+                                    <ui:SymbolIcon Symbol="Bluetooth24" FontSize="15" Margin="0,0,6,0" />
+                                    <TextBlock Text="iPhone" />
                                 </StackPanel>
+                            </ToggleButton>
+                        </Border>
+
+                        <Border CornerRadius="4" Padding="2" Margin="8,0,0,0"
+                                Background="{DynamicResource AppSurfaceAltBrush}"
+                                BorderBrush="{DynamicResource AppBorderBrush}"
+                                BorderThickness="1">
+                            <ui:Button Style="{StaticResource ToolBtn}" Height="26" Width="Auto" Padding="10,0"
+                                       Margin="0"
+                                       Click="OnMoreClick" ToolTip="Captures et enregistrement">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="Camera24" FontSize="15" Margin="0,0,6,0" />
+                                    <TextBlock Text="Capturer" />
+                                    <ui:SymbolIcon Symbol="ChevronDown24" FontSize="10" Margin="4,0,0,0"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                </StackPanel>
+                                <ui:Button.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Capture PNG (Images\TouchMirror)"
+                                                  Command="{Binding ScreenshotCommand}">
+                                            <MenuItem.Icon><ui:SymbolIcon Symbol="Camera24" FontSize="14" /></MenuItem.Icon>
+                                        </MenuItem>
+                                        <MenuItem Header="Enregistrer en vidéo (Vidéos\TouchMirror)"
+                                                  Command="{Binding ToggleRecordingCommand}">
+                                            <MenuItem.Icon><ui:SymbolIcon Symbol="Record24" FontSize="14" /></MenuItem.Icon>
+                                        </MenuItem>
+                                        <Separator />
+                                        <MenuItem Header="Ouvrir le dossier des captures" Click="OnOpenCapturesClick">
+                                            <MenuItem.Icon><ui:SymbolIcon Symbol="FolderOpen24" FontSize="14" /></MenuItem.Icon>
+                                        </MenuItem>
+                                    </ContextMenu>
+                                </ui:Button.ContextMenu>
                             </ui:Button>
                         </Border>
 
-                        <Border Width="1" Height="18" Margin="10,0"
-                                Background="{DynamicResource AppBorderBrush}" />
+                        <Border CornerRadius="4" Padding="2" Margin="8,0,0,0"
+                                Background="{DynamicResource AppSurfaceAltBrush}"
+                                BorderBrush="{DynamicResource AppBorderBrush}"
+                                BorderThickness="1">
+                            <ui:Button Style="{StaticResource ToolBtn}" Height="26" Width="Auto" Padding="10,0"
+                                       Margin="0"
+                                       Click="OnMoreClick" ToolTip="Affichage et disposition">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="FullScreenMaximize24" FontSize="15" Margin="0,0,6,0" />
+                                    <TextBlock Text="Affichage" />
+                                    <ui:SymbolIcon Symbol="ChevronDown24" FontSize="10" Margin="4,0,0,0"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                </StackPanel>
+                                <ui:Button.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Plein écran (F11)" Click="OnFullscreenClick">
+                                            <MenuItem.Icon><ui:SymbolIcon Symbol="FullScreenMaximize24" FontSize="14" /></MenuItem.Icon>
+                                        </MenuItem>
+                                        <MenuItem Header="Tourner l'image affichée" Click="OnRotateDisplayClick">
+                                            <MenuItem.Icon><ui:SymbolIcon Symbol="ArrowRotateClockwise24" FontSize="14" /></MenuItem.Icon>
+                                        </MenuItem>
+                                        <MenuItem Header="Pivoter l'écran du téléphone"
+                                                  Command="{Binding RotateDeviceCommand}">
+                                            <MenuItem.Icon><ui:SymbolIcon Symbol="PhoneScreenTime24" FontSize="14" /></MenuItem.Icon>
+                                        </MenuItem>
+                                        <Separator />
+                                        <MenuItem Header="Fenêtre au-dessus des autres" IsCheckable="True"
+                                                  IsChecked="{Binding Topmost}">
+                                            <MenuItem.Icon><ui:SymbolIcon Symbol="Pin24" FontSize="14" /></MenuItem.Icon>
+                                        </MenuItem>
+                                    </ContextMenu>
+                                </ui:Button.ContextMenu>
+                            </ui:Button>
+                        </Border>
+
+                        <Border CornerRadius="4" Padding="2" Margin="8,0,0,0"
+                                Background="{DynamicResource DangerSubtleBrush}" BorderBrush="{DynamicResource DangerSubtleBrush}" BorderThickness="1"
+                                Visibility="{Binding RecordingVisibility}">
+                            <ui:Button Style="{StaticResource ToolBtn}" Height="26" Width="Auto" Padding="8,0"
+                                       Command="{Binding ToggleRecordingCommand}"
+                                       ToolTip="Arrêter l'enregistrement">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="7" Height="7" Fill="{DynamicResource DangerBrush}"
+                                             VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Text="{Binding RecordingElapsed}" FontSize="11"
+                                               FontWeight="SemiBold" Foreground="{DynamicResource DangerBrush}" />
+                                </StackPanel>
+                            </ui:Button>
+                        </Border>
                     </StackPanel>
 
-                    <ui:Button Style="{StaticResource ToolBtn}" Click="OnSettingsClick"
-                               ToolTip="Réglages" Margin="4,0,0,0">
-                        <ui:SymbolIcon Symbol="Settings24" FontSize="15" />
-                    </ui:Button>
-                    <ui:Button Style="{StaticResource ToolBtn}" Click="OnMoreClick" ToolTip="Plus" Margin="4,0,0,0">
+                    <ui:Button Style="{StaticResource ToolBtn}" Click="OnMoreClick" ToolTip="Plus" Margin="8,0,0,0">
                         <ui:SymbolIcon Symbol="MoreHorizontal24" FontSize="15" />
                         <ui:Button.ContextMenu>
                             <ContextMenu>
@@ -246,6 +519,24 @@
                                 <MenuItem Header="Éteindre/allumer l'écran du téléphone"
                                           Command="{Binding SendPowerCommand}">
                                     <MenuItem.Icon><ui:SymbolIcon Symbol="Phone24" FontSize="14" /></MenuItem.Icon>
+                                </MenuItem>
+                                <Separator />
+                                <MenuItem IsEnabled="False"
+                                          ToolTip="Mirroring iOS par AirPlay — en cours de développement">
+                                    <MenuItem.Header>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="iPhone" />
+                                            <Border Margin="8,0,0,0" Padding="6,1" CornerRadius="3"
+                                                    VerticalAlignment="Center"
+                                                    Background="{DynamicResource AccentSubtleBrush}"
+                                                    BorderBrush="{DynamicResource AccentBorderBrush}"
+                                                    BorderThickness="1">
+                                                <TextBlock Text="BIENTÔT" FontSize="9" FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource DofusAccentBrush}" />
+                                            </Border>
+                                        </StackPanel>
+                                    </MenuItem.Header>
+                                    <MenuItem.Icon><ui:SymbolIcon Symbol="PhoneScreenTime24" FontSize="14" /></MenuItem.Icon>
                                 </MenuItem>
                                 <Separator />
                                 <MenuItem Header="Mode Dofus (preset optimal)"
@@ -261,9 +552,9 @@
                                 <Separator />
                                 <MenuItem Header="Déconnecter ce téléphone"
                                           Command="{Binding DisconnectCommand}"
-                                          Foreground="#E05B4C">
+                                          Foreground="{DynamicResource DangerBrush}">
                                     <MenuItem.Icon><ui:SymbolIcon Symbol="PlugDisconnected24" FontSize="14"
-                                                                  Foreground="#E05B4C" /></MenuItem.Icon>
+                                                                  Foreground="{DynamicResource DangerBrush}" /></MenuItem.Icon>
                                 </MenuItem>
                             </ContextMenu>
                         </ui:Button.ContextMenu>
@@ -272,8 +563,117 @@
             </Grid>
         </Border>
 
+        <!-- ══ Onglets espaces de travail ══ -->
+        <Border Grid.Row="2"
+                Background="{DynamicResource AppSurfaceBrush}"
+                BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="0,0,0,1"
+                Padding="12,0">
+            <Grid>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
+                <ItemsControl ItemsSource="{Binding Workspaces}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border MinWidth="110" MaxWidth="190" Height="31" Padding="10,0,6,0"
+                                    Margin="0,0,4,0" CornerRadius="4,4,0,0"
+                                    MouseLeftButtonUp="OnWorkspaceTabClick"
+                                    ToolTip="Basculer vers cet espace · clic droit : gérer · Ctrl+Maj+N">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="Transparent" />
+                                        <Setter Property="BorderThickness" Value="0" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="{DynamicResource SurfaceFaintBrush}" />
+                                            </Trigger>
+                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                <Setter Property="Background" Value="{DynamicResource AppWindowBrush}" />
+                                                <Setter Property="BorderThickness" Value="1,1,1,0" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <Grid>
+                                    <Border Height="2" VerticalAlignment="Top" Margin="-1,0"
+                                            Background="{DynamicResource DofusAccentBrush}"
+                                            Visibility="{Binding IsActive, Converter={StaticResource BoolToVis}}" />
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <ui:SymbolIcon Symbol="Apps24" FontSize="11" Margin="0,0,6,0"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                       Visibility="{Binding IsEditing, Converter={StaticResource NotBoolToVis}}" />
+                                        <TextBlock Text="{Binding Name}" FontSize="11.5" VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis" MaxWidth="110"
+                                                   Visibility="{Binding IsEditing, Converter={StaticResource NotBoolToVis}}" />
+                                        <TextBox Text="{Binding Name, Mode=OneWay}" MinWidth="50" Padding="0"
+                                                 FontSize="11.5" VerticalAlignment="Center"
+                                                 Background="Transparent" BorderThickness="0"
+                                                 Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}"
+                                                 KeyDown="OnWorkspaceNameKeyDown"
+                                                 LostFocus="OnWorkspaceNameLostFocus"
+                                                 IsVisibleChanged="OnWorkspaceNameVisible" />
+                                        <TextBlock Text="{Binding DeviceCount, StringFormat=' · {0}'}"
+                                                   FontSize="10" Margin="3,0,0,0" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DeviceCount}" Value="0">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <ui:Button HorizontalAlignment="Right" Appearance="Transparent"
+                                               Width="20" Height="18" Padding="0" VerticalAlignment="Center"
+                                               Click="OnWorkspaceDeleteClick" ToolTip="Supprimer cet espace"
+                                               Visibility="{Binding IsActive, Converter={StaticResource BoolToVis}}">
+                                        <ui:SymbolIcon Symbol="Dismiss24" FontSize="9" />
+                                    </ui:Button>
+                                </Grid>
+                                <Border.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Renommer" Click="OnWorkspaceEditClick" />
+                                        <MenuItem Header="Dupliquer" Click="OnWorkspaceDuplicateClick" />
+                                        <Separator Visibility="{Binding IsActive, Converter={StaticResource BoolToVis}}" />
+                                        <MenuItem Header="Quitter l'espace" Click="OnWorkspaceExitClick"
+                                                  Visibility="{Binding IsActive, Converter={StaticResource BoolToVis}}" />
+                                        <Separator />
+                                        <MenuItem Header="Supprimer" Click="OnWorkspaceDeleteClick"
+                                                  Foreground="{DynamicResource DangerBrush}" />
+                                    </ContextMenu>
+                                </Border.ContextMenu>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <ui:Button Appearance="Transparent" Height="26" Padding="9,0" Margin="2,0,0,3"
+                           Command="{Binding NewWorkspaceCommand}"
+                           ToolTip="Nouvel espace — mémorise appareils, ordre, miroir actif et réglages par appareil">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Add24" FontSize="12" Margin="0,0,5,0" />
+                        <TextBlock Text="Nouvel espace" FontSize="11"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                    </StackPanel>
+                </ui:Button>
+                </StackPanel>
+                <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
+                           FontSize="10" Margin="0,0,4,0"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}">
+                    <Run Text="Ctrl" /><Run Text=" + Maj + 1-9" /><Run Text=" : basculer" />
+                </TextBlock>
+            </Grid>
+        </Border>
+
 <!-- ══ Bandeau mise à jour ══ -->
-        <Border Grid.Row="2" Padding="16,8"
+        <Border Grid.Row="3" Padding="16,8"
                 Background="{DynamicResource AppSurfaceAltBrush}"
                 BorderThickness="0,0,0,1"
                 BorderBrush="{DynamicResource AppBorderBrush}"
@@ -299,20 +699,77 @@
         </Border>
 
         <!-- ══ Contenu ══ -->
-        <Grid Grid.Row="3" Background="#0A0B0F">
+        <Grid Grid.Row="4" Background="{DynamicResource AppWindowBrush}">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="46" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <Border x:Name="VideoFrame" Grid.Column="1"
-                    Margin="18" CornerRadius="14"
+
+            <!-- ══ Rail d'activité ══ -->
+            <Border Grid.Column="0"
+                    Background="{DynamicResource AppSurfaceBrush}"
+                    BorderThickness="0,0,1,0"
+                    BorderBrush="{DynamicResource AppBorderBrush}">
+                <Grid>
+                    <StackPanel VerticalAlignment="Top">
+                        <ui:Button x:Name="RailGuides" Appearance="Transparent"
+                                   Width="46" Height="46" Padding="0"
+                                   Click="OnHelpClick" ToolTip="Guides Dofus Touch">
+                            <Grid>
+                                <Border x:Name="RailGuidesIndicator" Width="2"
+                                        HorizontalAlignment="Left"
+                                        Background="{DynamicResource DofusAccentBrush}"
+                                        Visibility="Collapsed" />
+                                <ui:SymbolIcon Symbol="BookOpenGlobe24" FontSize="17" />
+                            </Grid>
+                        </ui:Button>
+                        <ui:Button x:Name="RailPlugins" Appearance="Transparent"
+                                   Width="46" Height="46" Padding="0"
+                                   Click="OnPluginsClick" ToolTip="Plugins">
+                            <Grid>
+                                <Border x:Name="RailPluginsIndicator" Width="2"
+                                        HorizontalAlignment="Left"
+                                        Background="{DynamicResource DofusAccentBrush}"
+                                        Visibility="Collapsed" />
+                                <ui:SymbolIcon Symbol="PuzzlePiece24" FontSize="17" />
+                            </Grid>
+                        </ui:Button>
+                        <ui:Button x:Name="RailMarket" Appearance="Transparent"
+                                   Width="46" Height="46" Padding="0"
+                                   Click="OnCatalogClick" ToolTip="Marketplace">
+                            <Grid>
+                                <Border x:Name="RailMarketIndicator" Width="2"
+                                        HorizontalAlignment="Left"
+                                        Background="{DynamicResource DofusAccentBrush}"
+                                        Visibility="Collapsed" />
+                                <ui:SymbolIcon Symbol="StoreMicrosoft24" FontSize="17" />
+                            </Grid>
+                        </ui:Button>
+                    </StackPanel>
+                    <StackPanel VerticalAlignment="Bottom">
+                        <Border Height="1" Margin="9,0,9,6"
+                                Background="{DynamicResource AppBorderSubtleBrush}" />
+                        <ui:Button x:Name="RailSettings" Appearance="Transparent"
+                                   Width="46" Height="46" Padding="0"
+                                   Click="OnSettingsClick" ToolTip="Réglages">
+                            <Grid>
+                                <Border x:Name="RailSettingsIndicator" Width="2"
+                                        HorizontalAlignment="Left"
+                                        Background="{DynamicResource DofusAccentBrush}"
+                                        Visibility="Collapsed" />
+                                <ui:SymbolIcon Symbol="Settings24" FontSize="17" />
+                            </Grid>
+                        </ui:Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border x:Name="VideoFrame" Grid.Column="2"
+                    Margin="12" CornerRadius="6"
                     Background="Black"
                     BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1"
                     ClipToBounds="True">
-                <Border.Effect>
-                    <DropShadowEffect BlurRadius="30" ShadowDepth="0" Opacity="0.5" Color="Black" />
-                </Border.Effect>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -320,12 +777,9 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- Miroir actif -->
-                    <Border CornerRadius="10" Margin="4" Background="Black"
-                            BorderBrush="#734EC98E" BorderThickness="1" ClipToBounds="True">
-                        <Border.Effect>
-                            <DropShadowEffect Color="#4EC98E" BlurRadius="18"
-                                              ShadowDepth="0" Opacity="0.16" />
-                        </Border.Effect>
+                    <Border CornerRadius="4" Margin="4" Background="Black"
+                            BorderBrush="{Binding ActiveMirror.AccentHex, Converter={StaticResource HexToBrush}}"
+                            BorderThickness="1" ClipToBounds="True">
                         <Grid>
                             <ContentPresenter Content="{Binding ActiveMirror.View}" />
 
@@ -341,7 +795,8 @@
                                         <ui:SymbolIcon Symbol="Phone24" FontSize="11"
                                                        VerticalAlignment="Center" Margin="0,0,7,0"
                                                        Foreground="{DynamicResource DofusAccentBrush}" />
-                                        <Ellipse Width="7" Height="7" Fill="#4EC98E"
+                                        <Ellipse Width="7" Height="7"
+                                                 Fill="{Binding ActiveMirror.AccentHex, Converter={StaticResource HexToBrush}}"
                                                  VerticalAlignment="Center" Margin="0,0,7,0"
                                                  Visibility="{Binding ActiveMirror.IsConnected, Converter={StaticResource BoolToVis}}" />
                                         <TextBox Text="{Binding ActiveMirror.DeviceName, Mode=OneWay}"
@@ -351,11 +806,11 @@
                                                  ToolTip="Renommer — Entrée pour valider, Échap pour annuler"
                                                  KeyDown="OnMirrorNameKeyDown"
                                                  LostFocus="OnMirrorNameLostFocus" />
-                                        <Ellipse Width="6" Height="6" Fill="#E05B4C" Margin="8,0,0,0"
+                                        <Ellipse Width="6" Height="6" Fill="{DynamicResource DangerBrush}" Margin="8,0,0,0"
                                                  VerticalAlignment="Center"
                                                  Visibility="{Binding ActiveMirror.IsRecording, Converter={StaticResource BoolToVis}}" />
-                                        <Border Margin="8,0,0,0" Padding="7,1" CornerRadius="5"
-                                                Background="#2EFFFFFF"
+                                        <Border Margin="8,0,0,0" Padding="7,1" CornerRadius="4"
+                                                Background="{DynamicResource AppBorderStrongBrush}"
                                                 Visibility="{Binding HasInactiveMirrors, Converter={StaticResource BoolToVis}}">
                                             <TextBlock FontSize="10"
                                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}">
@@ -372,18 +827,49 @@
                                     </ui:Button>
                                 </Grid>
                             </Border>
+
+                            <!-- État déconnecté du miroir actif (Android uniquement — iOS a sa propre attente) -->
+                            <Border Background="#E6101216">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding ActiveMirror.IsConnected}" Value="False" />
+                                                    <Condition Binding="{Binding ActiveMirror.IsIos}" Value="False" />
+                                                    <Condition Binding="{Binding IsBusy}" Value="False" />
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <ui:SymbolIcon Symbol="PlugDisconnected24" FontSize="32"
+                                                   Foreground="{DynamicResource MutedBrush}"
+                                                   HorizontalAlignment="Center" />
+                                    <TextBlock Text="{Binding ActiveMirror.DeviceName, Mode=OneWay}"
+                                               FontSize="14" FontWeight="SemiBold"
+                                               HorizontalAlignment="Center" Margin="0,14,0,4" />
+                                    <TextBlock Text="Appareil déconnecté — rebranche-le ou reconnecte-le depuis la liste"
+                                               FontSize="11.5" HorizontalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                </StackPanel>
+                            </Border>
                         </Grid>
                     </Border>
 
-                    <!-- Miniatures des autres appareils -->
+                    <!-- Miniatures des autres appareils + tuiles absentes de l'espace -->
                     <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled"
-                                  Visibility="{Binding HasInactiveMirrors, Converter={StaticResource BoolToVis}}">
+                                  Visibility="{Binding HasStripContent, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
                         <ItemsControl ItemsSource="{Binding InactiveMirrors}" Margin="0,4,0,4">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Border Width="172" Height="112" Margin="6,4"
-                                            CornerRadius="8" Background="Black"
+                                            CornerRadius="4" Background="Black"
                                             BorderBrush="{DynamicResource AppBorderBrush}"
                                             BorderThickness="1" ClipToBounds="True"
                                             ToolTip="Cliquer pour rendre actif">
@@ -398,7 +884,8 @@
                                                 </Border.Background>
                                                 <Grid>
                                                     <StackPanel Orientation="Horizontal">
-                                                        <Ellipse Width="6" Height="6" Fill="#4EC98E"
+                                                        <Ellipse Width="6" Height="6"
+                                                                 Fill="{Binding AccentHex, Converter={StaticResource HexToBrush}}"
                                                                  VerticalAlignment="Center" Margin="0,0,6,0"
                                                                  Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}" />
                                                         <TextBox Text="{Binding DeviceName, Mode=OneWay}"
@@ -408,7 +895,7 @@
                                                                  ToolTip="Renommer — Entrée pour valider, Échap pour annuler"
                                                                  KeyDown="OnMirrorNameKeyDown"
                                                                  LostFocus="OnMirrorNameLostFocus" />
-                                                        <Ellipse Width="6" Height="6" Fill="#E05B4C" Margin="7,0,0,0"
+                                                        <Ellipse Width="6" Height="6" Fill="{DynamicResource DangerBrush}" Margin="7,0,0,0"
                                                                  VerticalAlignment="Center"
                                                                  Visibility="{Binding IsRecording, Converter={StaticResource BoolToVis}}" />
                                                     </StackPanel>
@@ -422,7 +909,7 @@
                                                 </Grid>
                                             </Border>
                                             <Border VerticalAlignment="Bottom" HorizontalAlignment="Left"
-                                                    Margin="6" CornerRadius="6"
+                                                    Margin="6" CornerRadius="4"
                                                     Background="#C0101216">
                                                 <StackPanel Orientation="Horizontal">
                                                     <ui:Button Appearance="Transparent" Width="20" Height="16" Padding="0"
@@ -440,7 +927,7 @@
                                                 </StackPanel>
                                             </Border>
                                             <Border VerticalAlignment="Bottom" HorizontalAlignment="Right"
-                                                    Margin="6" Padding="7,2" CornerRadius="6"
+                                                    Margin="6" Padding="7,2" CornerRadius="4"
                                                     Background="#C0101216">
                                                 <TextBlock FontSize="10"
                                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}">
@@ -452,12 +939,51 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        <ItemsControl ItemsSource="{Binding MissingDevices}" Margin="0,4,0,4">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Width="172" Height="112" Margin="6,4" CornerRadius="4"
+                                            Background="{DynamicResource SurfaceFaintBrush}" BorderBrush="{DynamicResource AppBorderBrush}"
+                                            BorderThickness="1" Opacity="0.75"
+                                            MouseLeftButtonUp="OnMissingClick"
+                                            ToolTip="Appareil absent de l'espace — cliquer pour retenter la connexion">
+                                        <Grid>
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <ui:SymbolIcon Symbol="Phone24" FontSize="20"
+                                                               Foreground="{DynamicResource MutedBrush}"
+                                                               HorizontalAlignment="Center" />
+                                                <StackPanel Orientation="Horizontal" Margin="0,7,0,0"
+                                                            HorizontalAlignment="Center">
+                                                    <Ellipse Width="6" Height="6" VerticalAlignment="Center"
+                                                             Margin="0,0,6,0"
+                                                             Fill="{Binding ColorHex, Converter={StaticResource HexToBrush}}" />
+                                                    <TextBlock Text="{Binding Name}" FontSize="11"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                </StackPanel>
+                                                <TextBlock Text="absent" FontSize="9.5" Margin="0,1,0,0"
+                                                           Foreground="{DynamicResource MutedBrush}"
+                                                           HorizontalAlignment="Center" />
+                                            </StackPanel>
+                                            <ui:Button HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                       Appearance="Transparent" Width="22" Height="18"
+                                                       Padding="0" Margin="4"
+                                                       Command="{Binding DataContext.RemoveMissingCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                       CommandParameter="{Binding}"
+                                                       ToolTip="Retirer de l'espace">
+                                                <ui:SymbolIcon Symbol="Dismiss24" FontSize="10" />
+                                            </ui:Button>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        </StackPanel>
                     </ScrollViewer>
 
                     <Border x:Name="FullscreenBar"
                             VerticalAlignment="Top" HorizontalAlignment="Center"
-                            Margin="0,14,0,0" Padding="4" CornerRadius="12"
-                            Background="#E614161C"
+                            Margin="0,14,0,0" Padding="4" CornerRadius="4"
+                            Background="{DynamicResource AppModalBrush}"
                             BorderBrush="{DynamicResource AppBorderBrush}"
                             BorderThickness="1"
                             Visibility="Collapsed">
@@ -478,7 +1004,7 @@
                     </Border>
 
                     <!-- ══ Hub appareils (déconnecté) ══ -->
-                    <Grid x:Name="DisconnectedOverlay" Background="#F40A0B0F"
+                    <Grid x:Name="DisconnectedOverlay" Background="{DynamicResource AppModalBrush}"
                           Visibility="{Binding Mirrors.Count, Converter={StaticResource EmptyToVis}}">
                         <Grid.Triggers>
                             <EventTrigger RoutedEvent="Loaded">
@@ -510,9 +1036,28 @@
                                 <TranslateTransform Y="0" />
                             </StackPanel.RenderTransform>
 
+                            <Border Margin="2,0,2,12" Padding="14,11" CornerRadius="4"
+                                    Background="{DynamicResource AccentSubtleBrush}"
+                                    BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1"
+                                    Visibility="{Binding HasActiveWorkspace, Converter={StaticResource BoolToVis}}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="Layer24" FontSize="13" Margin="0,0,8,0"
+                                                       Foreground="{DynamicResource DofusAccentBrush}" />
+                                        <TextBlock FontSize="12.5" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource DofusAccentBrush}">
+                                            <Run Text="Espace «" /><Run Text="{Binding ActiveWorkspace.Name, Mode=OneWay}" /><Run Text="» actif" />
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <TextBlock Text="Les appareils que tu connectes rejoignent cet espace automatiquement."
+                                               FontSize="11" Margin="0,4,0,0"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                            </Border>
+
                             <Grid Margin="2,0,2,14">
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="Appareils" FontSize="20" FontWeight="SemiBold" />
+                                    <TextBlock Text="Appareils" FontSize="13.5" FontWeight="SemiBold" />
                                     <TextBlock FontSize="12" Margin="10,0,0,0" VerticalAlignment="Center"
                                                Foreground="{DynamicResource TextFillColorTertiaryBrush}">
                                         <Run Text="{Binding DetectedDeviceCount, Mode=OneWay}" /><Run Text=" détecté(s)" />
@@ -524,29 +1069,71 @@
                             </Grid>
 
                             <ui:Card Padding="0" BorderThickness="1"
-                                     BorderBrush="#12FFFFFF"
+                                     BorderBrush="{DynamicResource AppBorderBrush}"
                                      Background="{DynamicResource AppSurfaceBrush}">
                                 <ItemsControl ItemsSource="{Binding Devices}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Border Padding="18,15"
                                                     BorderThickness="0,1,0,0"
-                                                    BorderBrush="#0AFFFFFF">
+                                                    BorderBrush="{DynamicResource AppBorderSubtleBrush}">
+                                                <Border.ContextMenu>
+                                                    <ContextMenu>
+                                                        <MenuItem Header="Couleur de l'appareil">
+                                                            <MenuItem.Icon>
+                                                                <ui:SymbolIcon Symbol="Color24" FontSize="14" />
+                                                            </MenuItem.Icon>
+                                                            <MenuItem Header="Par défaut" Tag="" Click="OnDeviceColorClick" />
+                                                            <MenuItem Header="Vert" Tag="#4EC98E" Click="OnDeviceColorClick">
+                                                                <MenuItem.Icon><Border Width="12" Height="12" CornerRadius="4" Background="#4EC98E" /></MenuItem.Icon>
+                                                            </MenuItem>
+                                                            <MenuItem Header="Bleu" Tag="#5B9BD5" Click="OnDeviceColorClick">
+                                                                <MenuItem.Icon><Border Width="12" Height="12" CornerRadius="4" Background="#5B9BD5" /></MenuItem.Icon>
+                                                            </MenuItem>
+                                                            <MenuItem Header="Violet" Tag="#9B7BD4" Click="OnDeviceColorClick">
+                                                                <MenuItem.Icon><Border Width="12" Height="12" CornerRadius="4" Background="#9B7BD4" /></MenuItem.Icon>
+                                                            </MenuItem>
+                                                            <MenuItem Header="Orange" Tag="#E8A33D" Click="OnDeviceColorClick">
+                                                                <MenuItem.Icon><Border Width="12" Height="12" CornerRadius="4" Background="#E8A33D" /></MenuItem.Icon>
+                                                            </MenuItem>
+                                                            <MenuItem Header="Rose" Tag="#E06B9B" Click="OnDeviceColorClick">
+                                                                <MenuItem.Icon><Border Width="12" Height="12" CornerRadius="4" Background="#E06B9B" /></MenuItem.Icon>
+                                                            </MenuItem>
+                                                            <MenuItem Header="Rouge" Tag="#E05B4C" Click="OnDeviceColorClick">
+                                                                <MenuItem.Icon><Border Width="12" Height="12" CornerRadius="4" Background="#E05B4C" /></MenuItem.Icon>
+                                                            </MenuItem>
+                                                            <MenuItem Header="Cyan" Tag="#4EC9C0" Click="OnDeviceColorClick">
+                                                                <MenuItem.Icon><Border Width="12" Height="12" CornerRadius="4" Background="#4EC9C0" /></MenuItem.Icon>
+                                                            </MenuItem>
+                                                        </MenuItem>
+                                                        <Separator />
+                                                        <MenuItem Header="Oublier cet appareil" Click="OnDeviceForgetClick">
+                                                            <MenuItem.Icon>
+                                                                <ui:SymbolIcon Symbol="Dismiss24" FontSize="14" />
+                                                            </MenuItem.Icon>
+                                                        </MenuItem>
+                                                    </ContextMenu>
+                                                </Border.ContextMenu>
                                                 <Grid>
                                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                        <Border Width="44" Height="44" CornerRadius="11"
-                                                                Background="#1A4EC98E" Margin="0,0,14,0">
+                                                        <Border Width="44" Height="44" CornerRadius="4"
+                                                                Background="{DynamicResource AccentSubtleBrush}" Margin="0,0,14,0">
                                                             <ui:SymbolIcon Symbol="Phone24" FontSize="18"
                                                                            Foreground="{DynamicResource DofusAccentBrush}"
                                                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                         </Border>
                                                         <StackPanel VerticalAlignment="Center">
-                                                            <TextBox Text="{Binding ShortName, Mode=OneWay}"
-                                                                     FontSize="14" FontWeight="SemiBold" Padding="0"
-                                                                     Background="Transparent" BorderThickness="0"
-                                                                     ToolTip="Renommer ce téléphone — Entrée pour valider, Échap pour annuler"
-                                                                     KeyDown="OnDeviceNameKeyDown"
-                                                                     LostFocus="OnDeviceNameLostFocus" />
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <Ellipse Width="7" Height="7" Margin="0,0,7,0"
+                                                                         VerticalAlignment="Center"
+                                                                         Fill="{Binding Color, Converter={StaticResource HexToBrush}}" />
+                                                                <TextBox Text="{Binding ShortName, Mode=OneWay}"
+                                                                         FontSize="14" FontWeight="SemiBold" Padding="0"
+                                                                         Background="Transparent" BorderThickness="0"
+                                                                         ToolTip="Renommer ce téléphone — Entrée pour valider, Échap pour annuler"
+                                                                         KeyDown="OnDeviceNameKeyDown"
+                                                                         LostFocus="OnDeviceNameLostFocus" />
+                                                            </StackPanel>
                                                             <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                                                                 <TextBlock Text="{Binding TransportText}" FontSize="12"
                                                                            Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
@@ -558,20 +1145,24 @@
                                                                          Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                                             </StackPanel>
                                                             <TextBlock Text="Accepte la fenêtre d'autorisation sur le téléphone"
-                                                                       FontSize="10.5" Margin="0,3,0,0" Foreground="#E8A33D"
+                                                                       FontSize="10.5" Margin="0,3,0,0" Foreground="{DynamicResource WarnBrush}"
                                                                        Visibility="{Binding NeedsAuthorization, Converter={StaticResource BoolToVis}}" />
+                                                            <TextBlock Text="{Binding Diag}"
+                                                                       FontSize="10.5" Margin="0,3,0,0" TextWrapping="Wrap"
+                                                                       Foreground="{DynamicResource WarnBrush}"
+                                                                       Visibility="{Binding HasDiag, Converter={StaticResource BoolToVis}}" />
                                                         </StackPanel>
                                                         <StackPanel Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
                                                             <Ellipse Width="6" Height="6" Margin="0,0,6,0" VerticalAlignment="Center">
                                                                 <Ellipse.Style>
                                                                     <Style TargetType="Ellipse">
-                                                                        <Setter Property="Fill" Value="#5A5E66" />
+                                                                        <Setter Property="Fill" Value="{DynamicResource MutedBrush}" />
                                                                         <Style.Triggers>
                                                                             <DataTrigger Binding="{Binding IsReady}" Value="True">
-                                                                                <Setter Property="Fill" Value="#4EC98E" />
+                                                                                <Setter Property="Fill" Value="{DynamicResource DofusAccentBrush}" />
                                                                             </DataTrigger>
                                                                             <DataTrigger Binding="{Binding NeedsAuthorization}" Value="True">
-                                                                                <Setter Property="Fill" Value="#E8A33D" />
+                                                                                <Setter Property="Fill" Value="{DynamicResource WarnBrush}" />
                                                                             </DataTrigger>
                                                                         </Style.Triggers>
                                                                     </Style>
@@ -583,10 +1174,10 @@
                                                                         <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
                                                                         <Style.Triggers>
                                                                             <DataTrigger Binding="{Binding IsReady}" Value="True">
-                                                                                <Setter Property="Foreground" Value="#4EC98E" />
+                                                                                <Setter Property="Foreground" Value="{DynamicResource DofusAccentBrush}" />
                                                                             </DataTrigger>
                                                                             <DataTrigger Binding="{Binding NeedsAuthorization}" Value="True">
-                                                                                <Setter Property="Foreground" Value="#E8A33D" />
+                                                                                <Setter Property="Foreground" Value="{DynamicResource WarnBrush}" />
                                                                             </DataTrigger>
                                                                         </Style.Triggers>
                                                                     </Style>
@@ -630,12 +1221,41 @@
                                 </ItemsControl>
                             </ui:Card>
 
+                            <!-- iPhone : pas encore utilisable -->
+                            <Border Margin="2,10,2,0" Padding="16,12" CornerRadius="4" Opacity="0.62"
+                                    Background="{DynamicResource AppSurfaceBrush}"
+                                    BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1">
+                                <Grid>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <ui:SymbolIcon Symbol="PhoneScreenTime24" FontSize="15"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                       Margin="0,0,11,0" />
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="iPhone · AirPlay" FontSize="12.5"
+                                                       FontWeight="SemiBold" />
+                                            <TextBlock Text="Pas encore utilisable — le mirroring iOS est en développement"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <Border HorizontalAlignment="Right" VerticalAlignment="Center"
+                                            Padding="9,3" CornerRadius="4"
+                                            Background="{DynamicResource AccentSubtleBrush}"
+                                            BorderBrush="{DynamicResource AccentBorderBrush}"
+                                            BorderThickness="1">
+                                        <TextBlock Text="BIENTÔT DISPONIBLE" FontSize="10"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource DofusAccentBrush}" />
+                                    </Border>
+                                </Grid>
+                            </Border>
+
                             <UniformGrid Columns="4" Margin="0,12,0,0">
                                 <ui:Button Margin="0,0,6,0" Padding="15,14"
                                            HorizontalContentAlignment="Left"
                                            Click="OnHelpClick" ToolTip="Ouvrir le navigateur de guides intégré">
                                     <StackPanel Orientation="Horizontal">
-                                        <Border Width="32" Height="32" CornerRadius="9" Background="#1A4EC98E"
+                                        <Border Width="32" Height="32" CornerRadius="4" Background="{DynamicResource AccentSubtleBrush}"
                                                 VerticalAlignment="Center" Margin="0,0,11,0">
                                             <ui:SymbolIcon Symbol="BookOpenGlobe24" FontSize="14"
                                                            Foreground="{DynamicResource DofusAccentBrush}"
@@ -653,7 +1273,7 @@
                                            Command="{Binding EnableWifiCommand}"
                                            ToolTip="Activer le mirroring sans câble sur l'appareil sélectionné">
                                     <StackPanel Orientation="Horizontal">
-                                        <Border Width="32" Height="32" CornerRadius="9" Background="#1A4EC98E"
+                                        <Border Width="32" Height="32" CornerRadius="4" Background="{DynamicResource AccentSubtleBrush}"
                                                 VerticalAlignment="Center" Margin="0,0,11,0">
                                             <ui:SymbolIcon Symbol="Wifi124" FontSize="14"
                                                            Foreground="{DynamicResource DofusAccentBrush}"
@@ -671,7 +1291,7 @@
                                            Command="{Binding ToggleScreenDimCommand}"
                                            ToolTip="Luminosité du téléphone au minimum pendant le mirroring">
                                     <StackPanel Orientation="Horizontal">
-                                        <Border Width="32" Height="32" CornerRadius="9" Background="#1A4EC98E"
+                                        <Border Width="32" Height="32" CornerRadius="4" Background="{DynamicResource AccentSubtleBrush}"
                                                 VerticalAlignment="Center" Margin="0,0,11,0">
                                             <ui:SymbolIcon Symbol="WeatherMoon24" FontSize="14"
                                                            Foreground="{DynamicResource DofusAccentBrush}"
@@ -688,7 +1308,7 @@
                                            HorizontalContentAlignment="Left"
                                            Click="OnSettingsClick" ToolTip="Ouvrir les réglages">
                                     <StackPanel Orientation="Horizontal">
-                                        <Border Width="32" Height="32" CornerRadius="9" Background="#1A4EC98E"
+                                        <Border Width="32" Height="32" CornerRadius="4" Background="{DynamicResource AccentSubtleBrush}"
                                                 VerticalAlignment="Center" Margin="0,0,11,0">
                                             <ui:SymbolIcon Symbol="Settings24" FontSize="14"
                                                            Foreground="{DynamicResource DofusAccentBrush}"
@@ -703,14 +1323,14 @@
                                 </ui:Button>
                             </UniformGrid>
 
-                            <Border Margin="0,12,0,0" Padding="18,13" CornerRadius="12"
+                            <Border Margin="0,12,0,0" Padding="18,13" CornerRadius="6"
                                     Background="{DynamicResource AppSurfaceBrush}"
-                                    BorderBrush="#12FFFFFF" BorderThickness="1">
+                                    BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1">
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                     <TextBlock Text="DÉMARRAGE" FontSize="11" FontWeight="Bold"
                                                Margin="0,0,14,0"
                                                Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                    <Border Width="20" Height="20" CornerRadius="6" Background="#264EC98E">
+                                    <Border Width="20" Height="20" CornerRadius="4" Background="{DynamicResource AccentSubtleBrush}">
                                         <TextBlock Text="1" FontSize="11" FontWeight="Bold"
                                                    Foreground="{DynamicResource DofusAccentBrush}"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -719,7 +1339,7 @@
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                     <ui:SymbolIcon Symbol="ArrowRight16" FontSize="11" Margin="10,0"
                                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                    <Border Width="20" Height="20" CornerRadius="6" Background="#264EC98E">
+                                    <Border Width="20" Height="20" CornerRadius="4" Background="{DynamicResource AccentSubtleBrush}">
                                         <TextBlock Text="2" FontSize="11" FontWeight="Bold"
                                                    Foreground="{DynamicResource DofusAccentBrush}"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -728,7 +1348,7 @@
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                     <ui:SymbolIcon Symbol="ArrowRight16" FontSize="11" Margin="10,0"
                                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                    <Border Width="20" Height="20" CornerRadius="6" Background="#264EC98E">
+                                    <Border Width="20" Height="20" CornerRadius="4" Background="{DynamicResource AccentSubtleBrush}">
                                         <TextBlock Text="3" FontSize="11" FontWeight="Bold"
                                                    Foreground="{DynamicResource DofusAccentBrush}"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -743,37 +1363,20 @@
                 </Grid>
             </Border>
 
-            <!-- ══ Panneau réglages ══ -->
-            <Border x:Name="SettingsPanel" Grid.Column="2"
-                    Width="320"
-                    Margin="0,14,14,14" CornerRadius="14"
-                    Background="{DynamicResource AppSurfaceAltBrush}"
-                    BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1"
-                    Visibility="{Binding SettingsVisibility}">
-                <Border.Effect>
-                    <DropShadowEffect BlurRadius="30" ShadowDepth="4" Opacity="0.55" Color="Black" />
-                </Border.Effect>
+            <!-- ══ Panneau latéral docké ══ -->
+            <Border x:Name="DockPanel" Grid.Column="1"
+                    Background="{DynamicResource AppSurfaceBrush}"
+                    BorderThickness="0,0,1,0"
+                    BorderBrush="{DynamicResource AppBorderBrush}"
+                    Visibility="Collapsed">
+                <Grid>
+
+            <!-- Réglages -->
+            <Border x:Name="SettingsDock"
+                    Width="340" Visibility="Collapsed">
                 <Border.RenderTransform>
-                    <TranslateTransform x:Name="SettingsSlide" X="0" />
+                    <TranslateTransform X="-24" />
                 </Border.RenderTransform>
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding ShowSettings}" Value="True">
-                                <DataTrigger.EnterActions>
-                                    <BeginStoryboard>
-                                        <Storyboard>
-                                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.X"
-                                                             From="40" To="0" Duration="0:0:0.2" />
-                                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                                             From="0" To="1" Duration="0:0:0.2" />
-                                        </Storyboard>
-                                    </BeginStoryboard>
-                                </DataTrigger.EnterActions>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -791,15 +1394,48 @@
                             <ui:SymbolIcon Symbol="Dismiss24" FontSize="12" />
                         </ui:Button>
                     </Grid>
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer Grid.Row="1" x:Name="SettingsScroll" VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="14,10,14,14">
-                            <TextBlock Text="VIDÉO" FontSize="11" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                       Margin="4,4,0,7" />
-                            <Border CornerRadius="10" Padding="12,0"
-                                    Background="#07FFFFFF"
-                                    BorderBrush="#0FFFFFFF" BorderThickness="1">
+                            <Grid Margin="4,4,0,7">
+                                <TextBlock Text="VIDÉO" FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                <TextBlock Text="{Binding ActiveSettingsScope}" FontSize="10.5"
+                                           HorizontalAlignment="Right"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            </Grid>
+                            <Border CornerRadius="6" Padding="12,0"
+                                    Background="{DynamicResource SurfaceFaintBrush}"
+                                    BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="1">
                                 <StackPanel>
+                                    <Grid MinHeight="42">
+                                        <TextBlock Text="Preset" FontSize="12" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <ComboBox Width="175" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                  ItemsSource="{Binding QualityPresets}"
+                                                  SelectedItem="{Binding SelectedQualityPreset}"
+                                                  ToolTip="Applique résolution + fps + débit d'un coup — à l'appareil actif dans un espace">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Margin="0,3">
+                                                        <TextBlock Text="{Binding Label}" FontSize="12" />
+                                                        <TextBlock Text="{Binding Detail}" FontSize="10"
+                                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </Grid>
+                                    <Border Height="1" Background="{DynamicResource SurfaceFaintBrush}" />
+                                    <Grid MinHeight="42"
+                                          ToolTip="Écran virtuel Android — le jeu tourne dessus, l'écran du téléphone reste libre">
+                                        <TextBlock Text="Écran" FontSize="12" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <ComboBox Width="175" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                  ItemsSource="{Binding DisplayModeOptions}"
+                                                  SelectedItem="{Binding SelectedDisplayMode}"
+                                                  DisplayMemberPath="Label" />
+                                    </Grid>
+                                    <Border Height="1" Background="{DynamicResource SurfaceFaintBrush}" />
                                     <Grid MinHeight="42">
                                         <TextBlock Text="Résolution" FontSize="12" VerticalAlignment="Center"
                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -808,7 +1444,7 @@
                                                   SelectedValue="{Binding MaxSize}"
                                                   SelectedValuePath="Value" DisplayMemberPath="Label" />
                                     </Grid>
-                                    <Border Height="1" Background="#08FFFFFF" />
+                                    <Border Height="1" Background="{DynamicResource SurfaceFaintBrush}" />
                                     <Grid MinHeight="42">
                                         <TextBlock Text="Codec" FontSize="12" VerticalAlignment="Center"
                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -817,7 +1453,7 @@
                                                   SelectedValue="{Binding VideoCodec}"
                                                   SelectedValuePath="Value" DisplayMemberPath="Label" />
                                     </Grid>
-                                    <Border Height="1" Background="#08FFFFFF" />
+                                    <Border Height="1" Background="{DynamicResource SurfaceFaintBrush}" />
                                     <Grid MinHeight="42">
                                         <TextBlock Text="Framerate" FontSize="12" VerticalAlignment="Center"
                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -826,7 +1462,7 @@
                                                   SelectedValue="{Binding MaxFps}"
                                                   SelectedValuePath="Value" DisplayMemberPath="Label" />
                                     </Grid>
-                                    <Border Height="1" Background="#08FFFFFF" />
+                                    <Border Height="1" Background="{DynamicResource SurfaceFaintBrush}" />
                                     <Grid MinHeight="42">
                                         <TextBlock Text="Débit vidéo" FontSize="12" VerticalAlignment="Center"
                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -841,40 +1477,47 @@
                             <TextBlock Text="SESSION" FontSize="11" FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                        Margin="4,16,0,7" />
-                            <Border CornerRadius="10" Padding="12,2"
-                                    Background="#07FFFFFF"
-                                    BorderBrush="#0FFFFFFF" BorderThickness="1">
+                            <Border CornerRadius="6" Padding="12,2"
+                                    Background="{DynamicResource SurfaceFaintBrush}"
+                                    BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="1">
                                 <StackPanel>
                                     <Grid MinHeight="38">
                                         <TextBlock Text="Audio du jeu sur le PC" FontSize="12" VerticalAlignment="Center" />
                                         <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"
                                                          IsChecked="{Binding EnableAudio}" />
                                     </Grid>
-                                    <Border Height="1" Background="#08FFFFFF" />
+                                    <Border Height="1" Background="{DynamicResource SurfaceFaintBrush}" />
                                     <Grid MinHeight="38">
                                         <TextBlock Text="Garder l'écran allumé" FontSize="12" VerticalAlignment="Center" />
                                         <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"
                                                          IsChecked="{Binding StayAwake}" />
                                     </Grid>
-                                    <Border Height="1" Background="#08FFFFFF" />
+                                    <Border Height="1" Background="{DynamicResource SurfaceFaintBrush}" />
                                     <Grid MinHeight="38">
                                         <TextBlock Text="Plein écran automatique" FontSize="12" VerticalAlignment="Center" />
                                         <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"
                                                          IsChecked="{Binding AutoFullscreen}" />
                                     </Grid>
-                                    <Border Height="1" Background="#08FFFFFF" />
+                                    <Border Height="1" Background="{DynamicResource SurfaceFaintBrush}" />
                                     <Grid MinHeight="38"
                                           ToolTip="Le texte copié sur le téléphone arrive dans le presse-papiers Windows">
                                         <TextBlock Text="Recevoir le presse-papiers du téléphone" FontSize="12" VerticalAlignment="Center" />
                                         <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"
                                                          IsChecked="{Binding SyncDeviceClipboard}" />
                                     </Grid>
-                                    <Border Height="1" Background="#08FFFFFF" />
+                                    <Border Height="1" Background="{DynamicResource SurfaceFaintBrush}" />
                                     <Grid MinHeight="38"
                                           ToolTip="Luminosité du téléphone au minimum pendant le mirroring — économise la batterie et préserve l'AMOLED">
                                         <TextBlock Text="Atténuer l'écran du téléphone" FontSize="12" VerticalAlignment="Center" />
                                         <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"
                                                          IsChecked="{Binding TurnScreenOff}" />
+                                    </Grid>
+                                    <Border Height="1" Background="{DynamicResource SurfaceFaintBrush}" />
+                                    <Grid MinHeight="38"
+                                          ToolTip="Lance Dofus Touch automatiquement quand le mirroring démarre">
+                                        <TextBlock Text="Ouvrir Dofus Touch à la connexion" FontSize="12" VerticalAlignment="Center" />
+                                        <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                         IsChecked="{Binding AutoLaunchDofus}" />
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -882,9 +1525,9 @@
                             <TextBlock Text="API LOCALE" FontSize="11" FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                        Margin="4,16,0,7" />
-                            <Border CornerRadius="10" Padding="12,2"
-                                    Background="#07FFFFFF"
-                                    BorderBrush="#0FFFFFFF" BorderThickness="1">
+                            <Border CornerRadius="6" Padding="12,2"
+                                    Background="{DynamicResource SurfaceFaintBrush}"
+                                    BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="1">
                                 <StackPanel>
                                     <Grid MinHeight="38"
                                           ToolTip="Pilote l'app depuis Stream Deck, OBS, scripts — aucune action possible sur le téléphone">
@@ -892,13 +1535,13 @@
                                         <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"
                                                          IsChecked="{Binding LocalApiEnabled}" />
                                     </Grid>
-                                    <Border Height="1" Background="#08FFFFFF" />
+                                    <Border Height="1" Background="{DynamicResource SurfaceFaintBrush}" />
                                     <Grid MinHeight="38">
                                         <TextBlock Text="Port" FontSize="12" VerticalAlignment="Center" />
                                         <TextBox Width="90" HorizontalAlignment="Right" VerticalAlignment="Center"
                                                  Text="{Binding LocalApiPort, UpdateSourceTrigger=PropertyChanged}" />
                                     </Grid>
-                                    <Border Height="1" Background="#08FFFFFF" />
+                                    <Border Height="1" Background="{DynamicResource SurfaceFaintBrush}" />
                                     <Grid MinHeight="38"
                                           ToolTip="Authorization: Bearer &lt;token&gt; — ou ?token= dans l'URL">
                                         <TextBlock Text="Token" FontSize="12" VerticalAlignment="Center" />
@@ -920,79 +1563,12 @@
                                 </StackPanel>
                             </Border>
 
-                            <Grid Margin="4,16,0,7">
-                                <TextBlock Text="PLUGINS" FontSize="11" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                           VerticalAlignment="Center" />
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                    <ui:Button Padding="0" Width="26" Height="24" Margin="4,0"
-                                               Appearance="Transparent"
-                                               Command="{Binding RescanPluginsCommand}"
-                                               ToolTip="Rafraîchir la liste">
-                                        <ui:SymbolIcon Symbol="ArrowSync24" FontSize="12" />
-                                    </ui:Button>
-                                    <ui:Button Padding="0" Width="26" Height="24" Margin="4,0"
-                                               Appearance="Transparent"
-                                               Command="{Binding OpenPluginsFolderCommand}"
-                                               ToolTip="Ouvrir le dossier plugins">
-                                        <ui:SymbolIcon Symbol="FolderOpen24" FontSize="12" />
-                                    </ui:Button>
-                                </StackPanel>
-                            </Grid>
-                            <Border CornerRadius="10" Padding="12,2"
-                                    Background="#07FFFFFF"
-                                    BorderBrush="#0FFFFFFF" BorderThickness="1">
-                                <StackPanel>
-                                    <ItemsControl ItemsSource="{Binding Plugins}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Grid Margin="0,8,0,10">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="Auto" />
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="Auto" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="{Binding Icon}" FontSize="18"
-                                                               VerticalAlignment="Top" Margin="2,0,10,0" />
-                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="SemiBold" />
-                                                            <TextBlock Text="{Binding Version, StringFormat=' v{0}', FallbackValue=''}"
-                                                                       FontSize="10.5" VerticalAlignment="Center" Margin="4,0,0,0"
-                                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                                            <ui:SymbolIcon Symbol="ShieldCheckmark24" FontSize="12"
-                                                                           Foreground="#4EC98E" VerticalAlignment="Center" Margin="5,0,0,0"
-                                                                           ToolTip="Plugin officiel vérifié"
-                                                                           Visibility="{Binding IsVerified, Converter={StaticResource BoolToVis}}" />
-                                                            <ui:SymbolIcon Symbol="ShieldError24" FontSize="12"
-                                                                           Foreground="#E0A24C" VerticalAlignment="Center" Margin="5,0,0,0"
-                                                                           ToolTip="Non vérifié — lis le code avant de l'activer"
-                                                                           Visibility="{Binding IsVerified, Converter={StaticResource NotBoolToVis}}" />
-                                                        </StackPanel>
-                                                        <TextBlock Text="{Binding Description}" FontSize="10.5" TextWrapping="Wrap"
-                                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                                                   Visibility="{Binding Description, Converter={StaticResource NullToCollapsed}, FallbackValue=Collapsed}" />
-                                                    </StackPanel>
-                                                    <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
-                                                                     IsChecked="{Binding Running, Mode=OneWay}"
-                                                                     Command="{Binding DataContext.TogglePluginCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                                     CommandParameter="{Binding}" />
-                                                </Grid>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                    <TextBlock FontSize="10.5" Margin="2,6,0,8" TextWrapping="Wrap"
-                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                               Text="Dépose un plugin JS dans le dossier plugins (plugins/mon-plugin/plugin.js + plugin.json). API sandboxée : tm.getMirrors(), tm.connect(serial), tm.on('devices', fn)…" />
-                                </StackPanel>
-                            </Border>
-
                             <TextBlock Text="JOURNAL" FontSize="11" FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                        Margin="4,16,0,7" />
-                            <Border CornerRadius="10"
-                                    Background="#07FFFFFF"
-                                    BorderBrush="#0FFFFFFF" BorderThickness="1">
+                            <Border CornerRadius="6"
+                                    Background="{DynamicResource SurfaceFaintBrush}"
+                                    BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="1">
                                 <ListBox ItemsSource="{Binding Logs}"
                                          Height="140" FontFamily="Cascadia Mono, Consolas" FontSize="11"
                                          Background="Transparent" BorderThickness="0" Padding="10,8" />
@@ -1002,19 +1578,13 @@
                 </Grid>
             </Border>
 
-            <!-- ══ Panneau aide ══ -->
-            <Border x:Name="HelpPanel" Grid.Column="0"
-                    Width="560"
-                    Margin="14,14,0,14" CornerRadius="14"
-                    Background="#F51A1E26"
-                    BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1"
-                    Visibility="Collapsed" ClipToBounds="True" Opacity="0">
+            <!-- Guides Dofus Touch -->
+            <Border x:Name="HelpPanel"
+                    Width="560" Visibility="Collapsed" ClipToBounds="True"
+                    Background="{DynamicResource AppModalBrush}">
                 <Border.RenderTransform>
-                    <TranslateTransform x:Name="HelpSlide" X="-40" />
+                    <TranslateTransform X="-24" />
                 </Border.RenderTransform>
-                <Border.Effect>
-                    <DropShadowEffect BlurRadius="30" ShadowDepth="4" Opacity="0.55" Color="Black" />
-                </Border.Effect>
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -1025,18 +1595,14 @@
                     </Grid.RowDefinitions>
 
                     <Border Grid.Row="0" Padding="12,10,8,10"
-                            Background="#0DFFFFFF">
+                            Background="{DynamicResource SurfaceFaintBrush}">
                         <Grid>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Border Width="30" Height="30" CornerRadius="9" Margin="0,0,10,0">
-                                    <Border.Background>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                            <GradientStop Color="#4EC98E" Offset="0" />
-                                            <GradientStop Color="#2E7D55" Offset="1" />
-                                        </LinearGradientBrush>
-                                    </Border.Background>
+                                <Border Width="30" Height="30" CornerRadius="4" Margin="0,0,10,0"
+                                        Background="{DynamicResource SurfaceFaintBrush}"
+                                        BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1">
                                     <ui:SymbolIcon Symbol="BookOpenGlobe24" FontSize="15"
-                                                   Foreground="#0A120E"
+                                                   Foreground="{DynamicResource DofusAccentBrush}"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
                                 <StackPanel>
@@ -1133,8 +1699,8 @@
                         </ui:Button>
                     </WrapPanel>
 
-                    <Border Grid.Row="3" Margin="12,4,12,10" CornerRadius="17" Height="34"
-                            Background="#14FFFFFF"
+                    <Border Grid.Row="3" Margin="12,4,12,10" CornerRadius="4" Height="34"
+                            Background="{DynamicResource SurfaceFaintBrush}"
                             BorderBrush="{DynamicResource AppBorderBrush}"
                             BorderThickness="1">
                         <Grid Margin="4,0">
@@ -1178,24 +1744,382 @@
                     <wv2:WebView2 x:Name="HelpBrowser" Grid.Row="4" />
                 </Grid>
             </Border>
+
+            <!-- Plugins installés -->
+            <Border x:Name="PluginsPanel"
+                    Width="360" Visibility="Collapsed"
+                    Background="{DynamicResource AppModalBrush}">
+                <Border.RenderTransform>
+                    <TranslateTransform X="-24" />
+                </Border.RenderTransform>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Border Padding="16,12,10,12" Background="{DynamicResource SurfaceFaintBrush}"
+                            BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="0,0,0,1">
+                        <Grid>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border Width="32" Height="32" CornerRadius="4" Margin="0,0,11,0"
+                                        Background="{DynamicResource SurfaceFaintBrush}"
+                                        BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1">
+                                    <ui:SymbolIcon Symbol="PuzzlePiece24" FontSize="16"
+                                                   Foreground="{DynamicResource DofusAccentBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel>
+                                    <TextBlock Text="Plugins" FontSize="13.5" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Plugins.Count, StringFormat='{}{0} installé(s) — sandbox JavaScript'}"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                </StackPanel>
+                            </StackPanel>
+                            <ui:Button HorizontalAlignment="Right" Appearance="Transparent"
+                                       Padding="0" Width="28" Height="28"
+                                       Click="OnDockClose" ToolTip="Fermer">
+                                <ui:SymbolIcon Symbol="Dismiss24" FontSize="13" />
+                            </ui:Button>
+                        </Grid>
+                    </Border>
+                    <Border Grid.Row="1" Padding="16,7" Background="{DynamicResource SurfaceFaintBrush}"
+                            BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="0,0,0,1">
+                            <Grid>
+                                <TextBlock Text="Chaque plugin tourne dans une sandbox — aucun accès fichiers, réseau ou input."
+                                           FontSize="10.5" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <ui:Button Padding="0" Width="26" Height="24" Margin="4,0"
+                                               Appearance="Transparent"
+                                               Command="{Binding RescanPluginsCommand}"
+                                               ToolTip="Rafraîchir la liste">
+                                        <ui:SymbolIcon Symbol="ArrowSync24" FontSize="12" />
+                                    </ui:Button>
+                                    <ui:Button Padding="0" Width="26" Height="24" Margin="4,0"
+                                               Appearance="Transparent"
+                                               Command="{Binding OpenPluginsFolderCommand}"
+                                               ToolTip="Ouvrir le dossier plugins">
+                                        <ui:SymbolIcon Symbol="FolderOpen24" FontSize="12" />
+                                    </ui:Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="16,8,16,14">
+                                <ItemsControl ItemsSource="{Binding Plugins}"
+                                              ItemTemplate="{StaticResource PluginCardTemplate}" />
+                                <StackPanel Margin="0,16,0,6"
+                                            Visibility="{Binding Plugins.Count, Converter={StaticResource EmptyToVis}}">
+                                    <ui:SymbolIcon Symbol="PuzzlePiece24" FontSize="26"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                   HorizontalAlignment="Center" Margin="0,0,0,8" />
+                                    <TextBlock Text="Aucun plugin installé" FontSize="12" FontWeight="SemiBold"
+                                               HorizontalAlignment="Center" />
+                                    <TextBlock FontSize="10.5" Margin="0,4,0,0" TextWrapping="Wrap" TextAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                               Text="Installe une extension depuis le catalogue (icône boutique) ou dépose un dossier dans plugins/." />
+                                </StackPanel>
+                                <TextBlock FontSize="10.5" Margin="2,8,0,2" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                           Text="plugins/mon-plugin/plugin.js + plugin.json — un plugin modifié redemande ton accord avant de tourner." />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+            </Border>
+
+            <!-- Marketplace — catalogue d'extensions -->
+            <Border x:Name="MarketPanel"
+                    Width="440" Visibility="Collapsed"
+                    Background="{DynamicResource AppModalBrush}">
+                <Border.RenderTransform>
+                    <TranslateTransform X="-24" />
+                </Border.RenderTransform>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                        <Border Padding="16,12,10,12" Background="{DynamicResource SurfaceFaintBrush}"
+                                BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="0,0,0,1">
+                            <Grid>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <ui:SymbolIcon Symbol="StoreMicrosoft24" FontSize="14"
+                                                   Margin="0,0,9,0" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Text="Marketplace" FontSize="13" FontWeight="SemiBold"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Catalog.Count, StringFormat=' · {0} extension(s)'}"
+                                               FontSize="11" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <ui:Button Padding="0" Width="28" Height="28" Margin="0,0,4,0"
+                                               Appearance="Transparent"
+                                               Command="{Binding LoadCatalogCommand}"
+                                               ToolTip="Rafraîchir le catalogue">
+                                        <ui:SymbolIcon Symbol="ArrowSync24" FontSize="13" />
+                                    </ui:Button>
+                                    <ui:Button Appearance="Transparent" Padding="0" Width="28" Height="28"
+                                               Click="OnDockClose" ToolTip="Fermer">
+                                        <ui:SymbolIcon Symbol="Dismiss24" FontSize="13" />
+                                    </ui:Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Grid.Row="1" Padding="16,9" Background="{DynamicResource SurfaceFaintBrush}"
+                                BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="0,0,0,1">
+                            <StackPanel>
+                                <ui:TextBox PlaceholderText="Rechercher une extension…"
+                                            Text="{Binding CatalogFilter, UpdateSourceTrigger=PropertyChanged}"
+                                            FontSize="12" Height="30">
+                                    <ui:TextBox.Icon>
+                                        <ui:SymbolIcon Symbol="Search24" FontSize="13" />
+                                    </ui:TextBox.Icon>
+                                </ui:TextBox>
+                                <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                                    <ui:Button Content="Tous" FontSize="11" Padding="13,3" Margin="0,0,6,0"
+                                               Command="{Binding SelectCatalogTabCommand}" CommandParameter="0">
+                                        <ui:Button.Style>
+                                            <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                                <Setter Property="Appearance" Value="Transparent" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding DataContext.CatalogTab, ElementName=MarketPanel}" Value="0">
+                                                        <Setter Property="Appearance" Value="Primary" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ui:Button.Style>
+                                    </ui:Button>
+                                    <ui:Button Content="Officiels" FontSize="11" Padding="13,3" Margin="0,0,6,0"
+                                               Command="{Binding SelectCatalogTabCommand}" CommandParameter="1">
+                                        <ui:Button.Style>
+                                            <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                                <Setter Property="Appearance" Value="Transparent" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding DataContext.CatalogTab, ElementName=MarketPanel}" Value="1">
+                                                        <Setter Property="Appearance" Value="Primary" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ui:Button.Style>
+                                    </ui:Button>
+                                    <ui:Button Content="Installés" FontSize="11" Padding="13,3"
+                                               Command="{Binding SelectCatalogTabCommand}" CommandParameter="2">
+                                        <ui:Button.Style>
+                                            <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                                <Setter Property="Appearance" Value="Transparent" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding DataContext.CatalogTab, ElementName=MarketPanel}" Value="2">
+                                                        <Setter Property="Appearance" Value="Primary" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ui:Button.Style>
+                                    </ui:Button>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                        <Grid Grid.Row="2">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                          Visibility="{Binding HasSelectedPlugin, Converter={StaticResource NotBoolToVis}}">
+                            <StackPanel Margin="6,2,6,10">
+                                <ItemsControl ItemsSource="{Binding CatalogView}"
+                                              ItemTemplate="{StaticResource CatalogCardTemplate}" />
+                                <StackPanel Margin="0,16,0,6"
+                                            Visibility="{Binding CatalogView.Count, Converter={StaticResource EmptyToVis}}">
+                                    <ui:SymbolIcon Symbol="StoreMicrosoft24" FontSize="26"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                   HorizontalAlignment="Center" Margin="0,0,0,8" />
+                                    <TextBlock Text="Aucun résultat" FontSize="12" FontWeight="SemiBold"
+                                               HorizontalAlignment="Center" />
+                                    <TextBlock FontSize="10.5" Margin="0,4,0,0" TextWrapping="Wrap" TextAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                               Text="Essaie un autre filtre ou rafraîchis le catalogue avec ↻." />
+                                </StackPanel>
+                                <TextBlock FontSize="10.5" Margin="2,6,0,2" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource WarnBrush}"
+                                           Text="{Binding CatalogStatus}"
+                                           Visibility="{Binding CatalogStatus, Converter={StaticResource NullToCollapsed}, FallbackValue=Collapsed}" />
+                                <TextBlock FontSize="10.5" Margin="2,8,0,2" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                           Text="Extensions relues et signées par l'équipe TouchMirror — elles ne peuvent ni lire tes fichiers, ni injecter d'input vers le téléphone." />
+                            </StackPanel>
+                            </ScrollViewer>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                          Visibility="{Binding HasSelectedPlugin, Converter={StaticResource BoolToVis}}">
+                                <StackPanel Margin="16,6,16,14">
+                                    <ui:Button Appearance="Transparent" Padding="8,4" HorizontalAlignment="Left"
+                                               Command="{Binding BackToCatalogCommand}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <ui:SymbolIcon Symbol="ArrowLeft24" FontSize="11"
+                                                           Margin="0,0,5,0" VerticalAlignment="Center" />
+                                            <TextBlock Text="Catalogue" FontSize="11" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </ui:Button>
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="44" Height="44" CornerRadius="4" Margin="0,0,13,0"
+                                                Background="{DynamicResource SurfaceFaintBrush}" BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1"
+                                                VerticalAlignment="Top">
+                                            <TextBlock Text="{Binding SelectedPlugin.Icon}" FontSize="20"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding SelectedPlugin.Name}" FontSize="14" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding SelectedPlugin.Meta}" FontSize="10.5" Margin="0,2,0,0"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                                                <Border Padding="5,1" CornerRadius="3" Margin="0,0,6,0"
+                                                        BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1"
+                                                        Visibility="{Binding SelectedPlugin.Official, Converter={StaticResource BoolToVis}}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <ui:SymbolIcon Symbol="ShieldCheckmark24" FontSize="9"
+                                                                       Foreground="{DynamicResource DofusAccentBrush}" Margin="0,0,3,0" VerticalAlignment="Center" />
+                                                        <TextBlock Text="Officiel" FontSize="8.5" Foreground="{DynamicResource DofusAccentBrush}" />
+                                                    </StackPanel>
+                                                </Border>
+                                                <Border Padding="5,1" CornerRadius="3" Margin="0,0,6,0"
+                                                        BorderBrush="{DynamicResource WarnBorderBrush}" BorderThickness="1"
+                                                        Visibility="{Binding SelectedPlugin.Official, Converter={StaticResource NotBoolToVis}}">
+                                                    <TextBlock Text="Communautaire" FontSize="8.5" Foreground="{DynamicResource WarnBrush}" />
+                                                </Border>
+                                                <Border Padding="5,1" CornerRadius="3"
+                                                        BorderBrush="{DynamicResource GoldBorderBrush}" BorderThickness="1"
+                                                        Visibility="{Binding SelectedPlugin.Featured, Converter={StaticResource BoolToVis}}">
+                                                    <TextBlock Text="Recommandé" FontSize="8.5" Foreground="{DynamicResource GoldBrush}" />
+                                                </Border>
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="10,0,0,0">
+                                            <Grid>
+                                                <ui:Button Appearance="Primary" FontSize="11" Padding="14,5"
+                                                           Content="{Binding SelectedPlugin.ActionLabel}"
+                                                           IsEnabled="{Binding SelectedPlugin.CanInstall}"
+                                                           Command="{Binding InstallPluginCommand}"
+                                                           CommandParameter="{Binding SelectedPlugin}"
+                                                           Visibility="{Binding SelectedPlugin.IsInstalled, Converter={StaticResource NotBoolToVis}}" />
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                                                            Visibility="{Binding SelectedPlugin.IsInstalled, Converter={StaticResource BoolToVis}}">
+                                                    <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="12"
+                                                                   Foreground="{DynamicResource DofusAccentBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
+                                                    <TextBlock Text="Installé" FontSize="10.5" Foreground="{DynamicResource DofusAccentBrush}"
+                                                               VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Grid>
+                                    <Border Margin="0,10,0,0" Padding="10,8" CornerRadius="4"
+                                            Background="{DynamicResource SurfaceFaintBrush}" BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="1"
+                                            Visibility="{Binding SelectedPlugin.IsPresent, Converter={StaticResource BoolToVis}}">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="● actif" FontSize="10.5" VerticalAlignment="Center"
+                                                       Margin="0,0,10,0" Foreground="{DynamicResource DofusAccentBrush}"
+                                                       Visibility="{Binding SelectedPlugin.IsActive, Converter={StaticResource BoolToVis}}" />
+                                            <TextBlock Text="○ inactif" FontSize="10.5" VerticalAlignment="Center"
+                                                       Margin="0,0,10,0"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                       Visibility="{Binding SelectedPlugin.IsActive, Converter={StaticResource NotBoolToVis}}" />
+                                            <ui:Button Appearance="Secondary" FontSize="10.5" Padding="10,3" Margin="0,0,6,0"
+                                                       Content="{Binding SelectedPlugin.ToggleLabel}"
+                                                       Command="{Binding ToggleCatalogPluginCommand}"
+                                                       CommandParameter="{Binding SelectedPlugin}" />
+                                            <ui:Button Appearance="Transparent" FontSize="10.5" Padding="10,3"
+                                                       Content="Désinstaller"
+                                                       Command="{Binding UninstallCatalogPluginCommand}"
+                                                       CommandParameter="{Binding SelectedPlugin}" />
+                                        </StackPanel>
+                                    </Border>
+                                    <TextBlock Text="{Binding SelectedPlugin.Description}" FontSize="11"
+                                               TextWrapping="Wrap" Margin="1,10,0,0"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <Border Margin="0,12,0,0" BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="0,1,0,0" Padding="0,10,0,0">
+                                        <TextBlock Text="CAPACITÉS" FontSize="10" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                    </Border>
+                                    <ItemsControl ItemsSource="{Binding SelectedPlugin.Capabilities}" Margin="0,3,0,0">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock FontSize="10.5" Margin="2,1" TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                                    <Run Text="· " /><Run Text="{Binding}" />
+                                                </TextBlock>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock FontSize="10" Margin="2,7,0,0" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                               Text="Sandbox : aucun accès fichiers, réseau, processus — aucune injection tactile/clavier vers le téléphone." />
+                                    <Border Margin="0,12,0,0" BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="0,1,0,0" Padding="0,10,0,0">
+                                        <TextBlock Text="SHA-256" FontSize="10" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                    </Border>
+                                    <StackPanel Orientation="Horizontal" Margin="1,3,0,0">
+                                        <TextBlock Text="{Binding SelectedPlugin.ShortHash}" FontFamily="Consolas"
+                                                   FontSize="10.5" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <ui:Button Appearance="Transparent" Padding="0" Width="26" Height="24"
+                                                   Margin="8,0,0,0" VerticalAlignment="Center"
+                                                   Click="OnCopyPluginHash" ToolTip="Copier le hash complet">
+                                            <ui:SymbolIcon Symbol="Copy24" FontSize="12" />
+                                        </ui:Button>
+                                    </StackPanel>
+                                    <Border Margin="0,12,0,0" BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="0,1,0,0" Padding="0,10,0,0">
+                                        <TextBlock Text="CODE SOURCE" FontSize="10" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                    </Border>
+                                    <Border Margin="0,5,0,0" Padding="10,8" CornerRadius="4"
+                                            Background="{DynamicResource CodeBackgroundBrush}" BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1">
+                                        <Grid>
+                                            <ScrollViewer MaxHeight="230"
+                                                          HorizontalScrollBarVisibility="Auto"
+                                                          VerticalScrollBarVisibility="Auto">
+                                                <TextBlock Text="{Binding SelectedPlugin.Code}" FontFamily="Consolas"
+                                                           FontSize="10.5" TextWrapping="NoWrap"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            </ScrollViewer>
+                                            <TextBlock Text="chargement du code…" FontSize="10.5"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                       Visibility="{Binding SelectedPlugin.CodeBusy, Converter={StaticResource BoolToVis}}" />
+                                            <TextBlock Text="code indisponible hors-ligne — affiché après installation"
+                                                       FontSize="10.5" TextWrapping="Wrap" Foreground="{DynamicResource WarnBrush}"
+                                                       Visibility="{Binding SelectedPlugin.CodeError, Converter={StaticResource BoolToVis}}" />
+                                        </Grid>
+                                    </Border>
+                                    <TextBlock FontSize="10" Margin="1,10,0,0" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                               Text="Le hash ci-dessus identifie exactement ce code — toute modification redemandera ton accord." />
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
+                </Grid>
+            </Border>
+
+                </Grid>
+            </Border>
         </Grid>
 
         <!-- ══ Statusbar ══ -->
-        <Border Grid.Row="4"
+        <Border Grid.Row="5"
                 Background="{DynamicResource AppSurfaceBrush}"
                 BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="0,1,0,0"
-                Padding="16,6">
+                Padding="16,5">
             <Grid>
                 <StackPanel Orientation="Horizontal">
-                    <Ellipse Width="7" Height="7" Fill="{Binding StatusDotColor}"
-                             VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <TextBlock Text="{Binding Status}" FontSize="11.5"
+                    <Ellipse Width="6" Height="6" Fill="{Binding StatusDotColor}"
+                             VerticalAlignment="Center" Margin="0,0,7,0" />
+                    <TextBlock Text="{Binding Status}" FontSize="10.5"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                    <TextBlock Text="{Binding WifiStatus}" FontSize="11.5" Margin="16,0,0,0"
+                    <TextBlock Text="{Binding WifiStatus}" FontSize="10.5" Margin="14,0,0,0"
                                Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                 </StackPanel>
                 <TextBlock x:Name="VersionText"
-                           FontSize="11"
+                           FontSize="10.5"
                            Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                            HorizontalAlignment="Right" />
             </Grid>

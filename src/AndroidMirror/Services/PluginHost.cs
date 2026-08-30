@@ -161,9 +161,11 @@ public partial class PluginInstance : ObservableObject
                 return;
             var raw = doc.RootElement.TryGetProperty("data", out var dp)
                 ? dp.GetRawText() : "null";
-            var data = e.Evaluate(raw);
+            // Parenthèses obligatoires : un objet littéral en tête de programme
+            // se parse comme un bloc ({ "k": v } → Unexpected token ':').
+            var data = e.Evaluate("(" + raw + ")");
             foreach (var fn in fns.ToArray())
-                ((Function)fn).Call(JsValue.Undefined, data);
+                ((Function)fn).Call(JsValue.Undefined, new[] { data });
         }
         catch (Exception ex) { Output?.Invoke($"event: {ex.Message}"); }
     }

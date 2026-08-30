@@ -7,8 +7,7 @@ namespace TouchMirror.Services;
 /// Surface offerte aux plugins JS (pont __call -> JSON).
 /// Control-plane uniquement : jamais de tactile, clavier, texte ou
 /// presse-papiers vers le téléphone. Les appels bloquent le thread du
-/// plugin en attendant le dispatcher UI — c'est voulu, l'API du script
-/// reste synchrone et simple.
+/// plugin en attendant le dispatcher UI pour rester synchrone.
 /// </summary>
 public sealed class PluginApi
 {

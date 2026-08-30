@@ -4,7 +4,7 @@ using FFmpeg.AutoGen;
 
 namespace TouchMirror.Video;
 
-public sealed unsafe class VideoDecoder : IDisposable
+public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
 {
     private static readonly object _initLock = new();
     private static bool _initialized;

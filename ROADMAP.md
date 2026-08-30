@@ -24,7 +24,7 @@ L'ordre indique les priorités, pas des dates de sortie. Les périmètres peuven
 | Étape | Objectif | Statut | Dépendance |
 |---|---|---|---|
 | 1. Fiabilité et confiance | Renforcer les plugins, l'API et la reconnexion | Prioritaire | Base actuelle |
-| 2. Espaces de travail | Retrouver une installation multi-téléphones en un clic | Prévu | Étape 1 |
+| 2. Espaces de travail | Retrouver une installation multi-téléphones en un clic | Livré | Étape 1 |
 | 3. Prise en main et performance | Rendre la première connexion évidente et maîtriser le coût des tuiles | Prévu | Indépendant, en parallèle des étapes 1–2 |
 | 4. Diagnostic et assistance | Expliquer les problèmes et faciliter leur résolution | Prévu | Étape 1, puis priorité après les espaces de travail |
 | 5. Capture et création | Sauvegarder les moments utiles et simplifier le streaming | À l'étude | Base stabilisée et mesures de ressources |
@@ -56,13 +56,13 @@ La vérification repose sur des empreintes SHA-256 embarquées, pas sur une sign
 
 **Résultat attendu :** choisir « Solo », « Duo » ou « Stream » et retrouver son installation.
 
-- [ ] Créer, renommer, dupliquer et supprimer un espace de travail.
-- [ ] Mémoriser les appareils sélectionnés, l'ordre des tuiles et le miroir actif.
-- [ ] Personnaliser les noms et les couleurs des téléphones dans TouchMirror.
-- [ ] Enregistrer les réglages vidéo et audio par appareil.
-- [ ] Restaurer la disposition et les réglages à la demande, sans action en jeu ni lancement automatique du jeu.
-- [ ] Conserver les appareils absents dans l'espace, avec un état clair et sans bloquer les autres.
-- [ ] Associer des raccourcis aux espaces en préservant les raccourcis de changement de miroir.
+- [x] Créer, renommer, dupliquer et supprimer un espace de travail.
+- [x] Mémoriser les appareils sélectionnés, l'ordre des tuiles et le miroir actif.
+- [x] Personnaliser les noms et les couleurs des téléphones dans TouchMirror.
+- [x] Enregistrer les réglages vidéo et audio par appareil.
+- [x] Restaurer la disposition et les réglages à la demande, sans action en jeu ni lancement automatique du jeu.
+- [x] Conserver les appareils absents dans l'espace, avec un état clair et sans bloquer les autres.
+- [x] Associer des raccourcis aux espaces en préservant les raccourcis de changement de miroir.
 
 **Validation :** après redémarrage de TouchMirror, un espace retrouve son ordre et ses réglages ; un téléphone absent ne bloque pas la restauration ; les dispositions restent utilisables avec différentes tailles de fenêtre et mises à l'échelle Windows.
 
