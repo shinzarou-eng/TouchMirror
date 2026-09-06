@@ -18,28 +18,29 @@ public sealed record AdbDevice(string Serial, string Model, string State, int? B
     public bool IsRememberedOnly => State == "remembered";
     /// <summary>Verdict du diagnostic USB (câble, instabilité…) — null si tout va bien.</summary>
     public bool HasDiag => Diag != null;
+    private static string L(string key) => LocalizationService.Get(key);
     public string StateText => State switch
     {
-        "device" => "Prêt",
-        "unauthorized" => "À autoriser sur le téléphone",
-        "offline" => "Hors ligne — rebranche",
-        "remembered" => "Non détecté",
-        _ => "Non prêt"
+        "device" => L("dev.ready"),
+        "unauthorized" => L("dev.unauthorized"),
+        "offline" => L("dev.offline"),
+        "remembered" => L("dev.remembered"),
+        _ => L("dev.notready")
     };
     public bool HasBattery => Battery.HasValue;
     public string BatteryText => Battery.HasValue ? $"{Battery} %" : "";
     public bool IsWifi => Serial.Contains(':');
     public bool HasDualTransport => AltSerial != null;
-    public string TransportText => IsRememberedOnly ? "Mémorisé"
+    public string TransportText => IsRememberedOnly ? L("dev.memorized")
         : HasDualTransport
             ? (IsWifi ? $"USB + WiFi — {Serial}" : "USB + WiFi")
             : IsWifi ? $"WiFi — {Serial}" : "USB";
     public bool ShowSerial => !IsWifi && !IsRememberedOnly;
     public string? SelectorHint => State switch
     {
-        "unauthorized" => "— à autoriser",
-        "offline" => "— hors ligne",
-        "remembered" => "— non détecté",
+        "unauthorized" => L("dev.hint_unauth"),
+        "offline" => L("dev.hint_offline"),
+        "remembered" => L("dev.hint_remembered"),
         _ => null
     };
 
@@ -52,6 +53,9 @@ public sealed record AdbDevice(string Serial, string Model, string State, int? B
     public AdbDevice Preferring(string serial)
         => Serial == serial ? this : AltSerial == serial ? this with { Serial = serial } : this;
 }
+
+/// <summary>Profil Android secondaire (utilisateur ou profil clone) sur un appareil.</summary>
+public sealed record AndroidProfile(int Id, string Name, bool Running);
 
 public static class AdbService
 {
@@ -133,7 +137,7 @@ public static class AdbService
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
             try { p.Kill(); } catch { }
-            throw new InvalidOperationException($"adb {args} — délai dépassé (30 s)");
+            throw new InvalidOperationException(string.Format(LocalizationService.Get("ex.adb_timeout"), args));
         }
     }
 
@@ -266,7 +270,7 @@ public static class AdbService
             catch { }
         }
         if (ip.Length == 0)
-            throw new InvalidOperationException("IP WiFi introuvable — téléphone connecté en WiFi ?");
+            throw new InvalidOperationException(LocalizationService.Get("ex.no_wifi_ip"));
 
         for (var i = 0; i < 3; i++)
         {
@@ -275,7 +279,7 @@ public static class AdbService
                 return ip;
             await Task.Delay(800, ct);
         }
-        throw new InvalidOperationException($"adb connect {ip}:5555 a échoué — PC et tel sur le même WiFi ?");
+        throw new InvalidOperationException(string.Format(LocalizationService.Get("ex.wifi_connect_fail"), ip));
     }
 
     public static async Task<(int W, int H)> GetScreenSizeAsync(string serial, CancellationToken ct = default)
@@ -319,9 +323,60 @@ public static class AdbService
         catch { }
     }
 
+    // ── Profils secondaires (multi-compte) ─────────────────────────────────
+
+    /// <summary>Liste les profils Android hors utilisateur principal (clone, travail…).</summary>
+    public static async Task<List<AndroidProfile>> ListProfilesAsync(string serial, CancellationToken ct = default)
+    {
+        var output = await RunAsync($"-s {serial} shell pm list users", ct);
+        var list = new List<AndroidProfile>();
+        foreach (var line in output.Split('\n', StringSplitOptions.TrimEntries))
+        {
+            var m = Regex.Match(line, @"UserInfo\{(\d+):([^:}]*):[0-9a-fA-F]+\}\s*(.*)");
+            if (!m.Success || int.Parse(m.Groups[1].Value) == 0)
+                continue;
+            var name = m.Groups[2].Value;
+            list.Add(new AndroidProfile(int.Parse(m.Groups[1].Value),
+                string.IsNullOrEmpty(name) ? $"Profil {m.Groups[1].Value}" : name,
+                m.Groups[3].Value.Contains("running")));
+        }
+        return list;
+    }
+
+    /// <summary>Crée un profil clone (type Dual Apps) sans action sur le téléphone.</summary>
+    public static async Task<int> CreateCloneProfileAsync(string serial, string name, CancellationToken ct = default)
+    {
+        var output = await RunAsync(
+            $"-s {serial} shell pm create-user --profileOf 0 --user-type android.os.usertype.profile.CLONE \"{name}\"", ct);
+        var m = Regex.Match(output, @"user id (\d+)");
+        if (!m.Success)
+            throw new InvalidOperationException(string.Format(LocalizationService.Get("ex.profile_denied"), output.Trim()));
+        return int.Parse(m.Groups[1].Value);
+    }
+
+    /// <summary>Installe une app déjà présente dans un profil (clone, sans téléchargement).</summary>
+    public static async Task InstallAppForUserAsync(string serial, int userId, string packageName, CancellationToken ct = default)
+    {
+        var output = await RunAsync($"-s {serial} shell pm install-existing --user {userId} {packageName}", ct);
+        if (!output.Contains("installed for user"))
+            throw new InvalidOperationException(string.Format(LocalizationService.Get("ex.install_denied"), output.Trim()));
+    }
+
+    /// <summary>Démarre un profil (requis avant de pouvoir y lancer des apps).</summary>
+    public static async Task StartUserAsync(string serial, int userId, CancellationToken ct = default)
+        => await RunAsync($"-s {serial} shell am start-user {userId}", ct);
+
+    /// <summary>Supprime un profil et toutes ses données (comptes de jeu inclus).</summary>
+    public static async Task RemoveUserProfileAsync(string serial, int userId, CancellationToken ct = default)
+    {
+        var output = await RunAsync($"-s {serial} shell pm remove-user {userId}", ct);
+        if (!output.Contains("Success"))
+            throw new InvalidOperationException(string.Format(LocalizationService.Get("ex.remove_denied"), output.Trim()));
+    }
+
     public static Process StartServerProcess(string serial, string remoteJar, string arguments)
     {
-        var adb = FindAdb() ?? throw new InvalidOperationException("adb introuvable");
+        var adb = FindAdb() ?? throw new InvalidOperationException(LocalizationService.Get("ex.adb_missing"));
         var psi = new ProcessStartInfo(adb,
             $"-s {serial} shell CLASSPATH={remoteJar} app_process / com.touchmirror.engine.Server {arguments}")
         {

@@ -32,7 +32,9 @@ public partial class MarketplaceItem : ObservableObject
     [ObservableProperty] private List<string> _capabilities = new();
 
     public bool CanUninstall => IsPresent;
-    public string ToggleLabel => IsActive ? "Désactiver" : "Activer";
+    public string ToggleLabel => IsActive
+        ? LocalizationService.Get("misc.disable")
+        : LocalizationService.Get("misc.enable");
 
     public void Refresh(IReadOnlyList<PluginInstance> installed)
     {
@@ -43,7 +45,7 @@ public partial class MarketplaceItem : ObservableObject
                       && string.Equals(p.ContentHash, Entry.Hash, StringComparison.OrdinalIgnoreCase);
         if (IsInstalled)
         {
-            ActionLabel = "Installé";
+            ActionLabel = LocalizationService.Get("installe");
             CanInstall = false;
             return;
         }
@@ -51,13 +53,13 @@ public partial class MarketplaceItem : ObservableObject
             && Version.TryParse(Entry.MinAppVersion, out var min)
             && min > UpdateService.CurrentVersion)
         {
-            ActionLabel = $"Requiert v{Entry.MinAppVersion}";
+            ActionLabel = string.Format(LocalizationService.Get("mkt.requires"), Entry.MinAppVersion);
             CanInstall = false;
             return;
         }
         CanInstall = true;
-        ActionLabel = p == null ? "Installer"
-            : p.Version != Entry.Version ? "Mettre à jour"
-            : "Reconfirmer";
+        ActionLabel = p == null ? LocalizationService.Get("mkt.install")
+            : p.Version != Entry.Version ? LocalizationService.Get("mkt.update")
+            : LocalizationService.Get("mkt.reconfirm");
     }
 }

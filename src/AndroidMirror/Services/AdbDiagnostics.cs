@@ -45,11 +45,11 @@ public static class AdbDiagnostics
             var now = DateTime.UtcNow;
             var recent = h.Transitions.Count(t => now - t < TimeSpan.FromSeconds(FlapWindowSeconds));
             if (recent >= FlapThreshold)
-                return "Liaison instable — le câble ou le port USB est douteux, essaie un autre port";
+                return LocalizationService.Get("diag.unstable");
             if (state == "unauthorized")
-                return "Débogage USB actif mais non autorisé — accepte la clé sur le téléphone";
+                return LocalizationService.Get("diag.unauthorized");
             if (state == "offline")
-                return "Hors ligne — débranche puis rebranche (câble data requis, pas charge-seule)";
+                return LocalizationService.Get("diag.offline");
             return null;
         }
     }

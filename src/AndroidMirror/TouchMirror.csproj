@@ -30,6 +30,7 @@
     <None Include="..\..\assets\ffmpeg.zip" Link="assets\ffmpeg.zip" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\ffmpeg\*.dll" Link="assets\ffmpeg\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\assets\ffmpeg')" />
     <None Include="..\..\assets\airplay\*" Link="assets\airplay\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\assets\airplay')" />
+    <None Include="..\..\lang\*.json" Link="lang\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

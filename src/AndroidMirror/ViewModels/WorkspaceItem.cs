@@ -26,3 +26,6 @@ public partial class WorkspaceItem : ObservableObject
 
 /// <summary>Membre d'un espace non connecté — affiché en tuile fantôme.</summary>
 public sealed record MissingDeviceItem(WorkspaceDevice Prefs, string Name, string? ColorHex);
+
+/// <summary>Profil Android secondaire ouvert en tuile miroir (multi-compte).</summary>
+public sealed record MirrorAccount(int UserId, string Name);

@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media.Animation;
+using TouchMirror.Services;
 using TouchMirror.ViewModels;
 using Wpf.Ui.Controls;
 
@@ -53,6 +54,7 @@ public sealed class HexToBrushConverter : IValueConverter
 
 public partial class MainWindow : FluentWindow
 {
+    private static string L(string key) => LocalizationService.Get(key);
     private readonly MainViewModel _vm = new();
     private bool _isFullscreen;
     private bool _captureMode;
@@ -72,7 +74,7 @@ public partial class MainWindow : FluentWindow
                 Directory.CreateDirectory(dir);
                 var file = Path.Combine(dir, $"mirror_{DateTime.Now:yyyyMMdd_HHmmss}.png");
                 instance.View.SaveScreenshot(file);
-                _vm.Status = $"Capture enregistrée → {file}";
+                _vm.Status = string.Format(L("cap.saved"), file);
                 return file;
             });
         _vm.AnyConnected += () =>
@@ -83,8 +85,8 @@ public partial class MainWindow : FluentWindow
             });
         _vm.ConfirmUnverified = p => Task.FromResult(
             System.Windows.MessageBox.Show(this,
-                $"« {p.Name} » n'est pas un plugin officiel — il tourne dans le sandbox JavaScript et peut piloter l'app (connexion, capture, miroirs).\n\nLis le code avant de l'activer. Continuer ?",
-                "Plugin non vérifié",
+                string.Format(L("dlg.unverified_body"), p.Name),
+                L("dlg.unverified_title"),
                 System.Windows.MessageBoxButton.YesNo,
                 System.Windows.MessageBoxImage.Warning) == System.Windows.MessageBoxResult.Yes);
         // « Détails » depuis une carte : bascule le dock sur la fiche marketplace.
@@ -328,7 +330,7 @@ public partial class MainWindow : FluentWindow
                 AddressBar.Text = HelpBrowser.Source?.ToString() ?? "";
             HelpBrowser.CoreWebView2.DocumentTitleChanged += (_, _) =>
                 PageTitle.Text = string.IsNullOrWhiteSpace(HelpBrowser.CoreWebView2.DocumentTitle)
-                    ? "Navigateur intégré" : HelpBrowser.CoreWebView2.DocumentTitle;
+                    ? L("help.browser_title") : HelpBrowser.CoreWebView2.DocumentTitle;
             HelpBrowser.CoreWebView2.NavigationStarting += (_, _) =>
                 NavProgress.Visibility = Visibility.Visible;
             HelpBrowser.CoreWebView2.NavigationCompleted += (_, _) =>
@@ -337,7 +339,7 @@ public partial class MainWindow : FluentWindow
         }
         catch (Exception ex)
         {
-            _vm.Status = $"WebView2 indisponible : {ex.Message}";
+            _vm.Status = string.Format(L("st.webview_fail"), ex.Message);
             ShowDock(null);
         }
     }
@@ -417,14 +419,88 @@ public partial class MainWindow : FluentWindow
     {
         if (sender is FrameworkElement { DataContext: WorkspaceItem item }
             && System.Windows.MessageBox.Show(this,
-                $"Supprimer l'espace « {item.Name} » ? Les téléphones ne seront pas déconnectés.",
-                "Supprimer l'espace",
+                string.Format(L("dlg.del_ws"), item.Name),
+                L("dlg.del_ws_title"),
                 System.Windows.MessageBoxButton.YesNo,
                 System.Windows.MessageBoxImage.Question) == System.Windows.MessageBoxResult.Yes)
             _vm.DeleteWorkspaceCommand.Execute(item);
     }
 
     private void OnWorkspaceExitClick(object sender, RoutedEventArgs e) => _vm.ExitWorkspace();
+
+    /// <summary>Peuple le sous-menu « Comptes secondaires » : profils existants + création.</summary>
+    private void OnDeviceAccountsClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button btn || btn.ContextMenu == null)
+            return;
+        btn.ContextMenu.PlacementTarget = btn;
+        btn.ContextMenu.IsOpen = true;
+    }
+
+    private async void OnAccountsContextMenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.ContextMenu cm)
+            return;
+        var device = cm.DataContext as Services.AdbDevice ?? _vm.ActiveMirror?.Device;
+        if (device == null || device.IsRememberedOnly)
+            return;
+        await PopulateAccountsAsync(cm, device);
+    }
+
+    private async void OnAccountsMenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.MenuItem menu)
+            return;
+        var device = menu.DataContext as Services.AdbDevice ?? _vm.ActiveMirror?.Device;
+        if (device == null || device.IsRememberedOnly)
+            return;
+        await PopulateAccountsAsync(menu, device);
+    }
+
+    private async Task PopulateAccountsAsync(System.Windows.Controls.ItemsControl menu, Services.AdbDevice device)
+    {
+        menu.Items.Clear();
+        menu.Items.Add(new System.Windows.Controls.MenuItem { Header = L("menu.loading"), IsEnabled = false });
+
+        var profiles = await _vm.ListProfilesAsync(device);
+        var stillOpen = menu switch
+        {
+            System.Windows.Controls.MenuItem mi => mi.IsSubmenuOpen,
+            System.Windows.Controls.ContextMenu cm => cm.IsOpen,
+            _ => true
+        };
+        if (!stillOpen)
+            return; // l'utilisateur a refermé le menu pendant la requête adb
+        menu.Items.Clear();
+
+        var create = new System.Windows.Controls.MenuItem { Header = L("menu.new_account") };
+        create.Click += async (_, _) =>
+            await _vm.CreateAccountAsync(device, string.Format(L("account.default_name"), profiles.Count + 2));
+        menu.Items.Add(create);
+
+        if (profiles.Count == 0)
+            return;
+        menu.Items.Add(new Separator());
+        foreach (var p in profiles)
+        {
+            var entry = new System.Windows.Controls.MenuItem { Header = p.Name };
+            var open = new System.Windows.Controls.MenuItem { Header = p.Running ? L("menu.open") : L("menu.open_stopped") };
+            open.Click += async (_, _) => await _vm.OpenAccountAsync(device, p);
+            var remove = new System.Windows.Controls.MenuItem { Header = L("menu.del_account") };
+            remove.Click += async (_, _) =>
+            {
+                if (System.Windows.MessageBox.Show(this,
+                        string.Format(L("dlg.del_account"), p.Name),
+                        L("dlg.del_account_title"),
+                        System.Windows.MessageBoxButton.YesNo,
+                        System.Windows.MessageBoxImage.Warning) == System.Windows.MessageBoxResult.Yes)
+                    await _vm.RemoveAccountAsync(device, p);
+            };
+            entry.Items.Add(open);
+            entry.Items.Add(remove);
+            menu.Items.Add(entry);
+        }
+    }
 
     private void OnWorkspaceNameVisible(object sender, DependencyPropertyChangedEventArgs e)
     {

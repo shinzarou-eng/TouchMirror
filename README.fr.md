@@ -83,7 +83,7 @@ Chaque outil a ses forces — voici où TouchMirror se situe :
 | Presets qualité, diagnostics intégrés | ✅ | — | — | ✅ |
 | Enregistrement MP4 intégré | ✅ | ✅ | — | — |
 | API locale + plugins sandbox | ✅ | — | — | — |
-| Multilingue | *Bientôt* (README EN dispo) | — | ✅ | — |
+| Multilingue | ✅ FR · EN | — | ✅ | — |
 | Open source | ✅ MIT | ✅ Apache-2.0 | — | — |
 
 *État au 16/09/2026 — n'hésite pas à corriger via une issue si quelque chose a changé.*

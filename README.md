@@ -81,7 +81,7 @@ Every tool has its strengths — here's where TouchMirror stands:
 | Quality presets, built-in diagnostics | ✅ | — | — | ✅ |
 | Built-in MP4 recording | ✅ | ✅ | — | — |
 | Local API + sandboxed plugins | ✅ | — | — | — |
-| Multi-language | *Soon* (EN README ready) | — | ✅ | — |
+| Multi-language | ✅ FR · EN | — | ✅ | — |
 | Open source | ✅ MIT | ✅ Apache-2.0 | — | — |
 
 *As of 09/16/2026 — feel free to open an issue if anything has changed.*
@@ -90,7 +90,7 @@ Every tool has its strengths — here's where TouchMirror stands:
 
 ### Ready-to-use build (recommended)
 
-> **Note:** the app UI is currently in French — full multi-language support is on the roadmap. Everything below maps 1:1 to the French labels.
+> **Note:** the app is bilingual FR/EN — pick your language in *Settings → Language*. Community translations live in `lang/<code>.json` and can be added without recompiling.
 
 1. Download **`TouchMirror-win-x64.zip`** from the [latest release](https://github.com/shinzarou-eng/TouchMirror/releases/latest)
 2. Unzip anywhere, run **`TouchMirror.exe`**

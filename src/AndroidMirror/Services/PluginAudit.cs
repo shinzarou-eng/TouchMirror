@@ -25,20 +25,20 @@ public static class PluginAudit
             switch (m.Groups[1].Value)
             {
                 case "getStatus" or "getMirrors" or "getDevices":
-                    Add("Lire l'état des miroirs et appareils"); break;
-                case "activate": Add("Changer le miroir actif"); break;
-                case "connect": Add("Connecter un appareil"); break;
-                case "disconnect": Add("Déconnecter un miroir"); break;
-                case "record": Add("Démarrer / arrêter un enregistrement"); break;
-                case "screenshot": Add("Prendre des captures d'écran"); break;
+                    Add(LocalizationService.Get("audit.read_state")); break;
+                case "activate": Add(LocalizationService.Get("audit.activate")); break;
+                case "connect": Add(LocalizationService.Get("audit.connect")); break;
+                case "disconnect": Add(LocalizationService.Get("audit.disconnect")); break;
+                case "record": Add(LocalizationService.Get("audit.record")); break;
+                case "screenshot": Add(LocalizationService.Get("audit.screenshot")); break;
                 case "on":
                     if (onIndex < 0)
                         onIndex = labels.Count;
                     break;
                 case "setTimeout" or "setInterval" or "clearTimeout" or "clearInterval":
-                    Add("Minuteries"); break;
-                case "log": Add("Écrire dans le journal de l'app"); break;
-                default: Add($"Autre : tm.{m.Groups[1].Value}"); break;
+                    Add(LocalizationService.Get("audit.timers")); break;
+                case "log": Add(LocalizationService.Get("audit.log")); break;
+                default: Add(string.Format(LocalizationService.Get("audit.other"), m.Groups[1].Value)); break;
             }
         }
 
@@ -50,14 +50,14 @@ public static class PluginAudit
                 if (seenEvents.Add(m.Groups[1].Value))
                     events.Add(m.Groups[1].Value);
             var label = events.Count > 0
-                ? $"Écouter les événements : {string.Join(", ", events)}"
-                : "Écouter les événements";
+                ? string.Format(LocalizationService.Get("audit.events_of"), string.Join(", ", events))
+                : LocalizationService.Get("audit.events");
             if (seen.Add(label))
                 labels.Insert(onIndex, label);
         }
 
         if (labels.Count == 0)
-            labels.Add("Aucun accès — le plugin ne touche à rien");
+            labels.Add(LocalizationService.Get("audit.none"));
         return labels;
     }
 }

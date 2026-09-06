@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:loc="clr-namespace:TouchMirror.Services"
              Focusable="True">
     <Grid x:Name="Container" Background="Black">
         <Image x:Name="VideoImage"
@@ -27,19 +28,19 @@
                 Visibility="Collapsed" IsHitTestVisible="False">
             <StackPanel>
                 <TextBlock FontSize="10.5" Foreground="#9AA6B5" HorizontalAlignment="Center"
-                           Text="Clic : placer · touche : assigner · glisser : déplacer · clic droit : supprimer · Échap : quitter" />
+                           Text="{loc:Loc clic_placer_touche_assigner_glisser_deplacer_cli}" />
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
-                    <TextBlock Text="Style" FontSize="10.5" Foreground="#9AA6B5" VerticalAlignment="Center" />
+                    <TextBlock Text="{loc:Loc style}" FontSize="10.5" Foreground="#9AA6B5" VerticalAlignment="Center" />
                     <ComboBox SelectedIndex="{Binding KeybindStyle}" Width="92" Height="24"
                               FontSize="11" Margin="6,0,14,0" VerticalContentAlignment="Center">
-                        <ComboBoxItem Content="Pastille" />
-                        <ComboBoxItem Content="Cercle" />
-                        <ComboBoxItem Content="Minimal" />
+                        <ComboBoxItem Content="{loc:Loc pastille}" />
+                        <ComboBoxItem Content="{loc:Loc cercle}" />
+                        <ComboBoxItem Content="{loc:Loc minimal}" />
                     </ComboBox>
-                    <TextBlock Text="Opacité" FontSize="10.5" Foreground="#9AA6B5" VerticalAlignment="Center" />
+                    <TextBlock Text="{loc:Loc opacite}" FontSize="10.5" Foreground="#9AA6B5" VerticalAlignment="Center" />
                     <Slider Value="{Binding KeybindOpacity}" Minimum="0.3" Maximum="1"
                             Width="72" Margin="6,0,14,0" VerticalAlignment="Center" />
-                    <TextBlock Text="Taille" FontSize="10.5" Foreground="#9AA6B5" VerticalAlignment="Center" />
+                    <TextBlock Text="{loc:Loc taille}" FontSize="10.5" Foreground="#9AA6B5" VerticalAlignment="Center" />
                     <Slider Value="{Binding KeybindSize}" Minimum="22" Maximum="44"
                             Width="72" Margin="6,0,0,0" VerticalAlignment="Center" />
                 </StackPanel>
@@ -59,7 +60,7 @@
             <StackPanel Orientation="Horizontal">
                 <ui:SymbolIcon Symbol="Phone24" FontSize="12"
                                Foreground="#8AB4E8" Margin="0,0,7,0" />
-                <TextBlock Text="iOS · AFFICHAGE SEUL"
+                <TextBlock Text="{loc:Loc ios_affichage_seul}"
                            Foreground="#8AB4E8"
                            FontSize="10.5"
                            FontWeight="SemiBold" />
@@ -73,21 +74,21 @@
                 <ui:SymbolIcon Symbol="PhoneScreenTime24" FontSize="40"
                                Foreground="#5A7FA8"
                                HorizontalAlignment="Center" />
-                <TextBlock Text="En attente d'un iPhone…"
+                <TextBlock Text="{loc:Loc en_attente_d_un_iphone}"
                            FontSize="16" FontWeight="SemiBold"
                            Foreground="#DDE6F0"
                            HorizontalAlignment="Center"
                            Margin="0,16,0,6" />
-                <TextBlock Text="Centre de contrôle → Recopie de l'écran → « TouchMirror »"
+                <TextBlock Text="{loc:Loc centre_de_controle_recopie_de_l_ecran_touchmirro}"
                            FontSize="12.5"
                            Foreground="#9FB2C8"
                            HorizontalAlignment="Center" />
-                <TextBlock Text="Même réseau Wi-Fi — affichage seul sans le contrôle Bluetooth"
+                <TextBlock Text="{loc:Loc meme_reseau_wi_fi_affichage_seul_sans_le_control}"
                            FontSize="11"
                            Foreground="#6E7E92"
                            HorizontalAlignment="Center"
                            Margin="0,8,0,0" />
-                <TextBlock Text="Contrôle tactile : bouton « iPhone » dans la barre d'outils, puis AssistiveTouch → Appareils"
+                <TextBlock Text="{loc:Loc controle_tactile_bouton_iphone_dans_la_barre_d_o}"
                            FontSize="10.5"
                            Foreground="#5E7A95"
                            HorizontalAlignment="Center"

@@ -110,16 +110,16 @@ public sealed partial class IosMirrorInstance : MirrorInstance
             {
                 BleLinked = linked;
                 BleStatus = linked
-                    ? "iPhone connecté en Bluetooth — clics et raccourcis actifs"
-                    : "Souris Bluetooth en diffusion — en attente de l'iPhone";
-                View.SetIosBadgeText(linked ? "iOS · CONTRÔLE BLE" : "iOS · AFFICHAGE SEUL");
+                    ? L("ios.ble_connected")
+                    : L("ios.ble_waiting");
+                View.SetIosBadgeText(linked ? L("ios.ble_badge") : L("ios_affichage_seul"));
                 BleStatusChanged?.Invoke(BleStatus);
             });
             await _ble.StartAsync();
             _pointer = new BlePointerAdapter(_ble);
             View.SetIosPointer(_pointer);
             BleActive = true;
-            BleStatus = "Souris Bluetooth en diffusion — iPhone : Réglages → Accessibilité → Toucher → AssistiveTouch → Appareils";
+            BleStatus = L("ios.ble_advertising");
             BleStatusChanged?.Invoke(BleStatus);
             return true;
         }
@@ -128,7 +128,7 @@ public sealed partial class IosMirrorInstance : MirrorInstance
             _ble?.Dispose();
             _ble = null;
             _pointer = null;
-            BleStatus = $"Contrôle Bluetooth indisponible : {ex.Message}";
+            BleStatus = string.Format(L("ios.ble_fail"), ex.Message);
             BleStatusChanged?.Invoke(BleStatus);
             return false;
         }
@@ -142,8 +142,8 @@ public sealed partial class IosMirrorInstance : MirrorInstance
         View.SetIosPointer(null);
         BleActive = false;
         BleLinked = false;
-        BleStatus = "Contrôle Bluetooth désactivé";
-        View.SetIosBadgeText("iOS · AFFICHAGE SEUL");
+        BleStatus = L("ios.ble_off");
+        View.SetIosBadgeText(L("ios_affichage_seul"));
         BleStatusChanged?.Invoke(BleStatus);
     }
 
@@ -167,7 +167,7 @@ public sealed partial class IosMirrorInstance : MirrorInstance
     }
 
     public override string ToggleRecording(string videoCodec)
-        => "Enregistrement vidéo indisponible sur iOS — capture PNG seulement.";
+        => L("ios.no_record");
 
     public override async Task DisconnectAsync()
     {
