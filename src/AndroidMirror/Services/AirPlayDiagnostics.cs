@@ -37,13 +37,13 @@ public static class AirPlayDiagnostics
     public static string? Summarize(Result r)
     {
         if (r.FirewallRuleBlocking)
-            return "Pare-feu : une règle BLOQUE AirPlayHost — l'iPhone ne pourra pas se connecter";
+            return LocalizationService.Get("air.fw_blocked");
         if (r.FirewallRuleMissing)
-            return "Pare-feu : aucune règle pour AirPlayHost — autorise-le à la 1re connexion iPhone";
+            return LocalizationService.Get("air.fw_missing");
         if (r.PortConflicts.Count > 0)
-            return $"Ports occupés par un autre processus : {string.Join(", ", r.PortConflicts)}";
-        if (string.Equals(r.ProfileKind, "Public", StringComparison.OrdinalIgnoreCase))
-            return "Réseau en profil Public — mets le Wi-Fi en Privé pour que l'iPhone te voie";
+            return string.Format(LocalizationService.Get("air.ports_used"), string.Join(", ", r.PortConflicts));
+        if (string.Equals(r.ProfileKind, LocalizationService.Get("profile.public"), StringComparison.OrdinalIgnoreCase))
+            return LocalizationService.Get("air.public_profile");
         return null;
     }
 
@@ -76,7 +76,7 @@ public static class AirPlayDiagnostics
             foreach (var net in networks)
             {
                 int cat = net.GetCategory();
-                return cat switch { 0 => "Public", 1 => "Privé", 2 => "Domaine", _ => null };
+                return cat switch { 0 => LocalizationService.Get("profile.public"), 1 => LocalizationService.Get("profile.private"), 2 => LocalizationService.Get("profile.domain"), _ => null };
             }
         }
         catch { }

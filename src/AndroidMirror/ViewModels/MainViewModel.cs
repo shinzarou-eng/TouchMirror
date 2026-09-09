@@ -11,44 +11,58 @@ using TouchMirror.Services;
 
 namespace TouchMirror.ViewModels;
 
-public sealed record SettingOption(string Label, int Value);
-public sealed record CodecOption(string Label, string Value);
+public sealed record SettingOption(string LabelKey, int Value)
+{
+    /// <summary>Clé loc → texte ; les clés non traduites s'affichent telles quelles ("720p", "30 fps"…).</summary>
+    public string Label => LocalizationService.Get(LabelKey);
+}
+public sealed record CodecOption(string LabelKey, string Value)
+{
+    public string Label => LocalizationService.Get(LabelKey);
+}
 
 public partial class MainViewModel : ObservableObject
 {
     public SettingOption[] MaxSizeOptions { get; } =
-        { new("720p", 720), new("1080p", 1080), new("1440p", 1440), new("2160p", 2160), new("Natif (max)", 0) };
+        { new("720p", 720), new("1080p", 1080), new("1440p", 1440), new("2160p", 2160), new("opt.natif_max", 0) };
     public SettingOption[] FpsOptions { get; } =
         { new("30 fps", 30), new("60 fps", 60), new("90 fps", 90), new("120 fps", 120) };
     public SettingOption[] BitRateOptions { get; } =
         { new("4 Mbps", 4_000_000), new("8 Mbps", 8_000_000), new("16 Mbps", 16_000_000),
           new("24 Mbps", 24_000_000), new("40 Mbps", 40_000_000) };
     public CodecOption[] CodecOptions { get; } =
-        { new("H.264 (compatible)", "h264"), new("H.265 (qualité+)", "h265"), new("AV1 (expérimental)", "av1") };
+        { new("codec.h264", "h264"), new("codec.h265", "h265"), new("codec.av1", "av1") };
 
     /// <summary>Presets qualité : appliquent résolution + fps + débit d'un coup.</summary>
-    public sealed record QualityPreset(string Label, string Detail, int MaxSize, int MaxFps, int BitRate);
+    public sealed record QualityPreset(string LabelKey, string DetailKey, int MaxSize, int MaxFps, int BitRate)
+    {
+        public string Label => LocalizationService.Get(LabelKey);
+        public string Detail => LocalizationService.Get(DetailKey);
+    }
     public QualityPreset[] QualityPresets { get; } =
     {
-        new("Performance", "720p · 30 fps · 4 Mbps — fluide sur Wi-Fi chargé", 720, 30, 4_000_000),
-        new("Équilibré", "1080p · 60 fps · 16 Mbps", 1080, 60, 16_000_000),
-        new("Qualité+", "1440p · 60 fps · 24 Mbps", 1440, 60, 24_000_000),
-        new("Maximal", "Natif · 60 fps · 40 Mbps", 0, 60, 40_000_000),
+        new("preset.perf", "preset.perf.detail", 720, 30, 4_000_000),
+        new("preset.balanced", "preset.balanced.detail", 1080, 60, 16_000_000),
+        new("preset.quality", "preset.quality.detail", 1440, 60, 24_000_000),
+        new("preset.max", "preset.max.detail", 0, 60, 40_000_000),
     };
 
     /// <summary>Choix « Écran » : écran physique ou écran virtuel Android.</summary>
-    public sealed record DisplayModeOption(string Label, string? Spec);
+    public sealed record DisplayModeOption(string LabelKey, string? Spec)
+    {
+        public string Label => LocalizationService.Get(LabelKey);
+    }
     public DisplayModeOption[] DisplayModeOptions { get; } =
     {
-        new("Écran du téléphone", null),
-        new("Virtuel · auto", ""),
-        new("Virtuel · 1920×1080 paysage", "1920x1080/240"),
-        new("Virtuel · 1600×900 paysage", "1600x900/200"),
-        new("Virtuel · 1280×720 paysage", "1280x720/160"),
-        new("Virtuel · 1080×1920 portrait", "1080x1920/300"),
+        new("disp.phone", null),
+        new("disp.auto", ""),
+        new("disp.1920x1080", "1920x1080/240"),
+        new("disp.1600x900", "1600x900/200"),
+        new("disp.1280x720", "1280x720/160"),
+        new("disp.1080x1920", "1080x1920/300"),
         // DPI bas → smallest-width ≥600dp → Android/apps passent en mode tablette.
-        new("Tablette · 8″ (1920×1200)", "1920x1200/280"),
-        new("Tablette · 10″ (2560×1600)", "2560x1600/240"),
+        new("disp.tab8", "1920x1200/280"),
+        new("disp.tab10", "2560x1600/240"),
     };
 
     [ObservableProperty] private DisplayModeOption? _selectedDisplayMode;
@@ -77,8 +91,8 @@ public partial class MainViewModel : ObservableObject
         _suppressReconnect = false;
         if (ActiveMirror != null)
             _ = ReconnectActiveAsync();
-        Status = $"Preset « {value.Label} » appliqué" +
-                 (ActiveMirror?.Prefs != null ? $" à « {ActiveMirror.DeviceName} »" : " (global)");
+        Status = string.Format(L("st.preset_applied"), value.Label) +
+                 (ActiveMirror?.Prefs != null ? string.Format(L("st.to_device"), ActiveMirror.DeviceName) : L("st.global"));
     }
 
     [ObservableProperty]
@@ -100,8 +114,8 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Portée des réglages affichés : appareil actif (espace) ou globaux.</summary>
     public string ActiveSettingsScope =>
         ActiveMirror?.Prefs != null
-            ? $"Réglages de « {ActiveMirror.DeviceName} » — propres à cet espace"
-            : "Réglages globaux";
+            ? string.Format(L("st.settings_of"), ActiveMirror.DeviceName)
+            : L("st.global_settings");
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActiveMirrorName))]
@@ -146,7 +160,7 @@ public partial class MainViewModel : ObservableObject
             Status = ios.BleStatus;
     }
 
-    [ObservableProperty] private string _status = "Sélectionne un appareil et connecte-toi";
+    [ObservableProperty] private string _status = "";
     [ObservableProperty] private string _adbStatus = "";
     [ObservableProperty] private string _wifiStatus = "";
     [ObservableProperty] private bool _isBusy;
@@ -166,6 +180,7 @@ public partial class MainViewModel : ObservableObject
     private readonly DispatcherTimer _pollTimer = new() { Interval = TimeSpan.FromSeconds(5) };
     private bool _refreshing;
     private readonly AppSettings _settings;
+    private static string L(string key) => LocalizationService.Get(key);
     private bool _suppressSave;
     private readonly LocalApiHost _apiHost;
     private LocalApiServer? _apiServer;
@@ -189,6 +204,8 @@ public partial class MainViewModel : ObservableObject
         };
 
         _settings = SettingsStore.Load();
+        LocalizationService.Instance.Load(_settings.Language);
+        Status = L("st.select_device");
         // migration : anciens plugins .ps1 → id sans extension
         _settings.EnabledPlugins = _settings.EnabledPlugins
             .Select(e => e.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase)
@@ -212,6 +229,7 @@ public partial class MainViewModel : ObservableObject
         SyncDeviceClipboard = _settings.SyncDeviceClipboard;
         Topmost = _settings.Topmost;
         TurnScreenOff = _settings.TurnScreenOff;
+        Language = _settings.Language;
         AutoLaunchDofus = _settings.AutoLaunchDofus;
         ShowSettings = _settings.ShowSettings;
         LocalApiPort = _settings.LocalApiPort;
@@ -262,7 +280,7 @@ public partial class MainViewModel : ObservableObject
         _settings.LocalApiToken = string.IsNullOrEmpty(LocalApiToken) ? null : LocalApiToken;
         _settings.LastSelectedDeviceKey = SelectedDevice?.DeviceKey;
         _settings.EnabledPlugins = Plugins.Where(p => p.Running).Select(p => p.Id).ToList();
-        _settings.MirrorOrder = Mirrors.Select(x => x.Device.DeviceKey).ToList();
+        _settings.MirrorOrder = Mirrors.Select(x => x.IdentityKey).ToList();
         _settings.Workspaces = Workspaces.Select(w => w.Model).ToList();
         _settings.ActiveWorkspaceId = ActiveWorkspace?.Id;
         SyncActiveWorkspace();
@@ -284,7 +302,7 @@ public partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(TurnScreenOffText))]
     private bool _turnScreenOff;
     [ObservableProperty] private bool _autoLaunchDofus;
-    public string TurnScreenOffText => TurnScreenOff ? "Activé" : "Désactivé";
+    public string TurnScreenOffText => TurnScreenOff ? L("misc.on") : L("misc.off");
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SettingsVisibility))]
@@ -348,6 +366,15 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _localApiEnabled;
     [ObservableProperty] private int _localApiPort = 47613;
     [ObservableProperty] private string _localApiToken = "";
+    [ObservableProperty] private string _language = "fr";
+
+    partial void OnLanguageChanged(string value)
+    {
+        if (_suppressSave) return;
+        _settings.Language = value;
+        LocalizationService.Instance.Load(value);
+        ScheduleSave();
+    }
 
     public MirrorInstance? MirrorAtSlot(int slot)
         => slot >= 1 && slot <= Mirrors.Count ? Mirrors[slot - 1] : null;
@@ -468,11 +495,26 @@ public partial class MainViewModel : ObservableObject
 
     // ═══ Espaces de travail — dispositions multi-téléphones mémorisées ═══
 
-    /// <summary>Entrée d'espace correspondant à cet appareil (clé matérielle ou dernier serial).</summary>
-    private WorkspaceDevice? FindWorkspaceDevice(AdbDevice device)
-        => ActiveWorkspace?.Model.Devices.FirstOrDefault(d =>
-            d.DeviceKey == device.DeviceKey
-            || (d.LastSerial != null && device.MatchesSerial(d.LastSerial)));
+    /// <summary>Clé d'identité d'un miroir : DeviceKey, ou « DeviceKey#userId » pour un profil secondaire.</summary>
+    private static string IdentityKeyOf(AdbDevice device, int? accountUserId)
+        => accountUserId is { } id ? $"{device.DeviceKey}#{id}" : device.DeviceKey;
+
+    /// <summary>Découpe une clé « base#userId » en clé d'appareil + profil éventuel.</summary>
+    private static (string BaseKey, int? UserId) SplitIdentityKey(string key)
+    {
+        var i = key.IndexOf('#');
+        return i < 0 ? (key, null)
+            : (key[..i], int.TryParse(key[(i + 1)..], out var u) ? u : null);
+    }
+
+    /// <summary>Entrée d'espace correspondant à cet appareil/profil (clé d'identité ou dernier serial).</summary>
+    private WorkspaceDevice? FindWorkspaceDevice(AdbDevice device, int? accountUserId = null)
+    {
+        var key = IdentityKeyOf(device, accountUserId);
+        return ActiveWorkspace?.Model.Devices.FirstOrDefault(d =>
+            d.DeviceKey == key
+            || (accountUserId == null && d.LastSerial != null && device.MatchesSerial(d.LastSerial)));
+    }
 
     /// <summary>Capture l'état courant (membres, ordre, actif) dans l'espace actif.</summary>
     private void SyncActiveWorkspace()
@@ -485,19 +527,23 @@ public partial class MainViewModel : ObservableObject
         var next = new List<WorkspaceDevice>();
         foreach (var m in Mirrors)
         {
-            if (stale.Remove(m.Device.DeviceKey, out var e))
+            if (stale.Remove(m.IdentityKey, out var e))
             {
                 e.Model = m.Device.Model;
                 e.LastSerial = m.Device.Serial;
+                e.AccountUserId = m.AccountUserId;
+                e.AccountName = m.AccountName;
                 next.Add(e);
             }
             else
             {
                 next.Add(new WorkspaceDevice
                 {
-                    DeviceKey = m.Device.DeviceKey,
+                    DeviceKey = m.IdentityKey,
                     Model = m.Device.Model,
-                    LastSerial = m.Device.Serial
+                    LastSerial = m.Device.Serial,
+                    AccountUserId = m.AccountUserId,
+                    AccountName = m.AccountName
                 });
             }
             m.Prefs = next[^1];
@@ -505,14 +551,14 @@ public partial class MainViewModel : ObservableObject
         // Les membres non connectés restent dans l'espace (tuiles « absentes »).
         next.AddRange(stale.Values);
         ws.Devices = next;
-        ws.ActiveDeviceKey = ActiveMirror?.Device.DeviceKey;
+        ws.ActiveDeviceKey = ActiveMirror?.IdentityKey;
         item.Refresh();
     }
 
     [RelayCommand]
     private void NewWorkspace()
     {
-        var item = new WorkspaceItem(new Workspace { Name = $"Espace {Workspaces.Count + 1}" });
+        var item = new WorkspaceItem(new Workspace { Name = string.Format(L("ws.default_name"), Workspaces.Count + 1) });
         Workspaces.Add(item);
         _ = SelectWorkspaceAsync(item);
     }
@@ -524,7 +570,7 @@ public partial class MainViewModel : ObservableObject
             return;
         if (IsBusy)
         {
-            Status = "Une connexion est en cours — réessaie dans un instant";
+            Status = L("st.connecting_wait");
             return;
         }
         SaveNow();
@@ -542,30 +588,32 @@ public partial class MainViewModel : ObservableObject
         var ws = item.Model;
         var keys = ws.Devices.Select(d => d.DeviceKey).ToHashSet();
         foreach (var m in Mirrors.ToList())
-            if (!keys.Contains(m.Device.DeviceKey))
+            if (!keys.Contains(m.IdentityKey))
                 await RemoveMirrorInternalAsync(m);
 
         await RefreshDevicesAsync();
         foreach (var wd in ws.Devices)
         {
-            var existing = Mirrors.FirstOrDefault(m => m.Device.DeviceKey == wd.DeviceKey);
+            var existing = Mirrors.FirstOrDefault(m => m.IdentityKey == wd.DeviceKey);
             if (existing != null)
             {
                 existing.Prefs = wd;
                 continue;
             }
-            var dev = Devices.FirstOrDefault(d => d.DeviceKey == wd.DeviceKey)
+            var (baseKey, userId) = SplitIdentityKey(wd.DeviceKey);
+            var dev = Devices.FirstOrDefault(d => d.DeviceKey == baseKey)
                       ?? (wd.LastSerial != null
                           ? Devices.FirstOrDefault(d => d.MatchesSerial(wd.LastSerial))
                           : null);
             if (dev is { IsReady: true })
-                await ConnectDeviceAsync(dev, wd);
+                await ConnectDeviceAsync(dev, wd,
+                    userId is { } u ? new MirrorAccount(u, wd.AccountName ?? string.Format(L("account.default_name"), u)) : null);
         }
 
         _settings.MirrorOrder = ws.Devices.Select(d => d.DeviceKey).ToList();
         ApplyMirrorOrder();
         RefreshInactiveMirrors();
-        var active = Mirrors.FirstOrDefault(m => m.Device.DeviceKey == ws.ActiveDeviceKey)
+        var active = Mirrors.FirstOrDefault(m => m.IdentityKey == ws.ActiveDeviceKey)
                      ?? Mirrors.FirstOrDefault();
         if (active != null)
             SetActive(active);
@@ -574,8 +622,8 @@ public partial class MainViewModel : ObservableObject
         SaveNow();
         var missing = MissingDevices.Count;
         Status = missing == 0
-            ? $"Espace « {item.Name} » — {Mirrors.Count} téléphone(s)"
-            : $"Espace « {item.Name} » — {Mirrors.Count} connecté(s), {missing} absent(s)";
+            ? string.Format(L("ws.status_ok"), item.Name, Mirrors.Count)
+            : string.Format(L("ws.status_missing"), item.Name, Mirrors.Count, missing);
     }
 
     public bool HasActiveWorkspace => ActiveWorkspace != null;
@@ -632,7 +680,9 @@ public partial class MainViewModel : ObservableObject
                 VideoCodec = d.VideoCodec,
                 EnableAudio = d.EnableAudio,
                 TurnScreenOff = d.TurnScreenOff,
-                NewDisplay = d.NewDisplay
+                NewDisplay = d.NewDisplay,
+                AccountUserId = d.AccountUserId,
+                AccountName = d.AccountName
             }).ToList()
         };
         Workspaces.Insert(Workspaces.IndexOf(item) + 1, new WorkspaceItem(copy));
@@ -666,11 +716,14 @@ public partial class MainViewModel : ObservableObject
         if (ws != null)
             foreach (var wd in ws.Devices)
             {
-                if (Mirrors.Any(m => m.Device.DeviceKey == wd.DeviceKey))
+                if (Mirrors.Any(m => m.IdentityKey == wd.DeviceKey))
                     continue;
-                _settings.Devices.TryGetValue(wd.DeviceKey, out var p);
-                MissingDevices.Add(new MissingDeviceItem(
-                    wd, p?.CustomName ?? wd.Model ?? wd.DeviceKey, p?.Color));
+                var (baseKey, _) = SplitIdentityKey(wd.DeviceKey);
+                _settings.Devices.TryGetValue(baseKey, out var p);
+                var name = p?.CustomName ?? wd.Model ?? baseKey;
+                if (wd.AccountName != null)
+                    name += $" · {wd.AccountName}";
+                MissingDevices.Add(new MissingDeviceItem(wd, name, p?.Color));
             }
         OnPropertyChanged(nameof(HasMissingDevices));
         OnPropertyChanged(nameof(HasStripContent));
@@ -687,12 +740,15 @@ public partial class MainViewModel : ObservableObject
         {
             foreach (var wd in ActiveWorkspace.Model.Devices)
             {
-                if (Mirrors.Any(m => m.Device.DeviceKey == wd.DeviceKey))
+                if (Mirrors.Any(m => m.IdentityKey == wd.DeviceKey))
                     continue;
-                var dev = Devices.FirstOrDefault(d => d.DeviceKey == wd.DeviceKey
+                var (baseKey, userId) = SplitIdentityKey(wd.DeviceKey);
+                var dev = Devices.FirstOrDefault(d => d.DeviceKey == baseKey
                     || (wd.LastSerial != null && d.MatchesSerial(wd.LastSerial)));
-                if (dev is { IsReady: true } && !_voluntaryDisconnects.Contains(dev.Serial))
-                    await ConnectDeviceAsync(dev, wd);
+                if (dev is { IsReady: true } && !_voluntaryDisconnects.Contains(dev.Serial)
+                    && !_voluntaryDisconnects.Contains(wd.DeviceKey))
+                    await ConnectDeviceAsync(dev, wd,
+                        userId is { } u ? new MirrorAccount(u, wd.AccountName ?? string.Format(L("account.default_name"), u)) : null);
             }
             RefreshMissingDevices();
         }
@@ -709,14 +765,17 @@ public partial class MainViewModel : ObservableObject
             return;
         await RefreshDevicesAsync();
         var wd = item.Prefs;
-        var dev = Devices.FirstOrDefault(d => d.DeviceKey == wd.DeviceKey)
+        var (baseKey, userId) = SplitIdentityKey(wd.DeviceKey);
+        _voluntaryDisconnects.Remove(wd.DeviceKey);
+        var dev = Devices.FirstOrDefault(d => d.DeviceKey == baseKey)
                   ?? (wd.LastSerial != null
                       ? Devices.FirstOrDefault(d => d.MatchesSerial(wd.LastSerial))
                       : null);
         if (dev is { IsReady: true })
-            await ConnectDeviceAsync(dev, wd);
+            await ConnectDeviceAsync(dev, wd,
+                userId is { } u ? new MirrorAccount(u, wd.AccountName ?? string.Format(L("account.default_name"), u)) : null);
         else
-            Status = $"« {item.Name} » n'est pas détecté — rebranche-le";
+            Status = string.Format(L("st.not_detected"), item.Name);
     }
 
     [RelayCommand]
@@ -913,7 +972,7 @@ public partial class MainViewModel : ObservableObject
         }
         catch
         {
-            CatalogStatus = "catalogue indisponible — vérifie la connexion";
+            CatalogStatus = L("st.catalog_down");
         }
         finally
         {
@@ -927,7 +986,7 @@ public partial class MainViewModel : ObservableObject
         if (item == null || !item.CanInstall)
             return;
         item.CanInstall = false;
-        item.ActionLabel = "Installation…";
+        item.ActionLabel = L("st.installing");
         try
         {
             var dir = Path.Combine(AppContext.BaseDirectory, "plugins");
@@ -1061,7 +1120,7 @@ public partial class MainViewModel : ObservableObject
             return;
         Mirrors.Move(i, j);
         RefreshInactiveMirrors();
-        _settings.MirrorOrder = Mirrors.Select(x => x.Device.DeviceKey).ToList();
+        _settings.MirrorOrder = Mirrors.Select(x => x.IdentityKey).ToList();
         ScheduleSave();
     }
 
@@ -1072,7 +1131,7 @@ public partial class MainViewModel : ObservableObject
         if (order.Count == 0)
             return;
         var sorted = Mirrors
-            .OrderBy(m => order.IndexOf(m.Device.DeviceKey) is var k && k >= 0 ? k : int.MaxValue)
+            .OrderBy(m => order.IndexOf(m.IdentityKey) is var k && k >= 0 ? k : int.MaxValue)
             .ToList();
         for (var i = 0; i < sorted.Count; i++)
         {
@@ -1111,9 +1170,9 @@ public partial class MainViewModel : ObservableObject
     {
         Status = Mirrors.Count switch
         {
-            0 => "Déconnecté",
-            1 => $"Connecté — {Mirrors[0].DeviceName}",
-            _ => $"{Mirrors.Count} miroirs — actif : {ActiveMirror?.DeviceName}"
+            0 => L("st.disconnected"),
+            1 => string.Format(L("st.connected"), Mirrors[0].DeviceName),
+            _ => string.Format(L("st.mirrors_active"), Mirrors.Count, ActiveMirror?.DeviceName)
         };
         OnPropertyChanged(nameof(IsConnected));
         OnPropertyChanged(nameof(IsDisconnected));
@@ -1121,8 +1180,9 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(RecordingVisibility));
     }
 
-    /// <summary>Options scrcpy : réglages propres de l'appareil (espace) sinon globaux.</summary>
-    private ScrcpyOptions BuildOptions(WorkspaceDevice? o = null) => new()
+    /// <summary>Options scrcpy : réglages propres de l'appareil (espace) sinon globaux.
+    /// Un compte secondaire force un écran virtuel dédié et lance le Dofus du profil.</summary>
+    private ScrcpyOptions BuildOptions(WorkspaceDevice? o = null, MirrorAccount? account = null) => new()
     {
         MaxSize = o?.MaxSize ?? _settings.MaxSize,
         MaxFps = o?.MaxFps ?? _settings.MaxFps,
@@ -1131,8 +1191,15 @@ public partial class MainViewModel : ObservableObject
         StayAwake = StayAwake,
         Audio = o?.EnableAudio ?? _settings.EnableAudio,
         TurnScreenOff = o?.TurnScreenOff ?? _settings.TurnScreenOff,
-        NewDisplay = o?.NewDisplay ?? _settings.NewDisplay,
-        AutoLaunchPackage = AutoLaunchDofus ? "com.ankama.dofustouch" : null,
+        // Un compte secondaire a besoin d'un écran virtuel paysage : null = écran
+        // physique (impossible pour un profil) et "" = auto (résolution native du tel,
+        // souvent portrait — Dofus se retrouve en letterbox).
+        NewDisplay = account != null
+            ? (string.IsNullOrEmpty(o?.NewDisplay) ? "1920x1200/280" : o.NewDisplay)
+            : (o?.NewDisplay ?? _settings.NewDisplay),
+        AutoLaunchPackage = account != null
+            ? $"com.ankama.dofustouch@{account.UserId}"
+            : AutoLaunchDofus ? "com.ankama.dofustouch" : null,
     };
 
     /// <summary>Réglages propres de l'appareil actif dans l'espace courant (nul hors espace/membre).</summary>
@@ -1237,8 +1304,11 @@ public partial class MainViewModel : ObservableObject
         Log("Réglage modifié — reconnexion de la tuile active…");
         var device = m.Device;
         var prefs = m.Prefs;
+        var account = m.AccountUserId is { } uid
+            ? new MirrorAccount(uid, m.AccountName ?? string.Format(L("account.default_name"), uid))
+            : null;
         await RemoveMirrorInternalAsync(m);
-        await ConnectDeviceAsync(device, prefs);
+        await ConnectDeviceAsync(device, prefs, account);
     }
 
     public async Task InitializeAsync()
@@ -1248,7 +1318,7 @@ public partial class MainViewModel : ObservableObject
         AdbStatus = adb == null
             ? "adb introuvable — installe les platform-tools du SDK Android"
             : string.Equals(adb, bundled, StringComparison.OrdinalIgnoreCase)
-                ? "adb embarqué — rien à installer"
+                ? L("st.adb_embedded")
                 : $"adb : {adb}";
         await RefreshDevicesAsync();
         RescanPlugins();
@@ -1367,9 +1437,9 @@ public partial class MainViewModel : ObservableObject
                 ?? list.FirstOrDefault();
             var detected = list.Count(d => !d.IsRememberedOnly);
             if (detected == 0)
-                Status = "Aucun appareil détecté — active le débogage USB et branche ton téléphone";
+                Status = L("st.no_device");
             else if (!IsConnected)
-                Status = $"{detected} appareil(s) détecté(s)";
+                Status = string.Format(L("st.devices_detected"), detected);
             _apiHost.Publish("devices", new { detected });
 
             // Relance la détection tant qu'un appareil attend une action
@@ -1416,19 +1486,22 @@ public partial class MainViewModel : ObservableObject
 
     private static string NotReadyMessage(AdbDevice? device) => device switch
     {
-        null => "Aucun appareil prêt (vérifie le débogage USB)",
+        null => L("st.no_ready"),
         { NeedsAuthorization: true } =>
-            $"Autorise le débogage USB sur « {device.ShortName} » — regarde l'écran de l'appareil",
-        { IsOffline: true } => $"« {device.ShortName} » est hors ligne — rebranche-le",
-        { IsRememberedOnly: true } => $"« {device.ShortName} » n'est pas détecté — rebranche-le",
-        _ => $"« {device.ShortName} » n'est pas prêt"
+            string.Format(L("st.authorize"), device.ShortName),
+        { IsOffline: true } => string.Format(L("st.offline"), device.ShortName),
+        { IsRememberedOnly: true } => string.Format(L("st.not_detected"), device.ShortName),
+        _ => string.Format(L("st.not_ready"), device.ShortName)
     };
 
-    private async Task ConnectDeviceAsync(AdbDevice device, WorkspaceDevice? prefs = null)
+    private async Task ConnectDeviceAsync(AdbDevice device, WorkspaceDevice? prefs = null,
+        MirrorAccount? account = null)
     {
         Services.AppLogger.Write($"connect start: {device.Serial}");
         _voluntaryDisconnects.Remove(device.Serial);
-        var existing = Mirrors.FirstOrDefault(m => m.Device.SharesIdentity(device));
+        _voluntaryDisconnects.Remove(IdentityKeyOf(device, account?.UserId));
+        var existing = Mirrors.FirstOrDefault(m => m.Device.SharesIdentity(device)
+            && m.AccountUserId == account?.UserId);
         if (existing != null)
         {
             SetActive(existing);
@@ -1436,17 +1509,23 @@ public partial class MainViewModel : ObservableObject
         }
 
         // Membre de l'espace actif ? → ses réglages propres s'appliquent.
-        prefs ??= FindWorkspaceDevice(device);
+        prefs ??= FindWorkspaceDevice(device, account?.UserId);
         IsBusy = true;
         _hasError = false;
         OnPropertyChanged(nameof(StatusDotColor));
-        Status = $"Connexion — {device.DisplayName}…";
+        Status = account == null
+            ? string.Format(L("st.connecting"), device.DisplayName)
+            : string.Format(L("st.connecting_account"), device.DisplayName, account.Name);
         var instance = new MirrorInstance(device)
         {
             ShouldSyncClipboard = () => SyncDeviceClipboard,
             Prefs = prefs,
+            AccountUserId = account?.UserId,
+            AccountName = account?.Name,
             AccentHex = _settings.Devices.TryGetValue(device.DeviceKey, out var dp) ? dp.Color : null
         };
+        if (account != null)
+            instance.DeviceName = $"{device.ShortName} · {account.Name}";
         try
         {
             instance.Log += Log;
@@ -1471,7 +1550,10 @@ public partial class MainViewModel : ObservableObject
             SetActive(instance);
             MirrorAdded?.Invoke(instance);
             Services.AppLogger.Write("startasync begin");
-            await instance.StartAsync(BuildOptions(prefs));
+            var options = BuildOptions(prefs, account);
+            if (account != null)
+                await AdbService.StartUserAsync(device.Serial, account.UserId);
+            await instance.StartAsync(options);
             Services.AppLogger.Write("startasync done");
             RememberDevice(device);
             BindKeybindPersistence(instance);
@@ -1483,7 +1565,7 @@ public partial class MainViewModel : ObservableObject
             Mirrors.Remove(instance);
             PromoteNextActive(instance);
             instance.Dispose();
-            Status = $"Échec de connexion : {ex.Message}";
+            Status = string.Format(L("st.connect_failed"), ex.Message);
             OnPropertyChanged(nameof(StatusDotColor));
         }
         finally
@@ -1512,10 +1594,88 @@ public partial class MainViewModel : ObservableObject
         // Déconnexion volontaire : un plugin/l'API ne doit pas reconnecter cet
         // appareil tant qu'il reste détecté. Effacé à la prochaine connexion
         // explicite ou quand l'appareil disparaît (débranché).
-        _voluntaryDisconnects.Add(instance.Device.Serial);
+        // Un profil secondaire marque sa clé propre, pas le serial de l'appareil.
+        _voluntaryDisconnects.Add(instance.AccountUserId == null
+            ? instance.Device.Serial
+            : instance.IdentityKey);
         Mirrors.Remove(instance);
         PromoteNextActive(instance);
         await instance.DisconnectAsync();
+    }
+
+    // ── Comptes secondaires (profils Android clone — multi-compte) ─────────
+
+    /// <summary>Profils Android secondaires détectés sur un appareil.</summary>
+    public async Task<List<AndroidProfile>> ListProfilesAsync(AdbDevice device)
+    {
+        try { return await AdbService.ListProfilesAsync(device.Serial); }
+        catch (Exception ex)
+        {
+            Log($"profiles: {ex.Message}");
+            return new List<AndroidProfile>();
+        }
+    }
+
+    /// <summary>Crée un profil clone, y installe Dofus Touch et ouvre sa tuile miroir.</summary>
+    public async Task CreateAccountAsync(AdbDevice device, string name)
+    {
+        IsBusy = true;
+        try
+        {
+            Status = string.Format(L("st.creating_account"), name);
+            var userId = await AdbService.CreateCloneProfileAsync(device.Serial, name);
+            Log($"profil clone créé : {name} (user {userId})");
+            await AdbService.InstallAppForUserAsync(device.Serial, userId, "com.ankama.dofustouch");
+            await AdbService.StartUserAsync(device.Serial, userId);
+            await ConnectDeviceAsync(device, null, new MirrorAccount(userId, name));
+        }
+        catch (Exception ex)
+        {
+            Log(ex.ToString());
+            Status = ex.Message.Contains("Maximum number", StringComparison.OrdinalIgnoreCase)
+                ? L("st.one_account")
+                : string.Format(L("st.create_failed"), ex.Message);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>Ouvre une tuile miroir sur un profil existant (Dofus du profil sur écran virtuel).</summary>
+    public async Task OpenAccountAsync(AdbDevice device, AndroidProfile profile)
+    {
+        try
+        {
+            if (!profile.Running)
+                await AdbService.StartUserAsync(device.Serial, profile.Id);
+            await ConnectDeviceAsync(device, null, new MirrorAccount(profile.Id, profile.Name));
+        }
+        catch (Exception ex)
+        {
+            Log(ex.ToString());
+            Status = string.Format(L("st.open_failed"), ex.Message);
+        }
+    }
+
+    /// <summary>Supprime un profil secondaire du téléphone (données du compte perdues).</summary>
+    public async Task RemoveAccountAsync(AdbDevice device, AndroidProfile profile)
+    {
+        var tile = Mirrors.FirstOrDefault(m => m.AccountUserId == profile.Id
+            && m.Device.SharesIdentity(device));
+        if (tile != null)
+            await RemoveMirrorInternalAsync(tile);
+        try
+        {
+            await AdbService.RemoveUserProfileAsync(device.Serial, profile.Id);
+            Log($"profil supprimé : {profile.Name} (user {profile.Id})");
+            Status = string.Format(L("st.account_deleted"), profile.Name);
+        }
+        catch (Exception ex)
+        {
+            Log(ex.ToString());
+            Status = string.Format(L("st.delete_failed"), ex.Message);
+        }
     }
 
     // ── iOS / AirPlay (affichage seul) ────────────────────────────────────
@@ -1589,7 +1749,7 @@ public partial class MainViewModel : ObservableObject
             _airPlay?.Dispose();
             _airPlay = null; // retry propre au prochain clic
             _hasError = true;
-            Status = $"AirPlay indisponible : {ex.Message}";
+            Status = string.Format(L("st.airplay_fail"), ex.Message);
             OnPropertyChanged(nameof(StatusDotColor));
         }
         finally
@@ -1610,9 +1770,9 @@ public partial class MainViewModel : ObservableObject
             Log($"airplay diag: port occupé {c}");
         var warn = AirPlayDiagnostics.Summarize(diag);
         tile?.View.SetWaitingHint(warn);
-        var howto = "iPhone : Centre de contrôle → Recopie de l'écran → « TouchMirror »";
+        var howto = L("airplay.howto");
         return warn == null
-            ? $"AirPlay prêt ({diag.LocalIPv4}) — {howto}"
+            ? string.Format(L("airplay.ready"), diag.LocalIPv4, howto)
             : $"{warn}\n{howto}";
     }
 
@@ -1638,7 +1798,7 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void BindKeybindPersistence(MirrorInstance instance)
     {
-        var key = instance.Device.DeviceKey;
+        var key = instance.IdentityKey;
         if (_settings.Devices.TryGetValue(key, out var prefs))
             instance.LoadKeybinds(prefs.Keybinds,
                 prefs.KeybindStyle, prefs.KeybindOpacity, prefs.KeybindSize);
@@ -1682,7 +1842,9 @@ public partial class MainViewModel : ObservableObject
             if (Devices[i].SharesIdentity(device))
                 Devices[i] = Devices[i] with { CustomName = trimmed };
         foreach (var m in Mirrors.Where(m => m.Device.SharesIdentity(device)))
-            m.DeviceName = trimmed ?? device.DisplayName;
+            m.DeviceName = m.AccountName != null
+                ? $"{trimmed ?? device.ShortName} · {m.AccountName}"
+                : trimmed ?? device.DisplayName;
         SaveNow();
     }
 
@@ -1743,8 +1905,8 @@ public partial class MainViewModel : ObservableObject
             return;
         try
         {
-            WifiStatus = "Activation WiFi…";
-            Status = "Bascule en WiFi…";
+            WifiStatus = L("st.wifi_enabling");
+            Status = L("st.wifi_switching");
 
             var existing = Mirrors.FirstOrDefault(m => m.Device.SharesIdentity(SelectedDevice));
             var reconnect = existing != null;
@@ -1764,20 +1926,20 @@ public partial class MainViewModel : ObservableObject
             }
             if (wifiDevice == null)
             {
-                WifiStatus = $"WiFi activé ({ip}:5555) mais l'appareil n'apparaît pas — vérifie le réseau";
-                Status = "WiFi activé — sélectionne l'appareil IP dans la liste";
+                WifiStatus = string.Format(L("st.wifi_not_listed"), ip);
+                Status = L("st.wifi_select");
                 return;
             }
 
             SelectedDevice = wifiDevice;
-            WifiStatus = $"WiFi activé — {ip}:5555, câble inutile";
-            Status = reconnect ? "Reconnexion en WiFi…" : "WiFi prêt — clique Connecter";
+            WifiStatus = string.Format(L("st.wifi_on"), ip);
+            Status = reconnect ? L("st.wifi_reconnect") : L("st.wifi_ready");
             if (reconnect)
                 await ConnectDeviceAsync(wifiDevice);
         }
         catch (Exception ex)
         {
-            WifiStatus = $"Échec WiFi : {ex.Message}";
+            WifiStatus = string.Format(L("st.wifi_failed"), ex.Message);
             _hasError = true;
             OnPropertyChanged(nameof(StatusDotColor));
         }
@@ -1810,12 +1972,12 @@ public partial class MainViewModel : ObservableObject
 
         if (ActiveMirror is { IsConnected: true })
         {
-            Status = "Preset appliqué — reconnexion du miroir…";
+            Status = L("st.preset_reconnect");
             await ReconnectActiveAsync();
         }
         else
         {
-            Status = "Preset appliqué — 1080p · 60 fps · 24 Mbps · écran atténué";
+            Status = L("st.dofus_applied");
         }
     }
 

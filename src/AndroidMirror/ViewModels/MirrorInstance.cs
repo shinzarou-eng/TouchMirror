@@ -13,6 +13,7 @@ namespace TouchMirror.ViewModels;
 
 public partial class MirrorInstance : ObservableObject, IDisposable
 {
+    protected static string L(string key) => LocalizationService.Get(key);
     public AdbDevice Device { get; }
     public MirrorView View { get; } = new();
 
@@ -32,6 +33,13 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     [ObservableProperty] private string? _accentHex;
     /// <summary>Réglages propres de l'appareil dans l'espace de travail actif (nul = globaux).</summary>
     public WorkspaceDevice? Prefs { get; set; }
+
+    /// <summary>Profil Android secondaire affiché sur écran virtuel (nul = utilisateur principal).</summary>
+    public int? AccountUserId { get; set; }
+    /// <summary>Nom du profil secondaire affiché dans la tuile.</summary>
+    public string? AccountName { get; set; }
+    /// <summary>Clé d'identité du miroir : DeviceKey, ou DeviceKey#userId pour un profil secondaire.</summary>
+    public string IdentityKey => AccountUserId is { } id ? $"{Device.DeviceKey}#{id}" : Device.DeviceKey;
 
     /// <summary>Vrai quand la déconnexion vient d'un geste utilisateur (pas d'une coupure session).</summary>
     public bool ManualDisconnect { get; set; }
@@ -203,7 +211,9 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         await session.StartAsync();
 
         IsConnected = true;
-        DeviceName = Device.CustomName ?? session.DeviceName ?? Device.DisplayName;
+        DeviceName = AccountName != null
+            ? $"{Device.CustomName ?? session.DeviceName ?? Device.ShortName} · {AccountName}"
+            : Device.CustomName ?? session.DeviceName ?? Device.DisplayName;
         View.Dispatcher.Invoke(() => View.AttachControl(session.Control!));
         Connected?.Invoke(this);
 
@@ -228,7 +238,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                 try { Session?.Control?.SetDisplayPower(true); } catch { }
                 await AdbService.WakeScreenAsync(Device.Serial);
                 await AdbService.SetBrightnessAsync(Device.Serial, 0);
-                Log?.Invoke("écran du téléphone atténué (miroir actif)");
+                Log?.Invoke(L("log.screen_dimmed"));
             }
             else if (!dimmed && _screenDimmed)
             {
@@ -239,12 +249,12 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                     await AdbService.SetBrightnessAsync(Device.Serial, _savedBrightness);
                 _savedBrightness = -1;
                 _savedStayOn = -1;
-                Log?.Invoke("écran du téléphone restauré");
+                Log?.Invoke(L("log.screen_restored"));
             }
         }
         catch (Exception ex)
         {
-            Log?.Invoke($"luminosité: {ex.Message}");
+            Log?.Invoke(string.Format(L("log.brightness_fail"), ex.Message));
         }
     }
 
@@ -281,7 +291,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         {
             StopRecordingInternal();
             IsRecording = false;
-            return $"Enregistrement terminé → {_recordPath}";
+            return string.Format(L("rec.done"), _recordPath);
         }
 
         var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "TouchMirror");
@@ -300,7 +310,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         }
         IsRecording = true;
         RecordingSince = DateTime.Now;
-        return $"Enregistrement → {_recordPath}";
+        return string.Format(L("rec.started"), _recordPath);
     }
 
     private void StopRecordingInternal()

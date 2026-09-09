@@ -57,7 +57,7 @@ public sealed class AirPlayService : IDisposable
         var dir = Path.Combine(AppContext.BaseDirectory, "assets", "airplay");
         var exe = Path.Combine(dir, "AirPlayHost.exe");
         if (!File.Exists(exe))
-            throw new FileNotFoundException($"Récepteur AirPlay introuvable : {exe}");
+            throw new FileNotFoundException(string.Format(LocalizationService.Get("air.missing_exe"), exe));
 
         // Règles entrantes créées/vérifiées au premier lancement : le host
         // pour RAOP/AirPlay/RTP, l'app elle-même pour l'écoute mDNS (5353)
@@ -117,8 +117,8 @@ public sealed class AirPlayService : IDisposable
         if (done != connect)
         {
             var why = _host.HasExited
-                ? $"AirPlayHost s'est arrêté (code {_host.ExitCode})"
-                : "AirPlayHost n'a pas répondu en 15 s";
+                ? string.Format(LocalizationService.Get("air.exited"), _host.ExitCode)
+                : LocalizationService.Get("air.no_response");
             Dispose();
             throw new InvalidOperationException(why);
         }

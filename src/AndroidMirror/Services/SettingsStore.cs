@@ -45,6 +45,10 @@ public sealed class WorkspaceDevice
     public bool? TurnScreenOff { get; set; }
     /// <summary>Écran virtuel : null = hérite du global, "" = auto, "WxH/DPI" sinon.</summary>
     public string? NewDisplay { get; set; }
+    /// <summary>Profil Android secondaire (userId) si ce membre est une tuile multi-compte.</summary>
+    public int? AccountUserId { get; set; }
+    /// <summary>Nom affiché du profil secondaire.</summary>
+    public string? AccountName { get; set; }
 }
 
 /// <summary>Disposition mémorisée : membres (dans l'ordre des tuiles) + miroir actif.</summary>
@@ -87,6 +91,8 @@ public sealed class AppSettings
     public List<Workspace> Workspaces { get; set; } = new();
     /// <summary>Espace actuellement appliqué ; nul = mode libre (réglages globaux).</summary>
     public string? ActiveWorkspaceId { get; set; }
+    /// <summary>Langue de l'interface : "fr" (défaut), "en", … (fichier lang/&lt;code&gt;.json).</summary>
+    public string Language { get; set; } = "fr";
 }
 
 public static class SettingsStore
