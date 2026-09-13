@@ -29,6 +29,38 @@
                                      "diagnostic"
                                  ],
                         "hash":  "72675b1735bde5fc8094103c83b0748a42a8dd794aedd507d9e06548e21a67e6"
+                    },
+                    {
+                        "id":  "graphs",
+                        "name":  "Graphs",
+                        "version":  "1.0",
+                        "author":  "TouchMirror",
+                        "icon":  "📈",
+                        "description":  "Graphe FPS en surimpression sur chaque miroir — petit panneau sombre déplaçable à la souris, masqué en mode capture.",
+                        "official":  true,
+                        "featured":  true,
+                        "tags":  [
+                                     "stats",
+                                     "overlay"
+                                 ],
+                        "hash":  "de2d86fa273e0844491c476d05ee7894dc74156934b17d403c52d3271605ce10",
+                        "minAppVersion":  "0.6.0"
+                    },
+                    {
+                        "id":  "stats",
+                        "name":  "Stats",
+                        "version":  "1.0",
+                        "author":  "TouchMirror",
+                        "icon":  "📊",
+                        "description":  "Badge « résolution + fps » en surimpression sur chaque miroir — petit panneau compact en haut à droite, déplaçable à la souris, masqué en mode capture.",
+                        "official":  true,
+                        "featured":  false,
+                        "tags":  [
+                                     "stats",
+                                     "overlay"
+                                 ],
+                        "hash":  "579075baa4131a109980132ef0e01234cefc02c1a78ed577c7e4cb50e33d07c3",
+                        "minAppVersion":  "0.6.0"
                     }
                 ]
 }

@@ -1,0 +1,9 @@
+{
+  "name": "Stats",
+  "description": "Badge « résolution + fps » en surimpression sur chaque miroir — petit panneau compact en haut à droite, déplaçable à la souris, masqué en mode capture.",
+  "version": "1.0",
+  "author": "TouchMirror",
+  "icon": "📊",
+  "featured": false,
+  "tags": ["stats", "overlay"]
+}
