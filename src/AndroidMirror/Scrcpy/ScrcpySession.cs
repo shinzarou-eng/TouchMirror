@@ -13,7 +13,9 @@ public sealed class ScrcpyOptions
     public int MaxSize { get; init; } = 0;
     public int MaxFps { get; init; } = 60;
     public int VideoBitRate { get; init; } = 8_000_000;
-    public string VideoCodec { get; init; } = "h264";
+    public string VideoCodec { get; init; } = "auto";
+    /// <summary>Décodeur PC : "gpu" (D3D11VA, défaut) ou "cpu" (logiciel FFmpeg).</summary>
+    public string VideoDecoder { get; init; } = "gpu";
     public bool StayAwake { get; init; }
     public bool Audio { get; init; } = true;
     public bool TurnScreenOff { get; init; }
@@ -127,7 +129,7 @@ public sealed class ScrcpySession : IAsyncDisposable
 
         var codecBuf = new byte[4];
         await ReadExactAsync(_videoSocket, codecBuf);
-        VideoCodecId = Encoding.ASCII.GetString(codecBuf);
+        VideoCodecId = Encoding.ASCII.GetString(codecBuf).Trim('\0');
 
         if (_audioSocket != null)
         {

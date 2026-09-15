@@ -29,6 +29,7 @@ public enum ControlMsgType : byte
     CameraZoomOut = 20,
     ResizeDisplay = 21,
     ScanFile = 22,
+    SetVideoParams = 23,
 }
 
 public enum DeviceMsgType : byte
@@ -240,6 +241,16 @@ public sealed class ControlChannel : IDisposable
     public void SetDisplayPower(bool on)
     {
         Span<byte> buf = stackalloc byte[2] { (byte)ControlMsgType.SetDisplayPower, (byte)(on ? 1 : 0) };
+        Send(buf);
+    }
+
+    /// <summary>Débit à chaud + suspension de l'encodeur (tuile en miniature).</summary>
+    public void SetVideoParams(int bitRate, bool suspend)
+    {
+        Span<byte> buf = stackalloc byte[6];
+        buf[0] = (byte)ControlMsgType.SetVideoParams;
+        BinaryPrimitives.WriteInt32BigEndian(buf.Slice(1, 4), bitRate);
+        buf[5] = (byte)(suspend ? 1 : 0);
         Send(buf);
     }
 

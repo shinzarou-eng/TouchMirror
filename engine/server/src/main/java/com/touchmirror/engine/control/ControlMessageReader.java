@@ -64,6 +64,8 @@ public class ControlMessageReader {
                 return parseResizeDisplay();
             case ControlMessage.TYPE_SCAN_FILE:
                 return parseScanFile();
+            case ControlMessage.TYPE_SET_VIDEO_PARAMS:
+                return parseSetVideoParams();
             default:
                 throw new ControlProtocolException("Unknown event type: " + type);
         }
@@ -177,6 +179,12 @@ public class ControlMessageReader {
     private ControlMessage parseCameraSetTorch() throws IOException {
         boolean on = dis.readBoolean();
         return ControlMessage.createCameraSetTorch(on);
+    }
+
+    private ControlMessage parseSetVideoParams() throws IOException {
+        int bitRate = dis.readInt();
+        boolean suspend = dis.readByte() != 0;
+        return ControlMessage.createSetVideoParams(bitRate, suspend);
     }
 
     private ControlMessage parseResizeDisplay() throws IOException {

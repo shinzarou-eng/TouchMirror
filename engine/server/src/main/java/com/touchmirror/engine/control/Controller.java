@@ -337,6 +337,9 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
             case ControlMessage.TYPE_RESET_VIDEO:
                 resetVideo();
                 return true;
+            case ControlMessage.TYPE_SET_VIDEO_PARAMS:
+                setVideoParams(msg.getBitRate(), msg.isSuspend());
+                return true;
             default:
                 // fall through
         }
@@ -840,6 +843,13 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
         if (surfaceCapture != null) {
             Ln.i("Video capture reset");
             surfaceCapture.getCaptureControl().reset(CaptureControl.RESET_REASON_CLIENT_RESET);
+        }
+    }
+
+    // Débit/suspension à chaud sur l'encodeur — tuiles en miniature.
+    private void setVideoParams(int bitRate, boolean suspend) {
+        if (surfaceCapture != null) {
+            surfaceCapture.getCaptureControl().setVideoParams(bitRate, suspend);
         }
     }
 
