@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>decbench</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="FFmpeg.AutoGen" Version="9.0.1.1" />
+    <Compile Include="..\src\AndroidMirror\Video\VideoDecoder.cs" Link="VideoDecoder.cs" />
+    <Compile Include="..\src\AndroidMirror\Video\IFrameSource.cs" Link="IFrameSource.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\src\AndroidMirror\bin\Release\net10.0-windows10.0.19041.0\assets\ffmpeg\*.dll" Link="assets\ffmpeg\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

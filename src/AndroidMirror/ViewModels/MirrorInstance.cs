@@ -148,6 +148,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     {
         var session = new ScrcpySession(Device, options);
         Session = session;
+        _videoBitRate = options.VideoBitRate;
 
         session.ServerLog += m => Log?.Invoke(m);
         session.VideoSizeChanged += (w, h) =>
@@ -174,9 +175,24 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                 {
                     if (Decoder == null)
                     {
-                        Decoder = new VideoDecoder(session.VideoCodecId ?? "h264");
+                        GpuPresenter? presenter = null;
+                        if (options.VideoDecoder == "gpu")
+                        {
+                            try { presenter = new GpuPresenter(); }
+                            catch (Exception ex) { Log?.Invoke($"gpu presenter: {ex.Message}"); }
+                        }
+                        Decoder = new VideoDecoder(session.VideoCodecId ?? "h264",
+                            preferHardware: options.VideoDecoder != "cpu",
+                            gpuPresenter: presenter);
+                        if (presenter != null)
+                        {
+                            Decoder.GpuFrame += presenter.Present;
+                            presenter.FrameReady += () =>
+                                View.Dispatcher.BeginInvoke(() => View.OnGpuFrame());
+                        }
                         Decoder.Error += m => Log?.Invoke($"decoder: {m}");
-                        View.Dispatcher.Invoke(() => View.AttachDecoder(Decoder));
+                        var p = presenter;
+                        View.Dispatcher.Invoke(() => View.AttachDecoder(Decoder, p));
                     }
                     Decoder.Feed(packet.Data);
                 }
@@ -264,11 +280,18 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     }
 
     private volatile bool _videoHidden;
+    private int _videoBitRate = 8_000_000;
+
+    /// <summary>Débit plancher d'une tuile en miniature (encodeur quasi au repos).</summary>
+    private const int ThrottleBitRate = 500_000;
 
     /// <summary>
-    /// Met le décodage vidéo en pause tant que le miroir est en miniature.
-    /// À la reprise : decoder recréé + ResetVideo — scrcpy renvoie la config
-    /// codec et une keyframe, donc l'image repart nette sans artefacts.
+    /// Met le décodage vidéo en pause tant que le miroir est en miniature, et
+    /// suspend l'encodeur côté téléphone (débit plancher) pour économiser
+    /// batterie, CPU et bande passante. À la reprise : débit restauré +
+    /// dé-suspension + ResetVideo — le codec est recréé, config et keyframe
+    /// renvoyées, l'image repart nette sans artefacts.
+    /// Un enregistrement en cours consomme les paquets bruts : pas de throttle.
     /// </summary>
     public virtual void SetVideoHidden(bool hidden)
     {
@@ -276,7 +299,16 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             return;
         _videoHidden = hidden;
         if (hidden)
+        {
+            if (_recorder == null && _recordStream == null)
+            {
+                try { Session?.Control?.SetVideoParams(ThrottleBitRate, suspend: true); } catch { }
+                RaiseLog(L("log.throttled"));
+            }
             return;
+        }
+        try { Session?.Control?.SetVideoParams(_videoBitRate, suspend: false); } catch { }
+        RaiseLog(L("log.unthrottled"));
         lock (_decoderLock)
         {
             Decoder?.Dispose();
@@ -296,11 +328,11 @@ public partial class MirrorInstance : ObservableObject, IDisposable
 
         var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "TouchMirror");
         Directory.CreateDirectory(dir);
-        var stamp = $"rec_{Device.Model}_{DateTime.Now:yyyyMMdd_HHmmss}";
+        var stamp = $"rec_{Device.Model}_{DateTime.Now:yyyyMMdd_HHmmss}_{Math.Abs(IdentityKey.GetHashCode()) % 1000:D3}";
         if (videoCodec == "h264")
         {
             _recordPath = Path.Combine(dir, stamp + ".mp4");
-            _recorder = new Mp4Recorder(_recordPath);
+            _recorder = new Mp4Recorder(_recordPath, Session?.VideoWidth ?? 0, Session?.VideoHeight ?? 0);
         }
         else
         {
@@ -310,6 +342,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         }
         IsRecording = true;
         RecordingSince = DateTime.Now;
+        try { Session?.Control?.SendSimple(ControlMsgType.ResetVideo); } catch { }
         return string.Format(L("rec.started"), _recordPath);
     }
 

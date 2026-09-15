@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using TouchMirror.Scrcpy;
@@ -18,6 +19,8 @@ public partial class MirrorView : UserControl
 {
     private IFrameSource? _decoder;
     private WriteableBitmap? _bitmap;
+    private D3DImage? _gpuImage;
+    private GpuPresenter? _presenter;
     private ControlChannel? _control;
 
     private int _videoW, _videoH;
@@ -45,6 +48,40 @@ public partial class MirrorView : UserControl
     }
 
     public void AttachDecoder(IFrameSource decoder) => _decoder = decoder;
+
+    public void AttachDecoder(IFrameSource decoder, GpuPresenter? presenter)
+    {
+        _decoder = decoder;
+        _presenter = presenter;
+        if (presenter == null)
+            return;
+        _gpuImage = new D3DImage();
+        VideoImage.Source = _gpuImage;
+        var hwnd = new WindowInteropHelper(Window.GetWindow(this)
+            ?? Application.Current.MainWindow).Handle;
+        presenter.Attach(_gpuImage, hwnd);
+        presenter.SizeChanged += (w, h) => Dispatcher.BeginInvoke(() =>
+        {
+            presenter.Rebind();
+            _videoW = w;
+            _videoH = h;
+            SetWaitingOverlay(false);
+            VideoSizeChanged?.Invoke(w, h);
+            LayoutKeybinds();
+        });
+    }
+
+    public void OnGpuFrame()
+    {
+        _presenter?.Invalidate();
+        _frameCounter++;
+        if (_fpsWatch.ElapsedMilliseconds >= 1000)
+        {
+            _fps = _frameCounter * 1000.0 / _fpsWatch.ElapsedMilliseconds;
+            _frameCounter = 0;
+            _fpsWatch.Restart();
+        }
+    }
 
     /// <summary>Badge « iOS · affichage seul » — rappel permanent qu'aucun contrôle n'existe.</summary>
     public void SetIosReadOnly(bool readOnly)
@@ -386,13 +423,64 @@ public partial class MirrorView : UserControl
 
     private bool _statsVisible = true;
 
+    // ═══ Widgets graphe pilotés par les plugins (un par id) ═══
+
+    private readonly Dictionary<string, GraphWidget> _overlays = new();
+
+    /// <summary>Frames/s mesurées sur ce flux — exposé aux plugins.</summary>
+    public double CurrentFps => _fps;
+
+    /// <summary>Affiche/masque le widget <paramref name="id"/> et règle titre,
+    /// couleur, mode compact (sans courbe) et coin d'ancrage (« tl » « tr »
+    /// « bl » « br »). Un widget est créé au premier appel.</summary>
+    public void SetGraphOverlay(string id, bool? visible, string? title,
+        string? colorHex, bool? compact = null, string? pos = null)
+    {
+        if (!_overlays.TryGetValue(id, out var w))
+        {
+            w = new GraphWidget { Host = OverlayLayer };
+            w.DragBegan += () => Activated?.Invoke(this);
+            AnchorOverlay(w, pos ?? "bl");
+            OverlayLayer.Children.Add(w);
+            _overlays[id] = w;
+        }
+        w.Configure(title, colorHex, compact);
+        if (!string.IsNullOrEmpty(pos) && !w.Dragged)
+            AnchorOverlay(w, pos);
+        if (visible is bool v)
+            w.On = v;
+        w.Visibility = w.On && _statsVisible ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private static void AnchorOverlay(GraphWidget w, string pos)
+    {
+        w.ClearValue(Canvas.LeftProperty);
+        w.ClearValue(Canvas.RightProperty);
+        w.ClearValue(Canvas.TopProperty);
+        w.ClearValue(Canvas.BottomProperty);
+        switch (pos)
+        {
+            case "tl": Canvas.SetLeft(w, 12); Canvas.SetTop(w, 12); break;
+            case "tr": Canvas.SetRight(w, 12); Canvas.SetTop(w, 12); break;
+            case "br": Canvas.SetRight(w, 12); Canvas.SetBottom(w, 12); break;
+            default:   Canvas.SetLeft(w, 12); Canvas.SetBottom(w, 12); break;
+        }
+    }
+
+    /// <summary>Ajoute un point à la courbe du widget <paramref name="id"/>
+    /// (ignoré si le plugin n'a pas encore affiché de widget).</summary>
+    public void PushGraphValue(string id, double v, string? label = null)
+    {
+        if (_overlays.TryGetValue(id, out var w))
+            w.Push(v, label);
+    }
+
     public void OnVideoSize(int w, int h)
     {
         _videoW = w;
         _videoH = h;
         _bitmap = new WriteableBitmap(w, h, 96, 96, PixelFormats.Bgra32, null);
         VideoImage.Source = _bitmap;
-        StatsBadge.Visibility = _statsVisible ? Visibility.Visible : Visibility.Collapsed;
         SetWaitingOverlay(false);
         VideoSizeChanged?.Invoke(w, h);
         LayoutKeybinds();
@@ -401,7 +489,9 @@ public partial class MirrorView : UserControl
     public void SetStatsVisible(bool visible)
     {
         _statsVisible = visible;
-        StatsBadge.Visibility = _bitmap != null && visible ? Visibility.Visible : Visibility.Collapsed;
+        // Mode capture OBS : les widgets plugin se masquent, fenêtre propre.
+        foreach (var w in _overlays.Values)
+            w.Visibility = w.On && visible ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnRendering(object? sender, EventArgs e)
@@ -444,7 +534,6 @@ public partial class MirrorView : UserControl
                 _fps = _frameCounter * 1000.0 / _fpsWatch.ElapsedMilliseconds;
                 _frameCounter = 0;
                 _fpsWatch.Restart();
-                StatsText.Text = $"{w}×{h}  {_fps:F0} fps";
             }
         }
         finally
@@ -748,6 +837,10 @@ public partial class MirrorView : UserControl
         _control = null;
         _bitmap = null;
         VideoImage.Source = null;
-        StatsBadge.Visibility = Visibility.Collapsed;
+        foreach (var w in _overlays.Values)
+        {
+            w.Visibility = Visibility.Collapsed;
+            w.Clear();
+        }
     }
 }

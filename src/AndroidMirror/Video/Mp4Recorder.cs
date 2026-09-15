@@ -12,7 +12,7 @@ public unsafe sealed class Mp4Recorder : IDisposable
     private bool _disposed;
     private long _ptsOffset = -1;
 
-    public Mp4Recorder(string path)
+    public Mp4Recorder(string path, int width, int height)
     {
         fixed (AVFormatContext** ctx = &_fmt)
             if (ffmpeg.avformat_alloc_output_context2(ctx, null, "mp4", path) < 0 || _fmt == null)
@@ -21,6 +21,8 @@ public unsafe sealed class Mp4Recorder : IDisposable
         _stream = ffmpeg.avformat_new_stream(_fmt, null);
         _stream->codecpar->codec_type = AVMediaType.AVMEDIA_TYPE_VIDEO;
         _stream->codecpar->codec_id = AVCodecID.AV_CODEC_ID_H264;
+        _stream->codecpar->width = width;
+        _stream->codecpar->height = height;
         _stream->time_base = new AVRational { num = 1, den = 1_000_000 };
 
         AVIOContext* io = null;
@@ -69,13 +71,19 @@ public unsafe sealed class Mp4Recorder : IDisposable
         _stream->codecpar->extradata = ptr;
         _stream->codecpar->extradata_size = buf.Length;
 
-        _headerWritten = ffmpeg.avformat_write_header(_fmt, null) >= 0;
+        var r = ffmpeg.avformat_write_header(_fmt, null);
+        _headerWritten = r >= 0;
+        Services.AppLogger.Write($"mp4: header sps={sps.Count} pps={pps.Count} write_header={r}");
     }
 
+    private int _dbgPackets;
     public void WritePacket(byte[] annexb, long ptsUs, bool keyframe)
     {
         if (!_headerWritten || _disposed)
+        {
+            if (_dbgPackets++ == 0) Services.AppLogger.Write($"mp4: packet ignoré (header={_headerWritten})");
             return;
+        }
         if (_ptsOffset < 0)
             _ptsOffset = ptsUs;
 

@@ -1,0 +1,5 @@
+*.h264
+*.h265
+au_sizes.json
+bin/
+obj/

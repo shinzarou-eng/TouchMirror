@@ -41,6 +41,8 @@ public sealed class WorkspaceDevice
     public int? MaxFps { get; set; }
     public int? VideoBitRate { get; set; }
     public string? VideoCodec { get; set; }
+    /// <summary>"gpu"/"cpu" — nul = hérite du global.</summary>
+    public string? VideoDecoder { get; set; }
     public bool? EnableAudio { get; set; }
     public bool? TurnScreenOff { get; set; }
     /// <summary>Écran virtuel : null = hérite du global, "" = auto, "WxH/DPI" sinon.</summary>
@@ -65,7 +67,9 @@ public sealed class AppSettings
     public int MaxSize { get; set; }
     public int MaxFps { get; set; } = 60;
     public int VideoBitRate { get; set; } = 16_000_000;
-    public string VideoCodec { get; set; } = "h264";
+    /// <summary>"auto" = H.265 si l'appareil a un encodeur HEVC matériel, sinon H.264.</summary>
+    public string VideoCodec { get; set; } = "auto";
+    public string VideoDecoder { get; set; } = "gpu";
     public bool StayAwake { get; set; }
     public bool EnableAudio { get; set; } = true;
     public bool AutoFullscreen { get; set; }
@@ -73,6 +77,8 @@ public sealed class AppSettings
     public bool TurnScreenOff { get; set; }
     /// <summary>Lance Dofus Touch (com.ankama.dofustouch) au démarrage du mirroring.</summary>
     public bool AutoLaunchDofus { get; set; } = true;
+    /// <summary>DeviceKey des tels pour lesquels l'assistant de config a été refusé définitivement.</summary>
+    public List<string> SetupDismissed { get; set; } = new();
     /// <summary>Écran virtuel : null = écran physique, "" = auto, "WxH/DPI" sinon.</summary>
     public string? NewDisplay { get; set; }
     public bool Topmost { get; set; }
