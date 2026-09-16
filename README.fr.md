@@ -14,7 +14,7 @@
 
 # TouchMirror
 
-**Mirroring Android natif pour Windows — pensé pour Dofus Touch.**
+**Mirroring Android natif pour Windows — pensé pour Dofus Touch.** *(Android screen mirroring — mirror & control your phone on PC)*
 
 Gratuit, open source, sans compte, sans pub.
 
@@ -48,7 +48,7 @@ Gratuit, open source, sans compte, sans pub.
 
 TouchMirror est une application **Windows native** qui affiche et contrôle ton téléphone Android depuis le PC : tu branches, tu cliques, tu joues. Interface sombre soignée, faible latence, plusieurs téléphones dans **une seule fenêtre** — et un moteur de mirroring maison, fork de scrcpy-server, dont les sources sont dans `engine/`.
 
-Gratuit, open source et communautaire : chaque ligne est lisible, les idées remontent sur Discord, et l'app n'appartient à personne d'autre qu'à ceux qui l'utilisent.
+L'alternative open source à scrcpy pensée pour les joueurs : affiche et contrôle ton vrai téléphone, avec raccourcis, écrans virtuels et multicompte dans une seule fenêtre. Chaque ligne est lisible, les idées remontent sur Discord, et l'app n'appartient qu'à ceux qui l'utilisent.
 
 ## Fonctionnalités
 
@@ -94,6 +94,7 @@ Chaque outil a ses forces — voici où TouchMirror se situe :
 | Affichage virtuel / mode tablette | ✅ | ✅ (option) | — | ✅ |
 | Multi-compte sur un seul téléphone | *Bientôt* | — | — | ✅ |
 | iPhone / iOS | *Bientôt* | — | ✅ | ✅ |
+| Pipeline GPU zéro-copie | ✅ | — | — | ✅ |
 | Presets qualité, diagnostics intégrés | ✅ | — | — | ✅ |
 | Enregistrement MP4 intégré | ✅ | ✅ | — | — |
 | API locale + plugins sandbox | ✅ | — | — | — |
@@ -223,7 +224,7 @@ Prérequis : **.NET 10 SDK** uniquement — adb, le moteur TouchMirror (`assets/
 
 ## Stack technique
 
-WPF / .NET 10 · WPF-UI · moteur TouchMirror (fork scrcpy-server) · FFmpeg (décodage + remux MP4) · NAudio · WebView2
+WPF / .NET 10 · WPF-UI · moteur TouchMirror (fork scrcpy-server) · pipeline D3D11 zéro-copie maison (`GpuPresenter` — slices NV12 → pixel shader → texture partagée) · FFmpeg (décodage + remux MP4) · NAudio · WebView2
 
 ## Conformité Ankama
 

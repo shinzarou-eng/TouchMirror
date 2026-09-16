@@ -3,8 +3,33 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TouchMirror — Mirroring Android natif pour Dofus Touch</title>
-<meta name="description" content="Mirroring Android natif pour Windows, pensé pour Dofus Touch. Multicompte, faible latence, USB/WiFi, enregistrement, OBS. Gratuit et open source.">
+<title>TouchMirror — Mirroring Android pour Dofus Touch | Mirror your phone on PC</title>
+<meta name="description" content="Mirroring Android natif pour Windows, pensé pour Dofus Touch — mirror and control your real Android phone on PC. Multicompte, faible latence, USB/WiFi, enregistrement, OBS. Gratuit et open source.">
+<meta name="keywords" content="dofus touch pc, mirroring dofus touch, android mirroring windows, mirror android to pc, contrôler android depuis pc, scrcpy alternative, dofus touch multicompte">
+<link rel="canonical" href="https://shinzarou-eng.github.io/TouchMirror/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="TouchMirror — Joue à Dofus Touch sur PC depuis ton vrai téléphone">
+<meta property="og:description" content="Mirroring Android natif, open source et gratuit. Pas un émulateur, pas de macro — chaque action vient de toi.">
+<meta property="og:image" content="https://raw.githubusercontent.com/shinzarou-eng/TouchMirror/main/docs/screenshot.png">
+<meta property="og:url" content="https://shinzarou-eng.github.io/TouchMirror/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="TouchMirror — Android mirroring for Dofus Touch">
+<meta name="twitter:description" content="Mirror & control your real Android phone on PC. Open source, no emulator, no automation.">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/shinzarou-eng/TouchMirror/main/docs/screenshot.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "TouchMirror",
+  "applicationCategory": "GameApplication",
+  "operatingSystem": "Windows 10, Windows 11",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+  "description": "Native Android mirroring for Windows built for Dofus Touch — mirror and control your real phone, multi-account, low latency, USB/WiFi, recording and OBS support.",
+  "url": "https://shinzarou-eng.github.io/TouchMirror/",
+  "downloadUrl": "https://github.com/shinzarou-eng/TouchMirror/releases/latest",
+  "license": "https://opensource.org/licenses/MIT"
+}
+</script>
 <link rel="icon" href="assets/mascot.png">
 <style>
     :root {
@@ -122,7 +147,8 @@
     <img class="mascot" src="assets/mascot.png" alt="Mascotte TouchMirror">
     <h1>Touch<b>Mirror</b></h1>
     <p class="tag">Joue à Dofus Touch sur PC, depuis ton vrai téléphone.</p>
-    <p class="sub">Gratuit · Open source · Pas un émulateur · Pas d'automatisation</p>
+    <p class="sub">Gratuit · Open source · Pas un émulateur · Pas d'automatisation<br>
+    <span style="color:var(--text3); font-size:12px">Android screen mirroring for Windows — control your phone from your PC</span></p>
     <div class="cta">
         <a class="btn primary" href="https://github.com/shinzarou-eng/TouchMirror/releases/latest">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11m0 0l-4-4m4 4l4-4"/><path d="M4 21h16"/></svg>Télécharger pour Windows
@@ -140,7 +166,7 @@
 
 <section class="wrap">
     <h2>Pensé pour Dofus Touch</h2>
-    <p class="lead">Branche, clique, joue. Le jeu officiel tourne sur ton téléphone — TouchMirror l'affiche et le contrôle depuis le PC avec la latence la plus faible possible.</p>
+    <p class="lead">Branche, clique, joue. Le jeu officiel tourne sur ton téléphone — TouchMirror l'affiche et le contrôle depuis le PC via un pipeline GPU zéro-copie. L'alternative open source à scrcpy, pensée pour les joueurs.</p>
     <div class="grid">
         <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="var(--accent)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent)"><path d="M13 2L4.5 14h6L9 22l8.5-12h-6L13 2z"/></svg></div><h3>Faible latence</h3><p>Décodage FFmpeg basse latence, dernière frame prioritaire, audio ~400 ms, sockets optimisés.</p></div>
         <div class="card"><div class="ico"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="var(--accent)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent)"><rect x="3" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6"/></svg></div><h3>Multicompte</h3><p>Plusieurs téléphones dans une seule fenêtre — <b>un compte par téléphone connecté</b>, le modèle autorisé par Ankama.</p></div>

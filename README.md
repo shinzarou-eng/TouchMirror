@@ -12,7 +12,7 @@
 
 # TouchMirror
 
-**Native Android mirroring for Windows — built for Dofus Touch.**
+**Native Android screen mirroring for Windows — built for Dofus Touch.**
 
 Free, open source, no account, no ads.
 
@@ -46,7 +46,7 @@ Free, open source, no account, no ads.
 
 TouchMirror is a **native Windows app** that displays and controls your Android phone from your PC: plug it in, click, play. Polished dark UI, low latency, multiple phones in **a single window** — powered by our own mirroring engine, a scrcpy-server fork whose sources live in `engine/`.
 
-Free, open source and community-driven: every line is readable, ideas are shared on Discord, and the app belongs to the people who use it.
+Think of it as an open-source scrcpy alternative made for players: mirror and control your real phone, with keybinds, virtual displays and multi-account in one window. Every line is readable, ideas are shared on Discord, and the app belongs to the people who use it.
 
 ## Features
 
