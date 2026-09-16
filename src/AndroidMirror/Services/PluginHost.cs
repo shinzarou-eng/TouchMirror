@@ -127,6 +127,7 @@ public partial class PluginInstance : ObservableObject
         _engine = null;
         _handlers.Clear();
         _timers.Clear();
+        _api?.Cleanup();
         _api = null;
         try { Application.Current?.Dispatcher.Invoke(() => Running = false); }
         catch { }
@@ -294,6 +295,10 @@ public partial class PluginInstance : ObservableObject
           screenshot:  s     => JSON.parse(__call('screenshot',  String(s))),
           disconnect:  s     => JSON.parse(__call('disconnect',  String(s))),
           connect:     s     => JSON.parse(__call('connect',     String(s))),
+          overlay:    (s, o) => JSON.parse(__call('overlay', JSON.stringify(Object.assign({ slot: s }, o || {})))),
+          push:       (s, v) => JSON.parse(__call('push', JSON.stringify(
+                                  typeof v === 'object' ? Object.assign({ slot: s }, v)
+                                                        : { slot: s, value: +v }))),
           on:          (ev, fn) => __on(ev, fn),
           setTimeout:  (fn, ms) => __schedule(fn, ms, false),
           setInterval: (fn, ms) => __schedule(fn, ms, true),

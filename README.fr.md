@@ -56,7 +56,8 @@ Gratuit, open source et communautaire : chaque ligne est lisible, les idées rem
 |---|---|---|
 | 🎥 | **Mirroring HD** | Résolution native du téléphone, 60/90/120 fps, codecs H.264, H.265 et AV1 |
 | ⚡ | **Faible latence** | Décodage FFmpeg basse latence, dernière frame prioritaire, audio ~400 ms, sockets optimisés |
-| 🎯 | **Raccourcis plaqués** | Pose un repère sur un sort à l'écran, assigne une touche — 1 frappe = 1 tap à cet endroit. Style (pastille, cercle, minimal), opacité et taille réglables, persisté par appareil. Manuel pur : pas de répétition, pas de macro |
+| � | **Pipeline GPU zéro-copie** | Chemin D3D11 maison : les frames NV12 décodées vont du décodeur directement au pixel shader — sans aller-retour CPU, sans copie en trop |
+| �🎯 | **Raccourcis plaqués** | Pose un repère sur un sort à l'écran, assigne une touche — 1 frappe = 1 tap à cet endroit. Style (pastille, cercle, minimal), opacité et taille réglables, persisté par appareil. Manuel pur : pas de répétition, pas de macro |
 | 🖥️ | **Affichage virtuel** | Dofus tourne sur un écran virtuel dédié — le téléphone physique reste libre. Presets paysage, portrait et **tablette** (8″/10″ : les apps passent en UI tablette) |
 | 📱 | **Multicompte** | Plusieurs téléphones dans une seule fenêtre — un compte par téléphone |
 | 🗂️ | **Espaces de travail** | « Solo », « Duo », « Stream » — appareils, ordre, miroir actif et réglages par appareil restaurés en un clic ; `Ctrl`+`Maj`+`1-9` pour basculer |

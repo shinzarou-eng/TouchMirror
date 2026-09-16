@@ -31,7 +31,10 @@ public partial class MainViewModel : ObservableObject
         { new("4 Mbps", 4_000_000), new("8 Mbps", 8_000_000), new("16 Mbps", 16_000_000),
           new("24 Mbps", 24_000_000), new("40 Mbps", 40_000_000) };
     public CodecOption[] CodecOptions { get; } =
-        { new("codec.h264", "h264"), new("codec.h265", "h265"), new("codec.av1", "av1") };
+        { new("codec.auto", "auto"), new("codec.h264", "h264"), new("codec.h265", "h265"), new("codec.av1", "av1") };
+    /// <summary>Décodeur PC : GPU en priorité, logiciel en repli.</summary>
+    public CodecOption[] DecoderOptions { get; } =
+        { new("dec.gpu", "gpu"), new("dec.cpu", "cpu") };
 
     /// <summary>Presets qualité : appliquent résolution + fps + débit d'un coup.</summary>
     public sealed record QualityPreset(string LabelKey, string DetailKey, int MaxSize, int MaxFps, int BitRate)
@@ -223,6 +226,7 @@ public partial class MainViewModel : ObservableObject
         MaxFps = _settings.MaxFps;
         VideoBitRate = _settings.VideoBitRate;
         VideoCodec = _settings.VideoCodec;
+        VideoDecoder = _settings.VideoDecoder;
         StayAwake = _settings.StayAwake;
         EnableAudio = _settings.EnableAudio;
         AutoFullscreen = _settings.AutoFullscreen;
@@ -266,6 +270,7 @@ public partial class MainViewModel : ObservableObject
             _settings.MaxFps = MaxFps;
             _settings.VideoBitRate = VideoBitRate;
             _settings.VideoCodec = VideoCodec;
+            _settings.VideoDecoder = VideoDecoder;
             _settings.EnableAudio = EnableAudio;
             _settings.TurnScreenOff = TurnScreenOff;
         }
@@ -292,7 +297,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private int _maxSize = 0;
     [ObservableProperty] private int _maxFps = 60;
     [ObservableProperty] private int _videoBitRate = 16_000_000;
-    [ObservableProperty] private string _videoCodec = "h264";
+    [ObservableProperty] private string _videoCodec = "auto";
+    [ObservableProperty] private string _videoDecoder = "gpu";
     [ObservableProperty] private bool _stayAwake;
     [ObservableProperty] private bool _enableAudio = true;
     [ObservableProperty] private bool _autoFullscreen;
@@ -392,7 +398,8 @@ public partial class MainViewModel : ObservableObject
     {
         if (m == null)
             return null;
-        Status = m.ToggleRecording(VideoCodec);
+        // codec réel de la session (avec « auto », la valeur du réglage n'est pas le codec effectif)
+        Status = m.ToggleRecording(m.Session?.VideoCodecId ?? VideoCodec);
         OnPropertyChanged(nameof(RecordingVisibility));
         RecordingElapsed = m.RecordingSince.HasValue
             ? $"REC {(DateTime.Now - m.RecordingSince.Value):m\\:ss}" : "REC";
@@ -678,6 +685,7 @@ public partial class MainViewModel : ObservableObject
                 MaxFps = d.MaxFps,
                 VideoBitRate = d.VideoBitRate,
                 VideoCodec = d.VideoCodec,
+                VideoDecoder = d.VideoDecoder,
                 EnableAudio = d.EnableAudio,
                 TurnScreenOff = d.TurnScreenOff,
                 NewDisplay = d.NewDisplay,
@@ -810,7 +818,7 @@ public partial class MainViewModel : ObservableObject
 
     // ═══ Plugins — scripts utilisateurs du dossier plugins/ ═══
 
-    private PluginApi ApiFor(PluginInstance p) => new(_apiHost, msg => p.Emit(msg));
+    private PluginApi ApiFor(PluginInstance p) => new(_apiHost, msg => p.Emit(msg), p.Id);
 
     [RelayCommand]
     private void RescanPlugins()
@@ -1188,6 +1196,7 @@ public partial class MainViewModel : ObservableObject
         MaxFps = o?.MaxFps ?? _settings.MaxFps,
         VideoBitRate = o?.VideoBitRate ?? _settings.VideoBitRate,
         VideoCodec = o?.VideoCodec ?? _settings.VideoCodec,
+        VideoDecoder = o?.VideoDecoder ?? _settings.VideoDecoder,
         StayAwake = StayAwake,
         Audio = o?.EnableAudio ?? _settings.EnableAudio,
         TurnScreenOff = o?.TurnScreenOff ?? _settings.TurnScreenOff,
@@ -1215,6 +1224,7 @@ public partial class MainViewModel : ObservableObject
         MaxFps = o?.MaxFps ?? _settings.MaxFps;
         VideoBitRate = o?.VideoBitRate ?? _settings.VideoBitRate;
         VideoCodec = o?.VideoCodec ?? _settings.VideoCodec;
+        VideoDecoder = o?.VideoDecoder ?? _settings.VideoDecoder;
         EnableAudio = o?.EnableAudio ?? _settings.EnableAudio;
         TurnScreenOff = o?.TurnScreenOff ?? _settings.TurnScreenOff;
         SelectedDisplayMode = DisplayModeOptions
@@ -1252,6 +1262,13 @@ public partial class MainViewModel : ObservableObject
     {
         if (_suppressSave) return;
         if (ActivePrefs() is { } o) o.VideoCodec = value; else _settings.VideoCodec = value;
+        ScheduleSave();
+        if (!_suppressReconnect) _ = ReconnectActiveAsync();
+    }
+    partial void OnVideoDecoderChanged(string value)
+    {
+        if (_suppressSave) return;
+        if (ActivePrefs() is { } o) o.VideoDecoder = value; else _settings.VideoDecoder = value;
         ScheduleSave();
         if (!_suppressReconnect) _ = ReconnectActiveAsync();
     }
@@ -1428,6 +1445,7 @@ public partial class MainViewModel : ObservableObject
             }
 
             Devices = new ObservableCollection<AdbDevice>(list);
+            UpdateSetupOffer(list);
             var current = SelectedDevice != null
                 ? list.FirstOrDefault(d => d.SharesIdentity(SelectedDevice) || d.DeviceKey == SelectedDevice.DeviceKey)
                 : null;
@@ -1456,6 +1474,159 @@ public partial class MainViewModel : ObservableObject
         {
             _refreshing = false;
         }
+    }
+
+    // ── Assistant de configuration ────────────────────────────────────────
+
+    /// <summary>DeviceKey des tels dont les profils ont déjà été listés cette session.</summary>
+    private readonly HashSet<string> _profilesChecked = new();
+    /// <summary>DeviceKey des tels pour qui on a déjà proposé la config cette session.</summary>
+    private readonly HashSet<string> _setupOffered = new();
+
+    [ObservableProperty] private AdbDevice? _setupTarget;
+    /// <summary>"auth" = guide d'autorisation, "offer" = proposition de config.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SetupIsAuth))]
+    [NotifyPropertyChangedFor(nameof(SetupIsOffer))]
+    [NotifyPropertyChangedFor(nameof(SetupIsBusy))]
+    private string _setupKind = "";
+    public bool SetupIsAuth => SetupKind == "auth";
+    public bool SetupIsOffer => SetupKind == "offer";
+    public bool SetupIsBusy => SetupKind == "busy";
+    /// <summary>Nb de profils secondaires déjà présents sur la cible (0 = offrir la création).</summary>
+    [ObservableProperty] private int _setupProfileCount;
+    /// <summary>Nom saisi dans l'assistant pour le futur compte clone.</summary>
+    [ObservableProperty] private string _setupAccountName = "";
+
+    /// <summary>
+    /// Détecte quoi proposer : appareil non autorisé → guide débogage USB ;
+    /// appareil prêt sans profil secondaire → offre « 2e compte Dofus » + WiFi.
+    /// </summary>
+    private void UpdateSetupOffer(List<AdbDevice> list)
+    {
+        // La bannière affichée reste tant que l'appareil est dans l'état attendu ;
+        // un changement d'état (autorisé, débranché…) relance la détection.
+        if (SetupTarget != null)
+        {
+            var cur = list.FirstOrDefault(d => d.DeviceKey == SetupTarget.DeviceKey);
+            var keep = cur != null && SetupKind switch
+            {
+                "auth" => cur.NeedsAuthorization,
+                "busy" or "offer" => cur.IsReady,
+                _ => false,
+            };
+            if (keep)
+            {
+                // Le serial peut changer (USB ↔ WiFi) : on garde le snapshot frais.
+                if (cur!.Serial != SetupTarget.Serial)
+                    SetupTarget = cur;
+                return;
+            }
+            SetupTarget = null;
+            SetupKind = "";
+        }
+
+        var unauthorized = list.FirstOrDefault(d => d.NeedsAuthorization
+            && !_setupOffered.Contains(d.DeviceKey)
+            && !_settings.SetupDismissed.Contains(d.DeviceKey));
+        if (unauthorized != null)
+        {
+            SetupTarget = unauthorized;
+            SetupKind = "auth";
+            return;
+        }
+
+        var candidate = list.FirstOrDefault(d => d.IsReady
+            && !_setupOffered.Contains(d.DeviceKey)
+            && !_profilesChecked.Contains(d.DeviceKey)
+            && !_settings.SetupDismissed.Contains(d.DeviceKey));
+        if (candidate == null)
+            return;
+
+        // Liste les profils une fois par appareil : si un clone existe déjà,
+        // la config est considérée faite et on ne propose plus rien.
+        _profilesChecked.Add(candidate.DeviceKey);
+        SetupTarget = candidate;
+        SetupKind = "busy";
+        _ = ProbeSetupTargetAsync(candidate);
+    }
+
+    private async Task ProbeSetupTargetAsync(AdbDevice device)
+    {
+        try
+        {
+            var profiles = await AdbService.ListProfilesAsync(device.Serial);
+            if (SetupTarget != device)
+                return;
+            SetupProfileCount = profiles.Count;
+            if (profiles.Count > 0)
+            {
+                SetupTarget = null;
+                SetupKind = "";
+            }
+            else
+            {
+                SetupAccountName = string.Format(L("setup.account_name"), profiles.Count + 2);
+                SetupKind = "offer";
+            }
+        }
+        catch
+        {
+            // échec du listing → on propose quand même, CreateAccount gère l'erreur
+            if (SetupTarget == device)
+            {
+                SetupAccountName = string.Format(L("setup.account_name"), 2);
+                SetupKind = "offer";
+            }
+        }
+    }
+
+    /// <summary>Snapshot frais du device (le serial change quand le transport bascule USB↔WiFi).</summary>
+    private AdbDevice? FreshDevice(AdbDevice? d) => d == null ? null
+        : Devices.FirstOrDefault(x => x.DeviceKey == d.DeviceKey && x.IsReady) ?? d;
+
+    [RelayCommand]
+    private async Task SetupCreateAccountAsync()
+    {
+        var device = FreshDevice(SetupTarget);
+        if (device == null)
+            return;
+        _setupOffered.Add(device.DeviceKey);
+        _settings.SetupDismissed.Add(device.DeviceKey);
+        ScheduleSave();
+        SetupTarget = null;
+        SetupKind = "";
+        var name = SetupAccountName.Trim();
+        if (name.Length == 0)
+            name = string.Format(L("setup.account_name"), 2);
+        await CreateAccountAsync(device, name);
+    }
+
+    [RelayCommand]
+    private async Task SetupWifiAsync()
+    {
+        var device = FreshDevice(SetupTarget);
+        if (device == null)
+            return;
+        SelectedDevice = device;
+        await EnableWifiAsync();
+    }
+
+    /// <summary>Masque pour la session (« plus tard ») ou définitivement (« ne plus proposer »).</summary>
+    [RelayCommand]
+    private void SetupDismiss(string? forever)
+    {
+        var device = SetupTarget;
+        if (device == null)
+            return;
+        _setupOffered.Add(device.DeviceKey);
+        if (forever == "True" && !_settings.SetupDismissed.Contains(device.DeviceKey))
+        {
+            _settings.SetupDismissed.Add(device.DeviceKey);
+            ScheduleSave();
+        }
+        SetupTarget = null;
+        SetupKind = "";
     }
 
     [RelayCommand]
@@ -1963,8 +2134,8 @@ public partial class MainViewModel : ObservableObject
         _suppressReconnect = true;
         MaxSize = 1080;
         MaxFps = 60;
-        VideoBitRate = 24_000_000;
-        VideoCodec = "h264";
+        VideoBitRate = 20_000_000;
+        VideoCodec = "auto";
         EnableAudio = true;
         StayAwake = true;
         TurnScreenOff = true;

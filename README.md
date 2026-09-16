@@ -54,7 +54,8 @@ Free, open source and community-driven: every line is readable, ideas are shared
 |---|---|---|
 | 🎥 | **HD mirroring** | Native phone resolution, 60/90/120 fps, H.264, H.265 and AV1 codecs |
 | ⚡ | **Low latency** | Low-latency FFmpeg decoding, latest-frame priority, ~400 ms audio, optimized sockets |
-| 🎯 | **On-screen keybinds** | Drop a marker on a spell, bind a key — 1 keypress = 1 tap at that spot. Adjustable style (pill, circle, minimal), opacity and size, saved per device. Fully manual: no repeat, no macros |
+| � | **Zero-copy GPU pipeline** | Custom D3D11 path: decoded NV12 frames go straight from the decoder to a pixel shader — no CPU round-trip, no extra copies |
+| �🎯 | **On-screen keybinds** | Drop a marker on a spell, bind a key — 1 keypress = 1 tap at that spot. Adjustable style (pill, circle, minimal), opacity and size, saved per device. Fully manual: no repeat, no macros |
 | 🖥️ | **Virtual display** | The game runs on a dedicated virtual screen — the physical phone stays free. Landscape, portrait and **tablet** presets (apps switch to tablet UI) |
 | 📱 | **Multi-account** | Several phones in one window — one account per phone |
 | 🗂️ | **Workspaces** | "Solo", "Duo", "Stream" — devices, order, active mirror and per-device settings restored in one click; `Ctrl`+`Shift`+`1-9` to switch |
@@ -91,6 +92,7 @@ Every tool has its strengths — here's where TouchMirror stands:
 | Virtual display / tablet mode | ✅ | ✅ (option) | — | ✅ |
 | Multi-account on a single phone | *Soon* | — | — | ✅ |
 | iPhone / iOS | *Soon* | — | ✅ | ✅ |
+| Zero-copy GPU pipeline | ✅ | — | — | ✅ |
 | Quality presets, built-in diagnostics | ✅ | — | — | ✅ |
 | Built-in MP4 recording | ✅ | ✅ | — | — |
 | Local API + sandboxed plugins | ✅ | — | — | — |
@@ -222,7 +224,7 @@ Requirements: **.NET 10 SDK** only — adb, the TouchMirror engine (`assets/touc
 
 ## Tech stack
 
-WPF / .NET 10 · WPF-UI · TouchMirror engine (scrcpy-server fork) · FFmpeg (decode + MP4 remux) · NAudio · WebView2
+WPF / .NET 10 · WPF-UI · TouchMirror engine (scrcpy-server fork) · custom zero-copy D3D11 pipeline (`GpuPresenter` — NV12 slices → pixel shader → shared texture) · FFmpeg (decode + MP4 remux) · NAudio · WebView2
 
 ## Ankama compliance
 

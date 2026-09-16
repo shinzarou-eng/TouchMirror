@@ -57,22 +57,26 @@ public static class FirewallHelper
         if (todo.Count == 0)
             return;
 
-        var script = Path.Combine(Path.GetTempPath(), $"tm-fw-{Environment.ProcessId}.cmd");
-        var sb = new StringBuilder("@echo off\r\n");
+        // Pas de script .cmd sur disque : un fichier à nom prévisible dans
+        // %TEMP% pouvait être réécrit entre sa création et l'approbation UAC
+        // (EoP locale). Le batch netsh part en -EncodedCommand, rien à altérer.
+        var sb = new StringBuilder();
         foreach (var i in todo)
         {
+            var exe = i.Exe.Replace("'", "''");
+            var name = i.Name.Replace("'", "''");
             // Supprime d'abord toute règle existante (un « block » gagnerait
             // sinon sur l'allow qu'on ajoute), puis crée l'allow.
-            sb.AppendLine($"netsh advfirewall firewall delete rule name=all program=\"{i.Exe}\" >nul 2>&1");
-            sb.AppendLine($"netsh advfirewall firewall add rule name=\"{i.Name}\" dir=in action=allow program=\"{i.Exe}\" enable=yes profile=any");
+            sb.AppendLine($"netsh advfirewall firewall delete rule name=all program='{exe}' | Out-Null");
+            sb.AppendLine($"netsh advfirewall firewall add rule name='{name}' dir=in action=allow program='{exe}' enable=yes profile=any | Out-Null");
         }
-        await File.WriteAllTextAsync(script, sb.ToString());
+        var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(sb.ToString()));
         try
         {
             var psi = new ProcessStartInfo
             {
-                FileName = "cmd.exe",
-                Arguments = $"/c \"{script}\"",
+                FileName = "powershell.exe",
+                Arguments = $"-NoProfile -ExecutionPolicy Bypass -EncodedCommand {encoded}",
                 UseShellExecute = true,
                 Verb = "runas", // UAC une seule fois ; sans effet si déjà admin
                 WindowStyle = ProcessWindowStyle.Hidden
@@ -83,10 +87,6 @@ public static class FirewallHelper
         catch (Exception ex)
         {
             log?.Invoke($"pare-feu : règles non créées ({ex.Message})");
-        }
-        finally
-        {
-            try { File.Delete(script); } catch { }
         }
 
         foreach (var i in todo)
