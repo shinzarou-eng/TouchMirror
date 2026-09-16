@@ -478,11 +478,6 @@ public partial class MainViewModel : ObservableObject
             catch (Exception ex)
             {
                 Log($"API locale impossible : {ex.Message}");
-                if (_apiServer == null)
-                {
-                    _apiBusy = false;
-                    LocalApiEnabled = false;
-                }
             }
         }
         finally

@@ -76,7 +76,7 @@ public sealed class AppSettings
     public bool SyncDeviceClipboard { get; set; } = true;
     public bool TurnScreenOff { get; set; }
     /// <summary>Lance Dofus Touch (com.ankama.dofustouch) au démarrage du mirroring.</summary>
-    public bool AutoLaunchDofus { get; set; } = true;
+    public bool AutoLaunchDofus { get; set; }
     /// <summary>DeviceKey des tels pour lesquels l'assistant de config a été refusé définitivement.</summary>
     public List<string> SetupDismissed { get; set; } = new();
     /// <summary>Écran virtuel : null = écran physique, "" = auto, "WxH/DPI" sinon.</summary>

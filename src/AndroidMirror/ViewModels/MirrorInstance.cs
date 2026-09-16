@@ -99,7 +99,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public List<KeybindData> SaveKeybinds() =>
         Keybinds.Select(k => new KeybindData { Key = k.Key, Rx = k.Rx, Ry = k.Ry }).ToList();
 
-    private FileStream? _recordStream;
+    private int _gpuNotifyPending;
     private Mp4Recorder? _recorder;
     private string? _recordPath;
     public DateTime? RecordingSince { get; private set; }
@@ -188,7 +188,18 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                         {
                             Decoder.GpuFrame += presenter.Present;
                             presenter.FrameReady += () =>
-                                View.Dispatcher.BeginInvoke(() => View.OnGpuFrame());
+                            {
+                                if (Interlocked.Exchange(ref _gpuNotifyPending, 1) == 0)
+                                    try
+                                    {
+                                        View.Dispatcher.BeginInvoke(() =>
+                                        {
+                                            _gpuNotifyPending = 0;
+                                            View.OnGpuFrame();
+                                        });
+                                    }
+                                    catch { _gpuNotifyPending = 0; }
+                            };
                         }
                         Decoder.Error += m => Log?.Invoke($"decoder: {m}");
                         var p = presenter;
@@ -203,10 +214,6 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                 {
                     if (packet.IsConfig) _recorder.WriteConfig(packet.Data);
                     else _recorder.WritePacket(packet.Data, packet.Pts, packet.IsKeyFrame);
-                }
-                else
-                {
-                    _recordStream?.Write(packet.Data);
                 }
             }
             catch { }
@@ -300,7 +307,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         _videoHidden = hidden;
         if (hidden)
         {
-            if (_recorder == null && _recordStream == null)
+            if (_recorder == null)
             {
                 try { Session?.Control?.SetVideoParams(ThrottleBitRate, suspend: true); } catch { }
                 RaiseLog(L("log.throttled"));
@@ -329,17 +336,9 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "TouchMirror");
         Directory.CreateDirectory(dir);
         var stamp = $"rec_{Device.Model}_{DateTime.Now:yyyyMMdd_HHmmss}_{Math.Abs(IdentityKey.GetHashCode()) % 1000:D3}";
-        if (videoCodec == "h264")
-        {
-            _recordPath = Path.Combine(dir, stamp + ".mp4");
-            _recorder = new Mp4Recorder(_recordPath, Session?.VideoWidth ?? 0, Session?.VideoHeight ?? 0);
-        }
-        else
-        {
-            var ext = videoCodec == "h265" ? "h265" : "av1";
-            _recordPath = Path.Combine(dir, $"{stamp}.{ext}");
-            _recordStream = new FileStream(_recordPath, FileMode.Create, FileAccess.Write, FileShare.Read, 1 << 20);
-        }
+        _recordPath = Path.Combine(dir, stamp + ".mp4");
+        _recorder = new Mp4Recorder(_recordPath, Session?.VideoWidth ?? 0, Session?.VideoHeight ?? 0,
+            videoCodec);
         IsRecording = true;
         RecordingSince = DateTime.Now;
         try { Session?.Control?.SendSimple(ControlMsgType.ResetVideo); } catch { }
@@ -349,10 +348,10 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     private void StopRecordingInternal()
     {
         RecordingSince = null;
+        if (_recorder is { HeaderWritten: false })
+            RaiseLog("enregistrement vide — config codec jamais reçue");
         try { _recorder?.Dispose(); } catch { }
         _recorder = null;
-        try { _recordStream?.Flush(); _recordStream?.Dispose(); } catch { }
-        _recordStream = null;
     }
 
     public virtual async Task DisconnectAsync()

@@ -162,6 +162,7 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
     /// <summary>Repli définitif vers le décodage logiciel après échecs GPU répétés.</summary>
     private void ReopenSoftware()
     {
+        GpuPresenter?.ClearSources();
         fixed (AVCodecContext** c = &_ctx)
             ffmpeg.avcodec_free_context(c);
         if (_hwDeviceCtx != null)

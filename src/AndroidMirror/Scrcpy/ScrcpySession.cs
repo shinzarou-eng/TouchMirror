@@ -228,6 +228,8 @@ public sealed class ScrcpySession : IAsyncDisposable
                 var flags = header[0];
                 var pts = (long)(BinaryPrimitives.ReadUInt64BigEndian(header.AsSpan(0)) & 0x3FFFFFFFFFFFFFFF);
                 var size = (int)BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(8));
+                if (size is < 0 or > 64 << 20)
+                    break;
                 var payload = new byte[size];
                 if (!await ReadExactAsync(_videoSocket!, payload, _cts.Token))
                     break;
@@ -258,6 +260,8 @@ public sealed class ScrcpySession : IAsyncDisposable
                 if (!await ReadExactAsync(_audioSocket!, header, _cts.Token))
                     break;
                 var size = (int)BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(8));
+                if (size is < 0 or > 16 << 20)
+                    break;
                 var payload = new byte[size];
                 if (!await ReadExactAsync(_audioSocket!, payload, _cts.Token))
                     break;
@@ -285,6 +289,9 @@ public sealed class ScrcpySession : IAsyncDisposable
         try { _listener?.Stop(); } catch { }
         try { if (_serverProcess is { HasExited: false }) _serverProcess.Kill(); } catch { }
         _serverProcess?.Dispose();
+        var tasks = new[] { _videoTask, _audioTask }.Where(t => t != null).Cast<Task>().ToArray();
+        if (tasks.Length > 0)
+            try { await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(3)); } catch { }
         if (!string.IsNullOrEmpty(_socketName))
             await AdbService.ReverseRemoveAsync(_device.Serial, _socketName);
         _cts.Dispose();

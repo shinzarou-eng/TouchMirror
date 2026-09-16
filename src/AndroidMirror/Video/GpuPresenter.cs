@@ -258,6 +258,20 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         _image.Unlock();
     }
 
+    public void ClearSources()
+    {
+        lock (_sync)
+        {
+            foreach (var e in _srcCache.Values)
+            {
+                e.y?.Dispose();
+                e.uv?.Dispose();
+                e.tex.Dispose();
+            }
+            _srcCache.Clear();
+        }
+    }
+
     public void Dispose()
     {
         lock (_sync)
