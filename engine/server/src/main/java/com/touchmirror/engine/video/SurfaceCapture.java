@@ -59,6 +59,10 @@ public abstract class SurfaceCapture {
         // Do nothing by default
     }
 
+    public void setSuspended(boolean suspended) {
+        // Do nothing by default
+    }
+
     /**
      * Return the video size
      *

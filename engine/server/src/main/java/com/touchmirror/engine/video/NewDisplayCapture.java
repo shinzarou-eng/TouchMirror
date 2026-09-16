@@ -65,6 +65,8 @@ public class NewDisplayCapture extends SurfaceCapture {
     private VideoConstraints videoConstraints;
 
     private VirtualDisplay virtualDisplay;
+    private Surface boundSurface;
+    private volatile boolean captureSuspended;
     private Size videoSize;
     private Size displaySize; // the logical size of the display (including rotation)
     private Size physicalSize; // the physical size of the display (without rotation)
@@ -272,10 +274,16 @@ public class NewDisplayCapture extends SurfaceCapture {
             surface = glRunner.start(physicalSize, videoSize, surface);
         }
 
+        boundSurface = surface;
+
         if (virtualDisplay == null) {
             startNew(surface);
         } else {
             virtualDisplay.setSurface(surface);
+        }
+
+        if (captureSuspended) {
+            setSuspended(true);
         }
 
         if (vdListener != null) {
@@ -289,6 +297,20 @@ public class NewDisplayCapture extends SurfaceCapture {
         if (glRunner != null) {
             glRunner.stopAndRelease();
             glRunner = null;
+        }
+    }
+
+    @Override
+    public synchronized void setSuspended(boolean suspended) {
+        captureSuspended = suspended;
+        VirtualDisplay vd = virtualDisplay;
+        if (vd == null || (boundSurface == null && !suspended)) {
+            return;
+        }
+        try {
+            vd.setSurface(suspended ? null : boundSurface);
+        } catch (Exception e) {
+            Ln.w("Could not " + (suspended ? "suspend" : "resume") + " capture: " + e.getMessage());
         }
     }
 

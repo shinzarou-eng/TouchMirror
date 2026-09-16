@@ -849,6 +849,7 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
     // Débit/suspension à chaud sur l'encodeur — tuiles en miniature.
     private void setVideoParams(int bitRate, boolean suspend) {
         if (surfaceCapture != null) {
+            surfaceCapture.setSuspended(suspend);
             surfaceCapture.getCaptureControl().setVideoParams(bitRate, suspend);
         }
     }
