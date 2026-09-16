@@ -29,7 +29,8 @@ public sealed class InverseBoolToVisibilityConverter : IValueConverter
 public sealed class NullToCollapsedConverter : IValueConverter
 {
     public object Convert(object value, Type t, object p, System.Globalization.CultureInfo c)
-        => string.IsNullOrEmpty(value as string) ? Visibility.Collapsed : Visibility.Visible;
+        => value is null || (value is string s && s.Length == 0)
+            ? Visibility.Collapsed : Visibility.Visible;
     public object ConvertBack(object v, Type t, object p, System.Globalization.CultureInfo c)
         => Binding.DoNothing;
 }

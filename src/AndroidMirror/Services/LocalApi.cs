@@ -20,7 +20,8 @@ public sealed class LocalApiHost
         { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     public sealed record MirrorDto(int Slot, string Name, string Serial, string Model,
-        bool Connected, bool Active, bool Recording, bool Wifi);
+        bool Connected, bool Active, bool Recording, bool Wifi, double Fps,
+        int W, int H);
     public sealed record DeviceDto(string Serial, string Name, string Model,
         bool Ready, bool Remembered, bool Wifi, bool Blocked);
     public sealed record ApiResult(bool Ok, string? Message = null, object? Data = null);
@@ -91,7 +92,8 @@ public sealed class LocalApiHost
     public Task<ApiResult> GetMirrorsAsync() => Ui(() => new ApiResult(true,
         Data: _vm.Mirrors.Select(m => new MirrorDto(
             m.Slot, m.DeviceName, m.Device.Serial, m.Device.Model, m.IsConnected,
-            ReferenceEquals(m, _vm.ActiveMirror), m.IsRecording, m.Device.IsWifi)).ToList()));
+            ReferenceEquals(m, _vm.ActiveMirror), m.IsRecording, m.Device.IsWifi,
+            m.View.CurrentFps, m.View.VideoWidth, m.View.VideoHeight)).ToList()));
 
     public Task<ApiResult> GetDevicesAsync() => Ui(() => new ApiResult(true,
         Data: _vm.Devices.Select(d => new DeviceDto(
@@ -143,6 +145,40 @@ public sealed class LocalApiHost
             return new ApiResult(true, "déjà connecté");
         await _vm.ConnectExistingDeviceAsync(d);
         return new ApiResult(true, $"connecté — {d.DisplayName}");
+    });
+
+    private sealed record OverlayOpts(int Slot, string? Id, bool? Visible,
+        string? Title, string? Color, bool? Compact, string? Pos);
+    private sealed record OverlayPush(int Slot, string? Id, double Value, string? Label);
+
+    /// <summary>Widget graphe déplaçable sur un miroir — piloté par les plugins.</summary>
+    public Task<ApiResult> SetOverlayAsync(string json) => Ui(() =>
+    {
+        OverlayOpts? o;
+        try { o = JsonSerializer.Deserialize<OverlayOpts>(json, JsonOpts); }
+        catch { return new ApiResult(false, "options invalides"); }
+        if (o == null)
+            return new ApiResult(false, "options invalides");
+        var m = _vm.MirrorAtSlot(o.Slot);
+        if (m == null)
+            return new ApiResult(false, $"slot {o.Slot} inconnu");
+        m.View.SetGraphOverlay(o.Id ?? "default", o.Visible, o.Title,
+            o.Color, o.Compact, o.Pos);
+        return new ApiResult(true);
+    });
+
+    public Task<ApiResult> PushOverlayValueAsync(string json) => Ui(() =>
+    {
+        OverlayPush? o;
+        try { o = JsonSerializer.Deserialize<OverlayPush>(json, JsonOpts); }
+        catch { return new ApiResult(false, "options invalides"); }
+        if (o == null)
+            return new ApiResult(false, "options invalides");
+        var m = _vm.MirrorAtSlot(o.Slot);
+        if (m == null)
+            return new ApiResult(false, $"slot {o.Slot} inconnu");
+        m.View.PushGraphValue(o.Id ?? "default", o.Value, o.Label);
+        return new ApiResult(true);
     });
 }
 

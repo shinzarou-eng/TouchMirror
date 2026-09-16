@@ -364,6 +364,12 @@ public class Options {
                     options.audio = Boolean.parseBoolean(value);
                     break;
                 case "video_codec":
+                    if ("auto".equals(value)) {
+                        VideoCodec auto = VideoCodec.pickAuto();
+                        Ln.i("Video codec auto: " + auto.getName());
+                        options.videoCodec = auto;
+                        break;
+                    }
                     VideoCodec videoCodec = VideoCodec.findByName(value);
                     if (videoCodec == null) {
                         throw new IllegalArgumentException("Video codec " + value + " not supported");

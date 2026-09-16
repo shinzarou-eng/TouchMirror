@@ -1,6 +1,9 @@
 package com.touchmirror.engine.video;
 
 import android.media.MediaCodec;
+import android.os.Bundle;
+
+import com.touchmirror.engine.util.Ln;
 
 public class CaptureControl {
 
@@ -38,5 +41,27 @@ public class CaptureControl {
 
     public synchronized void setRunningMediaCodec(MediaCodec runningMediaCodec) {
         this.runningMediaCodec = runningMediaCodec;
+    }
+
+    /**
+     * Réglage à chaud : débit (PARAMETER_KEY_VIDEO_BITRATE) et suspension de
+     * l'entrée surface (PARAMETER_KEY_SUSPEND). Utilisé pour économiser
+     * l'encodeur des tuiles réduites en miniature. setParameters() est
+     * documenté appelable depuis n'importe quel thread.
+     */
+    public synchronized void setVideoParams(int bitRate, boolean suspend) {
+        MediaCodec codec = runningMediaCodec;
+        if (codec == null) {
+            return;
+        }
+        try {
+            Bundle params = new Bundle();
+            params.putInt(MediaCodec.PARAMETER_KEY_VIDEO_BITRATE, bitRate);
+            params.putInt(MediaCodec.PARAMETER_KEY_SUSPEND, suspend ? 1 : 0);
+            codec.setParameters(params);
+            Ln.i("Video params: bitrate=" + bitRate + " suspend=" + suspend);
+        } catch (IllegalStateException e) {
+            // codec pas encore démarré ou déjà stoppé — sans gravité
+        }
     }
 }

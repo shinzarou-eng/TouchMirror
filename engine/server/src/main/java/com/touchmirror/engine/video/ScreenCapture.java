@@ -46,6 +46,9 @@ public class ScreenCapture extends SurfaceCapture {
 
     private IBinder display;
     private VirtualDisplay virtualDisplay;
+    private Surface boundSurface;
+    private Size boundInputSize;
+    private volatile boolean captureSuspended;
 
     private AffineMatrix transform;
     private OpenGLRunner glRunner;
@@ -129,6 +132,9 @@ public class ScreenCapture extends SurfaceCapture {
             inputSize = videoSize;
         }
 
+        boundSurface = surface;
+        boundInputSize = inputSize;
+
         try {
             virtualDisplay = ServiceManager.getDisplayManager()
                     .createVirtualDisplay("touchmirror", inputSize.getWidth(), inputSize.getHeight(), displayId, surface);
@@ -171,6 +177,34 @@ public class ScreenCapture extends SurfaceCapture {
                 virtualDisplayId = virtualDisplay.getDisplay().getDisplayId();
             }
             vdListener.onNewVirtualDisplay(virtualDisplayId, positionMapper);
+        }
+
+        if (captureSuspended) {
+            setSuspended(true);
+        }
+    }
+
+    @Override
+    public synchronized void setSuspended(boolean suspended) {
+        captureSuspended = suspended;
+        try {
+            if (virtualDisplay != null) {
+                virtualDisplay.setSurface(suspended ? null : boundSurface);
+            } else if (display != null && displayInfo != null) {
+                if (suspended) {
+                    SurfaceControl.openTransaction();
+                    try {
+                        SurfaceControl.setDisplaySurface(display, null);
+                    } finally {
+                        SurfaceControl.closeTransaction();
+                    }
+                } else if (boundSurface != null) {
+                    Size deviceSize = displayInfo.getSize();
+                    setDisplaySurface(display, boundSurface, deviceSize.toRect(), boundInputSize.toRect(), displayInfo.getLayerStack());
+                }
+            }
+        } catch (Throwable t) {
+            Ln.w("Could not " + (suspended ? "suspend" : "resume") + " capture: " + t.getMessage());
         }
     }
 

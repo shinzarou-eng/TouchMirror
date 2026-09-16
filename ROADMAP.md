@@ -63,6 +63,7 @@ La vérification repose sur des empreintes SHA-256 embarquées, pas sur une sign
 - [x] Restaurer la disposition et les réglages à la demande, sans action en jeu ni lancement automatique du jeu.
 - [x] Conserver les appareils absents dans l'espace, avec un état clair et sans bloquer les autres.
 - [x] Associer des raccourcis aux espaces en préservant les raccourcis de changement de miroir.
+- [x] Comptes secondaires Android : créer un profil clone depuis l'app, y installer Dofus Touch et l'ouvrir dans sa propre tuile miroir sur écran virtuel — plusieurs comptes sur un seul téléphone, un miroir actif à la fois.
 
 **Validation :** après redémarrage de TouchMirror, un espace retrouve son ordre et ses réglages ; un téléphone absent ne bloque pas la restauration ; les dispositions restent utilisables avec différentes tailles de fenêtre et mises à l'échelle Windows.
 
@@ -75,6 +76,7 @@ La vérification repose sur des empreintes SHA-256 embarquées, pas sur une sign
 - [ ] Réduire le coût des tuiles inactives : fps et débit adaptés au focus, mesures avant/après pour prouver le gain.
 - [ ] Afficher les mesures locales par miroir (fps réels, débit, pertes) avec leur définition.
 - [ ] Mesurer le coût CPU/mémoire/batterie à 2, 4 et 6 tuiles et publier des budgets de ressources par configuration.
+- [x] Interface multilingue : français et anglais à chaud, fichiers `lang/*.json` ouverts aux contributions.
 
 **Validation :** un nouvel utilisateur connecte son premier téléphone sans documentation externe ; à 4 tuiles, la consommation est mesurée et les tuiles inactives coûtent significativement moins que la tuile active.
 
@@ -82,9 +84,9 @@ La vérification repose sur des empreintes SHA-256 embarquées, pas sur une sign
 
 **Résultat attendu :** remplacer une erreur générique par une cause compréhensible et une prochaine action utile.
 
-- [ ] Distinguer les états observables : appareil absent, autorisation USB manquante, appareil hors ligne ou session vidéo interrompue.
-- [ ] Proposer une action adaptée à chaque état, sans cliquer dans le jeu.
-- [ ] Présenter un historique des connexions, coupures et tentatives de reconnexion.
+- [x] Distinguer les états observables : appareil absent, autorisation USB manquante, appareil hors ligne ou session vidéo interrompue.
+- [x] Proposer une action adaptée à chaque état, sans cliquer dans le jeu.
+- [x] Présenter un historique des connexions, coupures et tentatives de reconnexion.
 - [ ] Afficher les mesures disponibles avec leur définition, sans les présenter comme une latence de bout en bout si elle n'est pas mesurée.
 - [ ] Permettre l'export volontaire d'un diagnostic avec aperçu avant partage.
 - [ ] Retirer des exports les tokens, numéros de série, adresses réseau, chemins personnels et autres identifiants sensibles ; ne pas inclure de capture par défaut.

@@ -59,6 +59,19 @@ public sealed record AndroidProfile(int Id, string Name, bool Running);
 
 public static class AdbService
 {
+    /// <summary>Serial adb attendu : « RFGL22M2JQM », « emulator-5554 », « 192.168.x.x:5555 ».</summary>
+    private static readonly Regex SerialOk = new(@"^[A-Za-z0-9._:\-]+$", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Un serial annoncé par adb est de la donnée non fiable : un périphérique
+    /// rogue (WiFi notamment) pourrait y glisser espaces/guillemets et injecter
+    /// des arguments dans la ligne de commande. Tout serial est validé avant
+    /// interpolation.
+    /// </summary>
+    private static string S(string serial)
+        => SerialOk.IsMatch(serial) ? serial
+           : throw new ArgumentException($"serial adb invalide : « {serial} »");
+
     private static string? _adbPath;
 
     public static string? FindAdb()
@@ -228,7 +241,7 @@ public static class AdbService
     {
         try
         {
-            var output = await RunAsync($"-s {serial} shell getprop ro.serialno", ct);
+            var output = await RunAsync($"-s {S(serial)} shell getprop ro.serialno", ct);
             var s = output.Trim();
             return s.Length > 0 ? s : null;
         }
@@ -239,7 +252,7 @@ public static class AdbService
     {
         try
         {
-            var output = await RunAsync($"-s {serial} shell dumpsys battery", ct);
+            var output = await RunAsync($"-s {S(serial)} shell dumpsys battery", ct);
             var m = Regex.Match(output, @"level:\s*(\d+)");
             return m.Success ? int.Parse(m.Groups[1].Value) : null;
         }
@@ -247,14 +260,14 @@ public static class AdbService
     }
 
     public static async Task PushAsync(string serial, string localPath, string remotePath, CancellationToken ct = default)
-        => await RunAsync($"-s {serial} push \"{localPath}\" {remotePath}", ct);
+        => await RunAsync($"-s {S(serial)} push \"{localPath}\" {remotePath}", ct);
 
     public static async Task ReverseAsync(string serial, string deviceSocket, int localPort, CancellationToken ct = default)
-        => await RunAsync($"-s {serial} reverse localabstract:{deviceSocket} tcp:{localPort}", ct);
+        => await RunAsync($"-s {S(serial)} reverse localabstract:{deviceSocket} tcp:{localPort}", ct);
 
     public static async Task<string> EnableWifiAsync(string serial, CancellationToken ct = default)
     {
-        await RunAsync($"-s {serial} tcpip 5555", ct);
+        await RunAsync($"-s {S(serial)} tcpip 5555", ct);
 
         string ip = "";
         for (var i = 0; i < 8 && ip.Length == 0; i++)
@@ -262,7 +275,7 @@ public static class AdbService
             await Task.Delay(1000, ct);
             try
             {
-                var ipOutput = await RunAsync($"-s {serial} shell ip -f inet addr show wlan0", ct);
+                var ipOutput = await RunAsync($"-s {S(serial)} shell ip -f inet addr show wlan0", ct);
                 var match = Regex.Match(ipOutput, @"inet (\d+\.\d+\.\d+\.\d+)");
                 if (match.Success)
                     ip = match.Groups[1].Value;
@@ -284,42 +297,42 @@ public static class AdbService
 
     public static async Task<(int W, int H)> GetScreenSizeAsync(string serial, CancellationToken ct = default)
     {
-        var output = await RunAsync($"-s {serial} shell wm size", ct);
+        var output = await RunAsync($"-s {S(serial)} shell wm size", ct);
         var m = Regex.Match(output, @"(\d+)x(\d+)");
         return m.Success ? (int.Parse(m.Groups[1].Value), int.Parse(m.Groups[2].Value)) : (0, 0);
     }
 
     public static async Task<int> GetBrightnessAsync(string serial, CancellationToken ct = default)
     {
-        var output = await RunAsync($"-s {serial} shell settings get system screen_brightness", ct);
+        var output = await RunAsync($"-s {S(serial)} shell settings get system screen_brightness", ct);
         return int.TryParse(output.Trim(), out var v) ? v : -1;
     }
 
     public static async Task SetBrightnessAsync(string serial, int value, CancellationToken ct = default)
     {
-        await RunAsync($"-s {serial} shell settings put system screen_brightness_mode 0", ct);
-        await RunAsync($"-s {serial} shell settings put system screen_brightness {value}", ct);
+        await RunAsync($"-s {S(serial)} shell settings put system screen_brightness_mode 0", ct);
+        await RunAsync($"-s {S(serial)} shell settings put system screen_brightness {value}", ct);
     }
 
     public static async Task<int> GetStayOnWhilePluggedInAsync(string serial, CancellationToken ct = default)
     {
-        var output = await RunAsync($"-s {serial} shell settings get global stay_on_while_plugged_in", ct);
+        var output = await RunAsync($"-s {S(serial)} shell settings get global stay_on_while_plugged_in", ct);
         return int.TryParse(output.Trim(), out var v) ? v : -1;
     }
 
     public static async Task SetStayOnWhilePluggedInAsync(string serial, int value, CancellationToken ct = default)
     {
-        await RunAsync($"-s {serial} shell settings put global stay_on_while_plugged_in {value}", ct);
+        await RunAsync($"-s {S(serial)} shell settings put global stay_on_while_plugged_in {value}", ct);
     }
 
     public static async Task WakeScreenAsync(string serial, CancellationToken ct = default)
     {
-        await RunAsync($"-s {serial} shell input keyevent KEYCODE_WAKEUP", ct);
+        await RunAsync($"-s {S(serial)} shell input keyevent KEYCODE_WAKEUP", ct);
     }
 
     public static async Task ReverseRemoveAsync(string serial, string deviceSocket)
     {
-        try { await RunAsync($"-s {serial} reverse --remove localabstract:{deviceSocket}"); }
+        try { await RunAsync($"-s {S(serial)} reverse --remove localabstract:{deviceSocket}"); }
         catch { }
     }
 
@@ -328,7 +341,7 @@ public static class AdbService
     /// <summary>Liste les profils Android hors utilisateur principal (clone, travail…).</summary>
     public static async Task<List<AndroidProfile>> ListProfilesAsync(string serial, CancellationToken ct = default)
     {
-        var output = await RunAsync($"-s {serial} shell pm list users", ct);
+        var output = await RunAsync($"-s {S(serial)} shell pm list users", ct);
         var list = new List<AndroidProfile>();
         foreach (var line in output.Split('\n', StringSplitOptions.TrimEntries))
         {
@@ -343,11 +356,17 @@ public static class AdbService
         return list;
     }
 
+    /// <summary>Nom de profil : lettres/chiffres/espaces/_/- — jamais de métacaractères shell.</summary>
+    private static readonly Regex ProfileNameOk = new(@"^[\p{L}\p{N} _\-]{1,32}$", RegexOptions.Compiled);
+
     /// <summary>Crée un profil clone (type Dual Apps) sans action sur le téléphone.</summary>
     public static async Task<int> CreateCloneProfileAsync(string serial, string name, CancellationToken ct = default)
     {
+        // Le nom part dans une commande shell adb entre guillemets : whitelist stricte.
+        if (!ProfileNameOk.IsMatch(name))
+            throw new ArgumentException($"nom de profil invalide : « {name} »");
         var output = await RunAsync(
-            $"-s {serial} shell pm create-user --profileOf 0 --user-type android.os.usertype.profile.CLONE \"{name}\"", ct);
+            $"-s {S(serial)} shell pm create-user --profileOf 0 --user-type android.os.usertype.profile.CLONE \"{name}\"", ct);
         var m = Regex.Match(output, @"user id (\d+)");
         if (!m.Success)
             throw new InvalidOperationException(string.Format(LocalizationService.Get("ex.profile_denied"), output.Trim()));
@@ -357,19 +376,19 @@ public static class AdbService
     /// <summary>Installe une app déjà présente dans un profil (clone, sans téléchargement).</summary>
     public static async Task InstallAppForUserAsync(string serial, int userId, string packageName, CancellationToken ct = default)
     {
-        var output = await RunAsync($"-s {serial} shell pm install-existing --user {userId} {packageName}", ct);
+        var output = await RunAsync($"-s {S(serial)} shell pm install-existing --user {userId} {packageName}", ct);
         if (!output.Contains("installed for user"))
             throw new InvalidOperationException(string.Format(LocalizationService.Get("ex.install_denied"), output.Trim()));
     }
 
     /// <summary>Démarre un profil (requis avant de pouvoir y lancer des apps).</summary>
     public static async Task StartUserAsync(string serial, int userId, CancellationToken ct = default)
-        => await RunAsync($"-s {serial} shell am start-user {userId}", ct);
+        => await RunAsync($"-s {S(serial)} shell am start-user {userId}", ct);
 
     /// <summary>Supprime un profil et toutes ses données (comptes de jeu inclus).</summary>
     public static async Task RemoveUserProfileAsync(string serial, int userId, CancellationToken ct = default)
     {
-        var output = await RunAsync($"-s {serial} shell pm remove-user {userId}", ct);
+        var output = await RunAsync($"-s {S(serial)} shell pm remove-user {userId}", ct);
         if (!output.Contains("Success"))
             throw new InvalidOperationException(string.Format(LocalizationService.Get("ex.remove_denied"), output.Trim()));
     }
@@ -378,7 +397,7 @@ public static class AdbService
     {
         var adb = FindAdb() ?? throw new InvalidOperationException(LocalizationService.Get("ex.adb_missing"));
         var psi = new ProcessStartInfo(adb,
-            $"-s {serial} shell CLASSPATH={remoteJar} app_process / com.touchmirror.engine.Server {arguments}")
+            $"-s {S(serial)} shell CLASSPATH={remoteJar} app_process / com.touchmirror.engine.Server {arguments}")
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,

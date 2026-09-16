@@ -1,3 +1,5 @@
+<a id="top"></a>
+
 <div align="center">
 
 ### 🌐 [English version — click here](README.md)
@@ -12,14 +14,18 @@
 
 # TouchMirror
 
-**Mirroring Android natif pour Windows — pensé pour Dofus Touch.**
+**Mirroring Android natif pour Windows — pensé pour Dofus Touch.** *(Android screen mirroring — mirror & control your phone on PC)*
 
 Gratuit, open source, sans compte, sans pub.
 
-[![Version](https://img.shields.io/badge/version-0.4.0-D9A94E?style=flat-square)](https://github.com/shinzarou-eng/TouchMirror/releases/latest)
+[![Release](https://img.shields.io/github/v/release/shinzarou-eng/TouchMirror?style=flat-square&label=version&color=D9A94E)](https://github.com/shinzarou-eng/TouchMirror/releases/latest)
+[![Téléchargements](https://img.shields.io/github/downloads/shinzarou-eng/TouchMirror/total?style=flat-square&label=t%C3%A9l%C3%A9chargements&color=D9A94E)](https://github.com/shinzarou-eng/TouchMirror/releases)
+[![Stars](https://img.shields.io/github/stars/shinzarou-eng/TouchMirror?style=flat-square)](https://github.com/shinzarou-eng/TouchMirror/stargazers)
+[![Dernier commit](https://img.shields.io/github/last-commit/shinzarou-eng/TouchMirror?style=flat-square&label=dernier%20commit)](https://github.com/shinzarou-eng/TouchMirror/commits/main)
 [![Plateforme](https://img.shields.io/badge/plateforme-Windows%2010%2F11-0078D4?style=flat-square)](https://github.com/shinzarou-eng/TouchMirror)
 [![.NET](https://img.shields.io/badge/.NET-10-512BD4?style=flat-square)](https://dotnet.microsoft.com)
 [![Licence](https://img.shields.io/badge/licence-MIT-green?style=flat-square)](LICENSE)
+[![Ankama](https://img.shields.io/badge/Ankama-compatible-2ea44f?style=flat-square)](#conformité-ankama)
 [![Dofus Touch](https://img.shields.io/badge/optimis%C3%A9%20pour-Dofus%20Touch-D9A94E?style=flat-square)](https://www.dofus-touch.com)
 [![Discord](https://img.shields.io/badge/Discord-rejoins--nous-5865F2?style=flat-square)](https://discord.gg/DBJ9kNCdX)
 
@@ -31,42 +37,50 @@ Gratuit, open source, sans compte, sans pub.
 
 ---
 
+<details>
+<summary><b>Table des matières</b></summary>
+
+[Pourquoi TouchMirror ?](#pourquoi-touchmirror-) · [Fonctionnalités](#fonctionnalités) · [Comparatif](#comparatif) · [Installation](#installation) · [Raccourcis plaqués](#raccourcis-plaqués) · [Affichage virtuel](#affichage-virtuel) · [Multicompte](#multicompte) · [Raccourcis clavier](#raccourcis-clavier) · [API locale](#api-locale-optionnelle) · [Build depuis les sources](#build-depuis-les-sources) · [Stack technique](#stack-technique) · [Conformité Ankama](#conformité-ankama) · [Roadmap](#roadmap) · [Participer](#participer) · [Licence](#licence)
+
+</details>
+
 ## Pourquoi TouchMirror ?
 
 TouchMirror est une application **Windows native** qui affiche et contrôle ton téléphone Android depuis le PC : tu branches, tu cliques, tu joues. Interface sombre soignée, faible latence, plusieurs téléphones dans **une seule fenêtre** — et un moteur de mirroring maison, fork de scrcpy-server, dont les sources sont dans `engine/`.
 
-Gratuit, open source et communautaire : chaque ligne est lisible, les idées remontent sur Discord, et l'app n'appartient à personne d'autre qu'à ceux qui l'utilisent.
+L'alternative open source à scrcpy pensée pour les joueurs : affiche et contrôle ton vrai téléphone, avec raccourcis, écrans virtuels et multicompte dans une seule fenêtre. Chaque ligne est lisible, les idées remontent sur Discord, et l'app n'appartient qu'à ceux qui l'utilisent.
 
 ## Fonctionnalités
 
-| | |
-|---|---|
-| **Mirroring HD** | Résolution native du téléphone, 60/90/120 fps, codecs H.264, H.265 et AV1 |
-| **Faible latence** | Décodage FFmpeg basse latence, dernière frame prioritaire, audio ~400 ms, sockets optimisés |
-| **Raccourcis plaqués** | Pose un repère sur un sort à l'écran, assigne une touche — 1 frappe = 1 tap à cet endroit. Style (pastille, cercle, minimal), opacité et taille réglables, persisté par appareil. Manuel pur : pas de répétition, pas de macro |
-| **Affichage virtuel** | Dofus tourne sur un écran virtuel dédié — le téléphone physique reste libre. Presets paysage, portrait et **tablette** (8″/10″ : les apps passent en UI tablette) |
-| **Multicompte** | Plusieurs téléphones dans une seule fenêtre — un compte par téléphone |
-| **Espaces de travail** | « Solo », « Duo », « Stream » — appareils, ordre, miroir actif et réglages par appareil restaurés en un clic ; `Ctrl`+`Maj`+`1-9` pour basculer |
-| **Détection instantanée** | `adb track-devices` événementiel — le téléphone apparaît dès le branchement, sans polling |
-| **Presets qualité** | Performance / Équilibré / Qualité+ / Maximal — résolution, fps et bitrate appliqués en un clic |
-| **Économie de ressources** | Les miroirs inactifs arrêtent de décoder la vidéo (CPU/GPU économisés) — l'enregistrement continue en arrière-plan |
-| **Diagnostics intégrés** | Verdicts USB (câble douteux, autorisation, liaison instable) et diag réseau affichés directement dans l'app |
-| **Pare-feu automatique** | Règles entrantes vérifiées et créées au premier lancement — une seule invite UAC |
-| **Personnalisation** | Renomme chaque téléphone (tuiles + hub) et choisis sa couleur d'accent — clic droit sur l'appareil |
-| **USB & WiFi** | Bascule en sans-fil en un clic, puis débranche le câble — le flux continue |
-| **Souris = tactile** | Clic, glisser, molette = scroll, `Ctrl`+molette = pinch-to-zoom (zoom de la map) |
-| **Clavier** | Le texte tapé arrive sur le téléphone comme un clavier Bluetooth |
-| **Presse-papiers** | Bidirectionnel — `Ctrl`+`V` colle sur le tel, copier sur le tel arrive sur le PC |
-| **Enregistrement MP4** | Remux sans ré-encodage — fichiers directement lisibles et uploadables |
-| **Captures PNG** | Un clic, enregistrées dans `Images\TouchMirror` |
-| **Écran éteint** | L'écran physique du téléphone passe au noir pendant le mirroring — économise la batterie et l'AMOLED |
-| **Aide intégrée** | Forum, encyclopédie et DofusDB dans un panneau navigateur sans quitter le jeu |
-| **Plein écran** | `F11` ou bouton dédié, barre de contrôle au survol du bord haut |
-| **Mode capture** | Fenêtre propre pour OBS — idéal pour streamer |
-| **API locale** | HTTP + SSE sur localhost avec token — pilotage Stream Deck, OBS, scripts. Aucun endpoint ne peut injecter d'input sur le téléphone |
-| **Plugins** | Moteur JavaScript embarqué (sandbox) — manifest `plugin.json`, plugins officiels vérifiés par hash |
-| **Mises à jour** | L'app détecte les nouvelles releases GitHub au démarrage |
-| **iPhone / AirPlay** | *Bientôt disponible* — le mirroring iOS est en cours de finalisation |
+| | | |
+|---|---|---|
+| 🎥 | **Mirroring HD** | Résolution native du téléphone, 60/90/120 fps, codecs H.264, H.265 et AV1 |
+| ⚡ | **Faible latence** | Décodage FFmpeg basse latence, dernière frame prioritaire, audio ~400 ms, sockets optimisés |
+| � | **Pipeline GPU zéro-copie** | Chemin D3D11 maison : les frames NV12 décodées vont du décodeur directement au pixel shader — sans aller-retour CPU, sans copie en trop |
+| �🎯 | **Raccourcis plaqués** | Pose un repère sur un sort à l'écran, assigne une touche — 1 frappe = 1 tap à cet endroit. Style (pastille, cercle, minimal), opacité et taille réglables, persisté par appareil. Manuel pur : pas de répétition, pas de macro |
+| 🖥️ | **Affichage virtuel** | Dofus tourne sur un écran virtuel dédié — le téléphone physique reste libre. Presets paysage, portrait et **tablette** (8″/10″ : les apps passent en UI tablette) |
+| 📱 | **Multicompte** | Plusieurs téléphones dans une seule fenêtre — un compte par téléphone |
+| 🗂️ | **Espaces de travail** | « Solo », « Duo », « Stream » — appareils, ordre, miroir actif et réglages par appareil restaurés en un clic ; `Ctrl`+`Maj`+`1-9` pour basculer |
+| 🔌 | **Détection instantanée** | `adb track-devices` événementiel — le téléphone apparaît dès le branchement, sans polling |
+| 🎚️ | **Presets qualité** | Performance / Équilibré / Qualité+ / Maximal — résolution, fps et bitrate appliqués en un clic |
+| 🍃 | **Économie de ressources** | Les miroirs inactifs arrêtent de décoder la vidéo (CPU/GPU économisés) — l'enregistrement continue en arrière-plan |
+| 🩺 | **Diagnostics intégrés** | Verdicts USB (câble douteux, autorisation, liaison instable) et diag réseau affichés directement dans l'app |
+| 🛡️ | **Pare-feu automatique** | Règles entrantes vérifiées et créées au premier lancement — une seule invite UAC |
+| 🎨 | **Personnalisation** | Renomme chaque téléphone (tuiles + hub) et choisis sa couleur d'accent — clic droit sur l'appareil |
+| 📶 | **USB & WiFi** | Bascule en sans-fil en un clic, puis débranche le câble — le flux continue |
+| 🖱️ | **Souris = tactile** | Clic, glisser, molette = scroll, `Ctrl`+molette = pinch-to-zoom (zoom de la map) |
+| ⌨️ | **Clavier** | Le texte tapé arrive sur le téléphone comme un clavier Bluetooth |
+| 📋 | **Presse-papiers** | Bidirectionnel — `Ctrl`+`V` colle sur le tel, copier sur le tel arrive sur le PC |
+| ⏺️ | **Enregistrement MP4** | Remux sans ré-encodage — fichiers directement lisibles et uploadables |
+| 📸 | **Captures PNG** | Un clic, enregistrées dans `Images\TouchMirror` |
+| 🌙 | **Écran éteint** | L'écran physique du téléphone passe au noir pendant le mirroring — économise la batterie et l'AMOLED |
+| 📖 | **Aide intégrée** | Forum, encyclopédie et DofusDB dans un panneau navigateur sans quitter le jeu |
+| ⛶ | **Plein écran** | `F11` ou bouton dédié, barre de contrôle au survol du bord haut |
+| 🎬 | **Mode capture** | Fenêtre propre pour OBS — idéal pour streamer |
+| 🔗 | **API locale** | HTTP + SSE sur localhost avec token — pilotage Stream Deck, OBS, scripts. Aucun endpoint ne peut injecter d'input sur le téléphone |
+| 🧩 | **Plugins** | Moteur JavaScript embarqué (sandbox) — manifest `plugin.json`, plugins officiels vérifiés par hash |
+| 🔄 | **Mises à jour** | L'app détecte les nouvelles releases GitHub au démarrage |
+| 🍎 | **iPhone / AirPlay** | *Bientôt disponible* — le mirroring iOS est en cours de finalisation |
 
 ## Comparatif
 
@@ -80,6 +94,7 @@ Chaque outil a ses forces — voici où TouchMirror se situe :
 | Affichage virtuel / mode tablette | ✅ | ✅ (option) | — | ✅ |
 | Multi-compte sur un seul téléphone | *Bientôt* | — | — | ✅ |
 | iPhone / iOS | *Bientôt* | — | ✅ | ✅ |
+| Pipeline GPU zéro-copie | ✅ | — | — | ✅ |
 | Presets qualité, diagnostics intégrés | ✅ | — | — | ✅ |
 | Enregistrement MP4 intégré | ✅ | ✅ | — | — |
 | API locale + plugins sandbox | ✅ | — | — | — |
@@ -180,6 +195,14 @@ await tm.getMirrors();           // miroirs et leurs slots
 await tm.connect("RFGL22M2JQM"); // connecter un appareil
 await tm.activate(0);            // slot 0 en grand miroir
 await tm.screenshot(0);          // capture
+tm.overlay(1, { visible: true, title: "FPS", color: "#3ECF8E",
+                pos: "bl", compact: false });
+                                 // widget déplaçable sur le miroir —
+                                 // pos : tl/tr/bl/br, compact : valeur seule
+tm.push(1, 60);                  // ajoute un point à la courbe
+tm.push(1, { value: 60, label: "60 fps" });
+                                 // libellé libre au lieu du nombre
+                                 // un widget par plugin (option "id" pour plus)
 tm.on("devices", e => …);        // événements temps réel
 tm.setInterval(fn, ms); tm.setTimeout(fn, ms);
 tm.log("message");               // → journal de l'app
@@ -201,7 +224,7 @@ Prérequis : **.NET 10 SDK** uniquement — adb, le moteur TouchMirror (`assets/
 
 ## Stack technique
 
-WPF / .NET 10 · WPF-UI · moteur TouchMirror (fork scrcpy-server) · FFmpeg (décodage + remux MP4) · NAudio · WebView2
+WPF / .NET 10 · WPF-UI · moteur TouchMirror (fork scrcpy-server) · pipeline D3D11 zéro-copie maison (`GpuPresenter` — slices NV12 → pixel shader → texture partagée) · FFmpeg (décodage + remux MP4) · NAudio · WebView2
 
 ## Conformité Ankama
 
@@ -215,9 +238,14 @@ Prochaines étapes : finalisation du mirroring iPhone (AirPlay + contrôle), sor
 
 **[Consulter la roadmap](ROADMAP.md)** — priorités, critères de validation et pistes à l'étude. Les éléments prévus ne sont pas encore des fonctionnalités disponibles.
 
-## Communauté
+## Participer
 
-Questions, retours, entraide multicompte → **[Discord](https://discord.gg/DBJ9kNCdX)** · Bugs et idées → [issues GitHub](https://github.com/shinzarou-eng/TouchMirror/issues)
+| | |
+|---|---|
+| 💬 **[Discord](https://discord.gg/DBJ9kNCdX)** | Questions, retours, entraide multicompte — la communauté est là |
+| 🐛 **[Issues GitHub](https://github.com/shinzarou-eng/TouchMirror/issues)** | Bugs et idées de fonctionnalités |
+| ⭐ **[Star le repo](https://github.com/shinzarou-eng/TouchMirror)** | Gratuit, une seconde, et ça aide le projet à se faire connaître |
+| 🧩 **Plugins** | Écris ton propre overlay ou outil — voir l'API `tm.*` plus haut |
 
 ## Licence
 
@@ -227,4 +255,6 @@ Questions, retours, entraide multicompte → **[Discord](https://discord.gg/DBJ9
 
 <div align="center">
 Fait avec ❤️ pour la communauté Dofus Touch
+
+**[⬆ Retour en haut](#top)**
 </div>
