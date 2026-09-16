@@ -1,10 +1,19 @@
 using System.Diagnostics;
 using TouchMirror.Video;
+using FFmpeg.AutoGen;
 
 var path = args[0];
-var iters = args.Length > 1 ? int.Parse(args[1]) : 3;
-var codec = Path.GetExtension(path).TrimStart('.') is "h265" or "hevc" ? "h265" : "h264";
+var ext = Path.GetExtension(path).TrimStart('.');
+var codec = ext is "h265" or "hevc" ? "h265" : ext == "av1" ? "av1" : "h264";
 var bytes = File.ReadAllBytes(path);
+
+if (args.Length > 1 && args[1] == "mux")
+{
+    MuxTest(path, codec, bytes);
+    return;
+}
+var iters = args.Length > 1 ? int.Parse(args[1]) : 3;
+
 var nals = SplitAnnexB(bytes);
 
 var auFile = Path.Combine(Path.GetDirectoryName(path) ?? ".", "au_sizes.json");
@@ -60,6 +69,131 @@ foreach (var mode in new[] { "gpu", "cpu", "gpu", "cpu" })
         $"({feedTicks / (double)Stopwatch.Frequency * 1000 / Math.Max(frames, 1):F2}ms/frame) " +
         $"cpu_proc={cpu:F0}ms ({100 * cpu / wall:F1}% d'un cœur)  " +
         $"débit décodé≈{frames / (wall / 1000):F0} fps");
+}
+
+static void MuxTest(string srcPath, string codec, byte[] bytes)
+{
+    VideoDecoder.InitializeFFmpeg();
+    var outPath = Path.ChangeExtension(srcPath, ".test.mp4");
+    using var rec = new Mp4Recorder(outPath, 2560, 1600, codec);
+
+    List<byte[]> units;
+    if (codec == "av1")
+    {
+        units = new List<byte[]>();
+        var i = 0;
+        while (i < bytes.Length && !TryObu(bytes, i, out _, out _)) i++;
+        while (i < bytes.Length)
+        {
+            var j = i;
+            while (j < bytes.Length)
+            {
+                if (!TryObu(bytes, j, out var t, out var l)) { j = bytes.Length; break; }
+                if (t == 2 && j > i)
+                    break;
+                j += l;
+            }
+            units.Add(bytes[i..Math.Min(j, bytes.Length)]);
+            i = j <= i ? bytes.Length : j;
+        }
+    }
+    else
+    {
+        units = new List<byte[]>();
+        var aus = new List<byte[]>();
+        byte[] Join(IEnumerable<byte[]> ns) => ns.SelectMany(n => n).ToArray();
+        bool IsVcl(byte[] nal)
+        {
+            var off = nal.Length > 3 && nal[2] == 1 ? 3 : 4;
+            var h = nal[off];
+            return codec == "h265" ? (((h >> 1) & 0x3F) <= 31) : ((h & 0x1F) <= 5);
+        }
+        foreach (var nal in SplitAnnexB(bytes))
+        {
+            bool vcl = IsVcl(nal);
+            bool newAu = vcl && aus.Any(IsVcl);
+            if (newAu && aus.Count > 0)
+            {
+                units.Add(Join(aus));
+                aus.Clear();
+            }
+            aus.Add(nal);
+        }
+        if (aus.Count > 0)
+            units.Add(Join(aus));
+    }
+
+    int cfgIdx;
+    if (codec == "av1")
+    {
+        cfgIdx = 0;
+    }
+    else
+    {
+        cfgIdx = units.FindIndex(u => SplitAnnexB(u).Any(n =>
+        {
+            var off = n.Length > 3 && n[2] == 1 ? 3 : 4;
+            var type = codec == "h265" ? ((n[off] >> 1) & 0x3F) : (n[off] & 0x1F);
+            return type == (codec == "h265" ? 33 : 7);
+        }));
+    }
+    if (cfgIdx < 0)
+    {
+        Console.WriteLine($"pas de config trouvée dans {units.Count} unités — fichier sans header attendu");
+    }
+    else
+    {
+        rec.WriteConfig(units[cfgIdx]);
+    }
+    Console.WriteLine($"config: headerWritten={rec.HeaderWritten}, {units.Count} unités");
+    long pts = 0;
+    var first = true;
+    for (var k = 0; k < units.Count; k++)
+    {
+        if (k == cfgIdx) continue;
+        rec.WritePacket(units[k], pts += 33_000, keyframe: first);
+        first = false;
+    }
+    Thread.Sleep(50);
+    rec.Dispose();
+
+    var info = new FileInfo(outPath);
+    Console.WriteLine($"mp4: {info.Length / 1024} KB");
+    unsafe
+    {
+        AVFormatContext* fmt = null;
+        var r = ffmpeg.avformat_open_input(&fmt, outPath, null, null);
+        if (r < 0) { Console.WriteLine("avformat_open_input ECHEC"); return; }
+        for (uint s = 0; s < fmt->nb_streams; s++)
+            Console.WriteLine($"stream {s}: codec_id={fmt->streams[s]->codecpar->codec_id} " +
+                $"{fmt->streams[s]->codecpar->width}x{fmt->streams[s]->codecpar->height} " +
+                $"extradata={fmt->streams[s]->codecpar->extradata_size}B");
+        var pkt = ffmpeg.av_packet_alloc();
+        var n = 0;
+        while (ffmpeg.av_read_frame(fmt, pkt) >= 0) { n++; ffmpeg.av_packet_unref(pkt); }
+        Console.WriteLine($"packets lus={n}");
+        ffmpeg.avformat_close_input(&fmt);
+    }
+}
+
+static unsafe bool TryObu(byte[] d, int i, out int type, out int len)
+{
+    type = -1; len = 0;
+    if (i >= d.Length || (d[i] & 0x80) != 0) return false;
+    type = (d[i] >> 3) & 0xF;
+    bool ext = (d[i] & 0x04) != 0;
+    bool hasSize = (d[i] & 0x02) != 0;
+    int p = i + 1 + (ext ? 1 : 0);
+    if (!hasSize) return false;
+    long size = 0; int sh = 0;
+    while (p < d.Length)
+    {
+        size |= (long)(d[p] & 0x7f) << sh;
+        if ((d[p++] & 0x80) == 0) break;
+        sh += 7;
+    }
+    len = p - i + (int)size;
+    return i + len <= d.Length;
 }
 
 static List<byte[]> SplitAnnexB(byte[] buf)
