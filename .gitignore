@@ -6,15 +6,11 @@ dist/
 *.user
 
 /screenshot.png
-capture.ps1
-check-crash.ps1
-fix-window.ps1
-click-test.ps1
-click-pos.ps1
-click-uia.ps1
-crop-*.ps1
-restore.ps1
-test_server.py
+/*.ps1
+/*.py
+/*.png
+!/assets/**/*.png
+!/docs/**/*.png
 
 assets/ffmpeg/
 
