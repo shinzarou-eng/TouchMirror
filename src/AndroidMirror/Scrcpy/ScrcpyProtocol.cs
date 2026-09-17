@@ -96,8 +96,8 @@ public static class AndroidKeyCode
 public sealed class ControlChannel : IDisposable
 {
     private readonly Socket _socket;
-    private readonly object _writeLock = new();
     private readonly CancellationTokenSource _cts = new();
+    private readonly System.Collections.Concurrent.BlockingCollection<byte[]> _sendQueue = new(1024);
 
     public event Action<string>? ClipboardReceived;
 
@@ -105,14 +105,26 @@ public sealed class ControlChannel : IDisposable
     {
         _socket = socket;
         Task.Run(ReadLoopAsync);
+        Task.Run(SendLoop);
     }
 
+    // Send synchrone sur le socket = risque de figer l'UI si le device stagne.
+    // File FIFO bornée : un sender dédié écrit, l'UI n'attend jamais.
     private void Send(ReadOnlySpan<byte> msg)
     {
-        lock (_writeLock)
+        if (_sendQueue.IsAddingCompleted)
+            return;
+        try { _sendQueue.TryAdd(msg.ToArray()); } catch { }
+    }
+
+    private void SendLoop()
+    {
+        try
         {
-            _socket.Send(msg);
+            foreach (var msg in _sendQueue.GetConsumingEnumerable())
+                _socket.Send(msg);
         }
+        catch { }
     }
 
     public void InjectTouch(byte action, ulong pointerId, uint x, uint y, ushort w, ushort h,
@@ -320,7 +332,9 @@ public sealed class ControlChannel : IDisposable
     public void Dispose()
     {
         _cts.Cancel();
+        try { _sendQueue.CompleteAdding(); } catch { }
         try { _socket.Dispose(); } catch { }
         _cts.Dispose();
+        _sendQueue.Dispose();
     }
 }

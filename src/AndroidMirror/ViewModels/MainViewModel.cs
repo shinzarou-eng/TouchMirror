@@ -102,7 +102,7 @@ public partial class MainViewModel : ObservableObject
         if (ActivePrefs() is { } o) o.NewDisplay = spec; else _settings.NewDisplay = spec;
         ScheduleSave();
         if (!_suppressReconnect)
-            _ = ReconnectActiveAsync();
+            AppLogger.Forget(ReconnectActiveAsync());
     }
 
     [ObservableProperty] private QualityPreset? _selectedQualityPreset;
@@ -117,7 +117,7 @@ public partial class MainViewModel : ObservableObject
         VideoBitRate = value.BitRate;
         _suppressReconnect = false;
         if (ActiveMirror != null)
-            _ = ReconnectActiveAsync();
+            AppLogger.Forget(ReconnectActiveAsync());
         Status = string.Format(L("st.preset_applied"), value.Label) +
                  (ActiveMirror?.Prefs != null ? string.Format(L("st.to_device"), ActiveMirror.DeviceName) : L("st.global"));
     }
@@ -311,7 +311,7 @@ public partial class MainViewModel : ObservableObject
         SyncActiveWorkspace();
         SettingsStore.Save(_settings);
         if (LocalApiEnabled && _apiServer is { Port: { } p } && p != LocalApiPort)
-            _ = RestartApiAsync();
+            AppLogger.Forget(RestartApiAsync());
     }
 
     [ObservableProperty] private int _maxSize = 0;
@@ -445,7 +445,7 @@ public partial class MainViewModel : ObservableObject
     partial void OnLocalApiEnabledChanged(bool value)
     {
         ScheduleSave();
-        _ = RestartApiAsync();
+        AppLogger.Forget(RestartApiAsync());
     }
 
     partial void OnLocalApiPortChanged(int value) => ScheduleSave();
@@ -574,7 +574,7 @@ public partial class MainViewModel : ObservableObject
     {
         var item = new WorkspaceItem(new Workspace { Name = string.Format(L("ws.default_name"), Workspaces.Count + 1) });
         Workspaces.Add(item);
-        _ = SelectWorkspaceAsync(item);
+        AppLogger.Forget(SelectWorkspaceAsync(item));
     }
 
     public async Task SelectWorkspaceAsync(WorkspaceItem? item)
@@ -715,7 +715,7 @@ public partial class MainViewModel : ObservableObject
     public void ActivateWorkspaceAt(int index)
     {
         if (index >= 0 && index < Workspaces.Count)
-            _ = SelectWorkspaceAsync(Workspaces[index]);
+            AppLogger.Forget(SelectWorkspaceAsync(Workspaces[index]));
     }
 
     private void RefreshMissingDevices()
@@ -877,9 +877,10 @@ public partial class MainViewModel : ObservableObject
     private bool IsApproved(PluginInstance p)
         => p.ContentHash != null
            && _settings.ApprovedPlugins.TryGetValue(p.Id, out var h)
-           && h == p.ContentHash;
+           && string.Equals(h, p.ContentHash, StringComparison.OrdinalIgnoreCase);
 
     public Func<PluginInstance, Task<bool>>? ConfirmUnverified;
+    public Func<MarketplaceItem, Task<bool>>? ConfirmInstall;
 
     [RelayCommand]
     private async Task TogglePlugin(PluginInstance? plugin)
@@ -983,6 +984,10 @@ public partial class MainViewModel : ObservableObject
     {
         if (item == null || !item.CanInstall)
             return;
+        // Le hash du catalogue est auto-référentiel (index.json fournit URL et
+        // hash) : l'install exécute du code distant → consentement explicite.
+        if (ConfirmInstall != null && !await ConfirmInstall(item))
+            return;
         item.CanInstall = false;
         item.ActionLabel = L("st.installing");
         try
@@ -1015,7 +1020,7 @@ public partial class MainViewModel : ObservableObject
     {
         SelectedPlugin = item;
         if (item != null)
-            _ = LoadDetailAsync(item);
+            AppLogger.Forget(LoadDetailAsync(item));
     }
 
     [RelayCommand]
@@ -1100,7 +1105,7 @@ public partial class MainViewModel : ObservableObject
                 else
                     File.Delete(p.FilePath);
             }
-            else
+            else if (MarketplaceService.IsValidId(item.Id))
             {
                 var dir = Path.Combine(AppContext.BaseDirectory, "plugins", item.Id);
                 if (Directory.Exists(dir))
@@ -1253,42 +1258,42 @@ public partial class MainViewModel : ObservableObject
         if (_suppressSave) return;
         if (ActivePrefs() is { } o) o.MaxSize = value; else _settings.MaxSize = value;
         ScheduleSave();
-        if (!_suppressReconnect) _ = ReconnectActiveAsync();
+        if (!_suppressReconnect) AppLogger.Forget(ReconnectActiveAsync());
     }
     partial void OnMaxFpsChanged(int value)
     {
         if (_suppressSave) return;
         if (ActivePrefs() is { } o) o.MaxFps = value; else _settings.MaxFps = value;
         ScheduleSave();
-        if (!_suppressReconnect) _ = ReconnectActiveAsync();
+        if (!_suppressReconnect) AppLogger.Forget(ReconnectActiveAsync());
     }
     partial void OnVideoBitRateChanged(int value)
     {
         if (_suppressSave) return;
         if (ActivePrefs() is { } o) o.VideoBitRate = value; else _settings.VideoBitRate = value;
         ScheduleSave();
-        if (!_suppressReconnect) _ = ReconnectActiveAsync();
+        if (!_suppressReconnect) AppLogger.Forget(ReconnectActiveAsync());
     }
     partial void OnVideoCodecChanged(string value)
     {
         if (_suppressSave) return;
         if (ActivePrefs() is { } o) o.VideoCodec = value; else _settings.VideoCodec = value;
         ScheduleSave();
-        if (!_suppressReconnect) _ = ReconnectActiveAsync();
+        if (!_suppressReconnect) AppLogger.Forget(ReconnectActiveAsync());
     }
     partial void OnVideoDecoderChanged(string value)
     {
         if (_suppressSave) return;
         if (ActivePrefs() is { } o) o.VideoDecoder = value; else _settings.VideoDecoder = value;
         ScheduleSave();
-        if (!_suppressReconnect) _ = ReconnectActiveAsync();
+        if (!_suppressReconnect) AppLogger.Forget(ReconnectActiveAsync());
     }
     partial void OnEnableAudioChanged(bool value)
     {
         if (_suppressSave) return;
         if (ActivePrefs() is { } o) o.EnableAudio = value; else _settings.EnableAudio = value;
         ScheduleSave();
-        if (!_suppressReconnect) _ = ReconnectActiveAsync();
+        if (!_suppressReconnect) AppLogger.Forget(ReconnectActiveAsync());
     }
     partial void OnAdaptiveBitrateChanged(bool value)
     {
@@ -1302,7 +1307,7 @@ public partial class MainViewModel : ObservableObject
     {
         foreach (var m in Mirrors)
             if (m.Decoder?.GpuPresenter is { } p)
-                p.Sharpness = value ? 0.22f : 0f;
+                p.Sharpness = value ? Video.GpuPresenter.DefaultSharpness : 0f;
         ScheduleSave();
     }
 
@@ -1318,7 +1323,7 @@ public partial class MainViewModel : ObservableObject
         {
             RescanPlugins();
             if (!_catalogLoaded)
-                _ = LoadCatalog();
+                AppLogger.Forget(LoadCatalog());
         }
     }
     partial void OnSelectedDeviceChanged(AdbDevice? value) => ScheduleSave();
@@ -1329,13 +1334,13 @@ public partial class MainViewModel : ObservableObject
         {
             o.TurnScreenOff = value;
             if (ActiveMirror != null)
-                _ = ActiveMirror.SetScreenDimmedAsync(value);
+                AppLogger.Forget(ActiveMirror.SetScreenDimmedAsync(value));
         }
         else
         {
             _settings.TurnScreenOff = value;
             foreach (var m in Mirrors)
-                _ = m.SetScreenDimmedAsync(value);
+                AppLogger.Forget(m.SetScreenDimmedAsync(value));
         }
         ScheduleSave();
     }
@@ -1366,10 +1371,10 @@ public partial class MainViewModel : ObservableObject
                 : $"adb : {adb}";
         await RefreshDevicesAsync();
         RescanPlugins();
-        _ = CheckUpdateAsync();
-        _ = TrackDevicesLoopAsync();
+        AppLogger.Forget(CheckUpdateAsync());
+        AppLogger.Forget(TrackDevicesLoopAsync());
         if (ActiveWorkspace != null)
-            _ = RestoreWorkspaceAsync(ActiveWorkspace);
+            AppLogger.Forget(RestoreWorkspaceAsync(ActiveWorkspace));
     }
 
     private readonly CancellationTokenSource _trackCts = new();
@@ -1480,7 +1485,7 @@ public partial class MainViewModel : ObservableObject
 
             _pollTimer.IsEnabled = list.Any(d => !d.IsReady);
             RefreshMissingDevices();
-            _ = TryConnectMissingAsync();
+            AppLogger.Forget(TryConnectMissingAsync());
         }
         catch (Exception ex)
         {
@@ -1548,7 +1553,7 @@ public partial class MainViewModel : ObservableObject
         _profilesChecked.Add(candidate.DeviceKey);
         SetupTarget = candidate;
         SetupKind = "busy";
-        _ = ProbeSetupTargetAsync(candidate);
+        AppLogger.Forget(ProbeSetupTargetAsync(candidate));
     }
 
     private async Task ProbeSetupTargetAsync(AdbDevice device)

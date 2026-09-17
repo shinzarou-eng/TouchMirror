@@ -24,7 +24,17 @@ public sealed unsafe class AirPlayFrameSource : IFrameSource, IDisposable
     {
         lock (_sync)
         {
-            if (_disposed || width <= 0 || height <= 0)
+            if (_disposed || width <= 0 || height <= 0 || width > 8192 || height > 8192)
+                return;
+
+            // pitch/len viennent du réseau : vérifier que les plans tiennent dans data.
+            var need0 = (long)pitch0 * (height - 1) + width;
+            var need1 = (long)pitch1 * (height / 2 - 1) + width / 2;
+            var need2 = (long)pitch2 * (height / 2 - 1) + width / 2;
+            if (need0 < 0 || need1 < 0 || need2 < 0
+                || len0 > data.Length || len1 > data.Length || len2 > data.Length
+                || (long)len0 + len1 + len2 > data.Length
+                || need0 > len0 || need1 > len1 || need2 > len2)
                 return;
 
             VideoDecoder.InitializeFFmpeg(); // idempotent — pose ffmpeg.RootPath

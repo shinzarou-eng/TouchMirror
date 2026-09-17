@@ -89,6 +89,12 @@ public partial class MainWindow : FluentWindow
                 L("dlg.unverified_title"),
                 System.Windows.MessageBoxButton.YesNo,
                 System.Windows.MessageBoxImage.Warning) == System.Windows.MessageBoxResult.Yes);
+        _vm.ConfirmInstall = item => Task.FromResult(
+            System.Windows.MessageBox.Show(this,
+                string.Format(L("dlg.install_body"), item.Name, item.Entry.Author, item.Entry.Version),
+                L("dlg.install_title"),
+                System.Windows.MessageBoxButton.YesNo,
+                System.Windows.MessageBoxImage.Question) == System.Windows.MessageBoxResult.Yes);
         _vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MainViewModel.SelectedPlugin)
@@ -397,7 +403,7 @@ public partial class MainWindow : FluentWindow
     {
         if (sender is FrameworkElement { DataContext: WorkspaceItem { IsEditing: false } item }
             && !IsInteractiveSource(e.OriginalSource))
-            _ = _vm.SelectWorkspaceAsync(item);
+            AppLogger.Forget(_vm.SelectWorkspaceAsync(item));
     }
 
     private void OnWorkspaceEditClick(object sender, RoutedEventArgs e)

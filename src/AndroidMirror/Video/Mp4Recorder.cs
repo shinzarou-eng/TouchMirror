@@ -96,7 +96,9 @@ public unsafe sealed class Mp4Recorder : IDisposable
             pkt->dts = t;
             if (keyframe)
                 pkt->flags |= ffmpeg.AV_PKT_FLAG_KEY;
-            ffmpeg.av_interleaved_write_frame(_fmt, pkt);
+            var wr = ffmpeg.av_interleaved_write_frame(_fmt, pkt);
+            if (wr < 0 && _dbgPackets++ < 5)
+                Services.AppLogger.Write($"mp4: write_frame erreur {wr}");
         }
         finally
         {
@@ -452,7 +454,16 @@ public unsafe sealed class Mp4Recorder : IDisposable
         if (_disposed)
             return;
         _disposed = true;
-        try { if (_headerWritten) ffmpeg.av_write_trailer(_fmt); } catch { }
+        try
+        {
+            if (_headerWritten)
+            {
+                var tr = ffmpeg.av_write_trailer(_fmt);
+                if (tr < 0)
+                    Services.AppLogger.Write($"mp4: trailer erreur {tr} — fichier probablement illisible");
+            }
+        }
+        catch { }
         try
         {
             if (_fmt != null && _fmt->pb != null)

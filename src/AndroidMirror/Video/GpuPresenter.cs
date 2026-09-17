@@ -59,8 +59,9 @@ public sealed class GpuPresenter : IDisposable
     private ID3D11RenderTargetView? _rtv;
     private int _w, _h;
     private bool _pendingRebind;
+    private bool _disposed;
 
-    private readonly Dictionary<IntPtr, (ID3D11Texture2D tex, ID3D11ShaderResourceView? y,
+    private readonly Dictionary<(IntPtr tex, int slice), (ID3D11Texture2D tex, ID3D11ShaderResourceView? y,
         ID3D11ShaderResourceView? uv)> _srcCache = new();
 
     private static D3D9.IDirect3D9Ex? _d3d9;
@@ -112,6 +113,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
     private float _sharpness;
     private bool _cbDirty = true;
     private readonly float[] _cbData = new float[16];
+    public const float DefaultSharpness = 0.22f;
 
     public float Sharpness
     {
@@ -192,10 +194,12 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
 
     public unsafe void Present(IntPtr srcTexture, int sliceIndex, int w, int h, int colorInfo)
     {
-        if (srcTexture == IntPtr.Zero)
+        if (srcTexture == IntPtr.Zero || _disposed)
             return;
         lock (_sync)
         {
+            if (_disposed)
+                return;
             if ((colorInfo != _lastColorInfo || _cbDirty) && colorInfo >= 0 && colorInfo < ColorTable.Length)
             {
                 var coefs = ColorTable[colorInfo];
@@ -211,7 +215,8 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
                 return;
 
             ID3D11ShaderResourceView srvY, srvUV;
-            if (!_srcCache.TryGetValue(srcTexture, out var entry))
+            var srcKey = (srcTexture, sliceIndex);
+            if (!_srcCache.TryGetValue(srcKey, out var entry))
             {
                 var src = new ID3D11Texture2D(srcTexture);
                 ID3D11ShaderResourceView? y = null, uv = null;
@@ -226,7 +231,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
                 }
                 catch { y = null; uv = null; }
                 entry = (src, y, uv);
-                _srcCache[srcTexture] = entry;
+                _srcCache[srcKey] = entry;
             }
 
             if (entry.y != null && entry.uv != null)
@@ -344,7 +349,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
 
     public void Invalidate()
     {
-        if (_image == null)
+        if (_disposed || _image == null)
             return;
         _image.Lock();
         _image.AddDirtyRect(new Int32Rect(0, 0, _w, _h));
@@ -367,6 +372,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
 
     public void Dispose()
     {
+        _disposed = true;
         lock (_sync)
         {
             foreach (var e in _srcCache.Values)

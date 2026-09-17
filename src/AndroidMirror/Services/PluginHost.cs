@@ -70,6 +70,8 @@ public partial class PluginInstance : ObservableObject
         IsVerified = ComputeIsVerified();
     }
 
+    private byte[]? _verifiedCode;
+
     public bool VerifyNow()
     {
         try
@@ -82,8 +84,9 @@ public partial class PluginInstance : ObservableObject
             ContentHash = Convert.ToHexString(
                 SHA256.HashData(bytes.Concat(manifest).ToArray()));
             IsVerified = VerifiedPlugins.Hashes.Contains(ContentHash);
+            _verifiedCode = bytes;
         }
-        catch { ContentHash = null; IsVerified = false; }
+        catch { ContentHash = null; IsVerified = false; _verifiedCode = null; }
         return IsVerified;
     }
 
@@ -224,7 +227,11 @@ public partial class PluginInstance : ObservableObject
             }));
 
             engine.Execute(Prelude, "tm-prelude.js");
-            engine.Execute(File.ReadAllText(FilePath), Path.GetFileName(FilePath));
+            // Le code exécuté est celui dont le hash a été vérifié (VerifyNow) —
+            // pas une relecture du disque (un fichier modifié entre les deux
+            // ne passerait pas).
+            var code = _verifiedCode ?? File.ReadAllBytes(FilePath);
+            engine.Execute(System.Text.Encoding.UTF8.GetString(code), Path.GetFileName(FilePath));
 
             while (!ct.IsCancellationRequested)
             {

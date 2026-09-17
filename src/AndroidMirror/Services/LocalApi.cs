@@ -203,9 +203,16 @@ public sealed class LocalApiServer : IAsyncDisposable
                 return;
             }
             var expected = token();
-            var authorized = !string.IsNullOrEmpty(expected)
-                && (ctx.Request.Headers.Authorization == $"Bearer {expected}"
-                    || ctx.Request.Query["token"] == expected);
+            string? provided = null;
+            var auth = (string?)ctx.Request.Headers.Authorization;
+            if (auth != null && auth.StartsWith("Bearer ", StringComparison.Ordinal))
+                provided = auth["Bearer ".Length..];
+            else if (ctx.Request.Query.TryGetValue("token", out var q))
+                provided = q;
+            var authorized = expected is { Length: > 0 } && provided != null
+                && System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                    System.Text.Encoding.UTF8.GetBytes(expected),
+                    System.Text.Encoding.UTF8.GetBytes(provided));
             if (!authorized)
             {
                 ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;

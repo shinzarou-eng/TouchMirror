@@ -176,11 +176,11 @@ public sealed class AirPlayService : IDisposable
         if (!string.IsNullOrEmpty(ConnectedDeviceId) && deviceId != ConnectedDeviceId)
             return; // un iPhone déjà retenu pour cette tuile
 
-        var dataLen = (int)(len0 + len1 + len2);
-        if (dataOff + dataLen > p.Length)
+        var dataLen = (long)len0 + len1 + len2;
+        if (dataLen <= 0 || dataOff + dataLen > p.Length)
             return;
-        var frame = new byte[dataLen];
-        Buffer.BlockCopy(p, dataOff, frame, 0, dataLen);
+        var frame = new byte[(int)dataLen];
+        Buffer.BlockCopy(p, dataOff, frame, 0, (int)dataLen);
         _frames.Publish((int)w, (int)h, pitch0, pitch1, pitch2, len0, len1, len2, frame);
     }
 

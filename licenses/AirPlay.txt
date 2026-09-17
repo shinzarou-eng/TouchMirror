@@ -1,0 +1,12 @@
+AirPlay host binaries
+=====================
+
+`assets/airplay/` contains:
+
+- AirPlayHost.exe — TouchMirror's own thin host (source: native/AirPlayHost/),
+  MIT-licensed like the rest of the project.
+- airplay2dll.dll — AirPlay server library.
+- avcodec-58.dll / avutil-56.dll / swscale-5.dll — FFmpeg libraries (LGPL v2.1+,
+  see FFmpeg.txt in this folder; source: https://ffmpeg.org/download.html).
+- msys-2.0.dll — MSYS2 POSIX compatibility runtime (GPL v3+ with linking
+  exception; source: https://www.msys2.org/).

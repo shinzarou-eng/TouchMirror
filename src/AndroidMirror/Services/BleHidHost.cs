@@ -171,11 +171,11 @@ public sealed class BleHidHost : IDisposable
     public void Click(ushort x, ushort y)
     {
         PointerDown(x, y);
-        _ = Task.Run(async () =>
+        AppLogger.Forget(Task.Run(async () =>
         {
             await Task.Delay(50);
             PointerUp(x, y);
-        });
+        }));
     }
 
     public void Wheel(ushort x, ushort y, sbyte steps)

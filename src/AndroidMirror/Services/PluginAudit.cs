@@ -5,6 +5,8 @@ namespace TouchMirror.Services;
 public static class PluginAudit
 {
     private static readonly Regex Calls = new(@"\btm\.(\w+)", RegexOptions.Compiled);
+    // __call est exposé en global : un plugin peut contourner tm.* — l'audit doit le voir.
+    private static readonly Regex RawCalls = new(@"\b__call\(\s*['""](\w+)", RegexOptions.Compiled);
     private static readonly Regex Events = new(@"\btm\.on\(\s*['""]([\w.]+)", RegexOptions.Compiled);
 
     public static List<string> Extract(string code)
@@ -19,9 +21,11 @@ public static class PluginAudit
                 labels.Add(label);
         }
 
-        foreach (Match m in Calls.Matches(code))
+        var methods = Calls.Matches(code).Select(m => m.Groups[1].Value)
+            .Concat(RawCalls.Matches(code).Select(m => m.Groups[1].Value));
+        foreach (var method in methods)
         {
-            switch (m.Groups[1].Value)
+            switch (method)
             {
                 case "getStatus" or "getMirrors" or "getDevices":
                     Add(LocalizationService.Get("audit.read_state")); break;
@@ -40,7 +44,7 @@ public static class PluginAudit
                 case "setTimeout" or "setInterval" or "clearTimeout" or "clearInterval":
                     Add(LocalizationService.Get("audit.timers")); break;
                 case "log": Add(LocalizationService.Get("audit.log")); break;
-                default: Add(string.Format(LocalizationService.Get("audit.other"), m.Groups[1].Value)); break;
+                default: Add(string.Format(LocalizationService.Get("audit.other"), method)); break;
             }
         }
 

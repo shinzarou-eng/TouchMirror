@@ -112,7 +112,11 @@ public static class SettingsStore
                 return s;
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            AppLogger.Write($"settings: lecture impossible ({ex.Message})");
+            try { File.Copy(_path, _path + ".corrupt", true); } catch { }
+        }
         return new();
     }
 
@@ -125,6 +129,9 @@ public static class SettingsStore
             File.WriteAllText(tmp, JsonSerializer.Serialize(settings, _json));
             File.Move(tmp, _path, true);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            AppLogger.Write($"settings: sauvegarde impossible ({ex.Message})");
+        }
     }
 }

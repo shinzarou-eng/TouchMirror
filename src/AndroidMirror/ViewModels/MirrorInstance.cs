@@ -21,6 +21,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public ScrcpySession? Session { get; private set; }
     public VideoDecoder? Decoder { get; private set; }
     public AudioPlayer? Audio { get; private set; }
+    private GpuPresenter? _presenter;
 
     public virtual bool IsIos => false;
 
@@ -98,6 +99,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
 
     private int _gpuNotifyPending;
     private Mp4Recorder? _recorder;
+    private readonly object _recorderLock = new();
     private string? _recordPath;
     public DateTime? RecordingSince { get; private set; }
     private readonly object _decoderLock = new();
@@ -165,7 +167,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         };
         session.Disconnected += () =>
         {
-            try { Application.Current.Dispatcher.Invoke(() => _ = DisconnectAsync()); }
+            try { Application.Current.Dispatcher.Invoke(() => AppLogger.Forget(DisconnectAsync())); }
             catch (InvalidOperationException) { } // dispatcher arrêté (fermeture de l'app)
         };
 
@@ -184,10 +186,11 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                             try
                             {
                                 presenter = new GpuPresenter();
-                                presenter.Sharpness = options.VideoSharpen ? 0.22f : 0f;
+                                presenter.Sharpness = options.VideoSharpen ? GpuPresenter.DefaultSharpness : 0f;
                             }
                             catch (Exception ex) { Log?.Invoke($"gpu presenter: {ex.Message}"); }
                         }
+                        _presenter = presenter;
                         Decoder = new VideoDecoder(session.VideoCodecId ?? "h264",
                             preferHardware: options.VideoDecoder != "cpu",
                             gpuPresenter: presenter);
@@ -210,7 +213,14 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                         }
                         Decoder.Error += m => Log?.Invoke($"decoder: {m}");
                         var p = presenter;
-                        View.Dispatcher.Invoke(() => View.AttachDecoder(Decoder, p));
+                        var d = Decoder;
+                        View.Dispatcher.BeginInvoke(() =>
+                        {
+                            // La file UI peut exécuter ceci après un Dispose
+                            // (déconnexion rapide) : ne pas attacher un présentateur mort.
+                            if (ReferenceEquals(Decoder, d) && ReferenceEquals(_presenter, p))
+                                View.AttachDecoder(d, p);
+                        });
                         _codecHwSeen = false;
                         CodecBadge = (session.VideoCodecId ?? "h264").ToUpperInvariant();
                     }
@@ -224,10 +234,13 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             }
             try
             {
-                if (_recorder != null)
+                lock (_recorderLock)
                 {
-                    if (packet.IsConfig) _recorder.WriteConfig(packet.Data, packet.Length);
-                    else _recorder.WritePacket(packet.Data, packet.Length, packet.Pts, packet.IsKeyFrame);
+                    if (_recorder != null)
+                    {
+                        if (packet.IsConfig) _recorder.WriteConfig(packet.Data, packet.Length);
+                        else _recorder.WritePacket(packet.Data, packet.Length, packet.Pts, packet.IsKeyFrame);
+                    }
                 }
             }
             catch { }
@@ -256,7 +269,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         Connected?.Invoke(this);
 
         if (options.TurnScreenOff)
-            _ = SetScreenDimmedAsync(true);
+            AppLogger.Forget(SetScreenDimmedAsync(true));
     }
 
     public async Task SetScreenDimmedAsync(bool dimmed)
@@ -397,6 +410,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         {
             Decoder?.Dispose();
             Decoder = null;
+            _presenter?.Dispose();
+            _presenter = null;
         }
         try { Session?.Control?.SendSimple(ControlMsgType.ResetVideo); } catch { }
     }
@@ -414,8 +429,10 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         Directory.CreateDirectory(dir);
         var stamp = $"rec_{Device.Model}_{DateTime.Now:yyyyMMdd_HHmmss}_{Math.Abs(IdentityKey.GetHashCode()) % 1000:D3}";
         _recordPath = Path.Combine(dir, stamp + ".mp4");
-        _recorder = new Mp4Recorder(_recordPath, Session?.VideoWidth ?? 0, Session?.VideoHeight ?? 0,
+        var rec = new Mp4Recorder(_recordPath, Session?.VideoWidth ?? 0, Session?.VideoHeight ?? 0,
             videoCodec);
+        lock (_recorderLock)
+            _recorder = rec;
         IsRecording = true;
         RecordingSince = DateTime.Now;
         try { Session?.Control?.SendSimple(ControlMsgType.ResetVideo); } catch { }
@@ -425,10 +442,13 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     private void StopRecordingInternal()
     {
         RecordingSince = null;
-        if (_recorder is { HeaderWritten: false })
-            RaiseLog("enregistrement vide — config codec jamais reçue");
-        try { _recorder?.Dispose(); } catch { }
-        _recorder = null;
+        lock (_recorderLock)
+        {
+            if (_recorder is { HeaderWritten: false })
+                RaiseLog("enregistrement vide — config codec jamais reçue");
+            try { _recorder?.Dispose(); } catch { }
+            _recorder = null;
+        }
     }
 
     public virtual async Task DisconnectAsync()
@@ -439,10 +459,18 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         Session = null;
         if (session != null)
             await session.DisposeAsync();
-        Decoder?.Dispose();
-        Decoder = null;
-        Audio?.Dispose();
-        Audio = null;
+        lock (_decoderLock)
+        {
+            Decoder?.Dispose();
+            Decoder = null;
+            _presenter?.Dispose();
+            _presenter = null;
+        }
+        lock (_audioLock)
+        {
+            Audio?.Dispose();
+            Audio = null;
+        }
         StopRecordingInternal();
         IsRecording = false;
         IsConnected = false;
@@ -451,5 +479,5 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         Disconnected?.Invoke(this);
     }
 
-    public void Dispose() => _ = DisconnectAsync();
+    public void Dispose() => AppLogger.Forget(DisconnectAsync());
 }

@@ -56,7 +56,7 @@ Think of it as an open-source scrcpy alternative made for players: mirror and co
 |---|---|---|
 | 🎥 | **HD mirroring** | Native phone resolution, 60/90/120 fps, H.264, H.265 and AV1 codecs |
 | ⚡ | **Low latency** | Low-latency FFmpeg decoding, latest-frame priority, ~400 ms audio, optimized sockets |
-| � | **Zero-copy GPU pipeline** | Custom D3D11 path: decoded NV12 frames go straight from the decoder to a pixel shader — no CPU round-trip, no extra copies |
+| � | **Direct GPU pipeline** | Custom D3D11 path: decoded NV12 frames feed a pixel shader on the GPU — no CPU readback, no UI-thread copy |
 | �🎯 | **On-screen keybinds** | Drop a marker on a spell, bind a key — 1 keypress = 1 tap at that spot. Adjustable style (pill, circle, minimal), opacity and size, saved per device. Fully manual: no repeat, no macros |
 | 🖥️ | **Virtual display** | The game runs on a dedicated virtual screen — the physical phone stays free. Landscape, portrait and **tablet** presets (apps switch to tablet UI) |
 | 📱 | **Multi-account** | Several phones in one window — one account per phone |
@@ -65,7 +65,7 @@ Think of it as an open-source scrcpy alternative made for players: mirror and co
 | 🎚️ | **Quality presets** | Performance / Balanced / Quality+ / Max — resolution, fps and bitrate applied in one click |
 | 🍃 | **Resource saver** | Inactive mirrors stop decoding video (CPU/GPU saved) — recording keeps running in the background |
 | 🩺 | **Built-in diagnostics** | USB verdicts (faulty cable, authorization, unstable link) and network diagnostics right in the app |
-| 🛡️ | **Automatic firewall** | Inbound rules checked and created on first launch — a single UAC prompt |
+| 🛡️ | **Automatic firewall** | The inbound rule is created when you enable AirPlay mirroring — a single UAC prompt, only if you use iOS |
 | 🎨 | **Customization** | Rename each phone (tiles + hub) and pick its accent color — right-click the device |
 | 📶 | **USB & WiFi** | Switch to wireless in one click, then unplug the cable — the stream keeps going |
 | 🖱️ | **Mouse = touch** | Click, drag, wheel = scroll, `Ctrl`+wheel = pinch-to-zoom (map zoom) |
@@ -77,10 +77,10 @@ Think of it as an open-source scrcpy alternative made for players: mirror and co
 | 📖 | **Built-in help** | Forum, encyclopedia and DofusDB in a browser panel without leaving the game |
 | ⛶ | **Fullscreen** | `F11` or dedicated button, control bar appears at the top edge |
 | 🎬 | **Capture mode** | Clean window for OBS — ideal for streaming |
-| 🔗 | **Local API** | HTTP + SSE on localhost with a token — Stream Deck, OBS, scripts. No endpoint can inject input into the phone |
+| 🔗 | **Local API** | HTTP + SSE on localhost with a token — Stream Deck, OBS, scripts. Drives the app only: connect/disconnect, record, screenshot — no endpoint can send touch or keys into the game |
 | 🧩 | **Plugins** | Embedded JavaScript engine (sandbox) — `plugin.json` manifest, official plugins verified by hash |
 | 🔄 | **Updates** | The app detects new GitHub releases at startup |
-| 🍎 | **iPhone / AirPlay** | *Coming soon* — iOS mirroring is being finalized |
+| 🍎 | **iPhone / AirPlay** | Mirror an iPhone/iPad over Wi-Fi — the app hosts a local AirPlay receiver |
 
 ## Comparison
 
@@ -92,9 +92,9 @@ Every tool has its strengths — here's where TouchMirror stands:
 | Multiple phones in one window | ✅ | — | — | ✅ |
 | On-screen keybinds (key → tap) | ✅ | — | — | — |
 | Virtual display / tablet mode | ✅ | ✅ (option) | — | ✅ |
-| Multi-account on a single phone | *Soon* | — | — | ✅ |
-| iPhone / iOS | *Soon* | — | ✅ | ✅ |
-| Zero-copy GPU pipeline | ✅ | — | — | ✅ |
+| Multi-account on a single phone | ✅ | — | — | ✅ |
+| iPhone / iOS | ✅ | — | ✅ | ✅ |
+| GPU-rendered pipeline | ✅ | — | — | ✅ |
 | Quality presets, built-in diagnostics | ✅ | — | — | ✅ |
 | Built-in MP4 recording | ✅ | ✅ | — | — |
 | Local API + sandboxed plugins | ✅ | — | — | — |
@@ -107,7 +107,7 @@ Every tool has its strengths — here's where TouchMirror stands:
 
 ### Ready-to-use build (recommended)
 
-> **Note:** the app is bilingual FR/EN — pick your language in *Settings → Language*. Community translations live in `lang/<code>.json` and can be added without recompiling.
+> **Note:** the app is bilingual FR/EN — pick your language in *Settings → Language*. Strings live in `lang/en.json` and `lang/fr.json`.
 
 1. Download **`TouchMirror-win-x64.zip`** from the [latest release](https://github.com/shinzarou-eng/TouchMirror/releases/latest)
 2. Unzip anywhere, run **`TouchMirror.exe`**
@@ -176,7 +176,7 @@ Settings → **Local API**: exposes `http://127.0.0.1:<port>` protected by a tok
 | `POST /api/devices/{serial}/connect` | Connect a device |
 | `GET /api/events` | Real-time SSE stream (connections, active tile, REC…) |
 
-**Compliance:** the API drives the app, never the game — no endpoint produces input on the phone.
+**Compliance:** the API drives the app, never the game — no endpoint sends touch, keys or clipboard to the phone. `connect` can wake the screen and launch the configured app, the same as a manual plug-in.
 
 ### Plugins
 
@@ -235,17 +235,17 @@ Requirements: **.NET 10 SDK** only — adb, the TouchMirror engine (`assets/touc
 
 ## Tech stack
 
-WPF / .NET 10 · WPF-UI · TouchMirror engine (scrcpy-server fork) · custom zero-copy D3D11 pipeline (`GpuPresenter` — NV12 slices → pixel shader → shared texture) · FFmpeg (decode + MP4 remux) · NAudio · WebView2
+WPF / .NET 10 · WPF-UI · TouchMirror engine (scrcpy-server fork) · custom D3D11 pipeline (`GpuPresenter` — NV12 slices → pixel shader → shared D3D9 texture) · FFmpeg (decode + MP4 remux) · NAudio · WebView2
 
 ## Ankama compliance
 
 TouchMirror displays and controls the **official game** running on your **real phone** — no emulator, no modified client, no macros or automation. Every action maps to a human gesture: on-screen keybinds send one tap per keypress, nothing more. This is the use case Ankama support confirmed as allowed (see the [official FAQ](https://support.ankama.com/hc/en-us/articles/26840828168209)).
 
-**TouchMirror will never offer automation, bots or macros** — not today, not in a future version. The local API and plugins drive the application (mirroring, capture, recording, reconnect), never in-game actions: no API route injects touch, keyboard, text or clipboard toward Android. See the [roadmap out-of-scope section](ROADMAP.md).
+**TouchMirror will never offer automation, bots or macros** — not today, not in a future version. The local API and plugins drive the application (mirroring, capture, recording, reconnect), never in-game actions: no API route sends touch, keyboard input, text or clipboard toward Android. Connecting via API/plugin may start the configured app or wake the screen — the same thing a human does when plugging in. See the [roadmap out-of-scope section](ROADMAP.md).
 
 ## Roadmap
 
-Next steps: finalizing iPhone mirroring (AirPlay + control), per-device audio output, and continued polish of the multi-phone experience.
+Next steps: Linux support, per-device audio output, and continued polish of the multi-phone experience.
 
 **[Read the roadmap](ROADMAP.md)** — priorities, validation criteria and ideas under study. Planned items are not available features yet.
 

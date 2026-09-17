@@ -186,8 +186,8 @@ public sealed class PluginApi
     public void Cleanup()
     {
         foreach (var (slot, id) in _overlays)
-            _ = _host.SetOverlayAsync(
-                $"{{\"slot\":{slot},\"id\":\"{id}\",\"visible\":false}}");
+            AppLogger.Forget(_host.SetOverlayAsync(
+                $"{{\"slot\":{slot},\"id\":\"{id}\",\"visible\":false}}"));
         _overlays.Clear();
     }
 }
