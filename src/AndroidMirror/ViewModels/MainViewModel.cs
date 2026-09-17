@@ -50,14 +50,23 @@ public partial class MainViewModel : ObservableObject
         new("preset.max", "preset.max.detail", 0, 60, 40_000_000),
     };
 
-    /// <summary>Choix « Écran » : écran physique ou écran virtuel Android.</summary>
-    public sealed record DisplayModeOption(string LabelKey, string? Spec)
+    /// <summary>Choix « Écran » : la source d'abord, puis le format si virtuel.</summary>
+    public sealed record DisplaySourceOption(string LabelKey, bool Virtual)
     {
         public string Label => LocalizationService.Get(LabelKey);
     }
-    public DisplayModeOption[] DisplayModeOptions { get; } =
+    public DisplaySourceOption[] DisplaySourceOptions { get; } =
     {
-        new("disp.phone", null),
+        new("disp.src.phone", false),
+        new("disp.src.virtual", true),
+    };
+
+    public sealed record DisplayFormatOption(string LabelKey, string Spec)
+    {
+        public string Label => LocalizationService.Get(LabelKey);
+    }
+    public DisplayFormatOption[] DisplayFormatOptions { get; } =
+    {
         new("disp.auto", ""),
         new("disp.1920x1080", "1920x1080/240"),
         new("disp.1600x900", "1600x900/200"),
@@ -68,13 +77,34 @@ public partial class MainViewModel : ObservableObject
         new("disp.tab10", "2560x1600/240"),
     };
 
-    [ObservableProperty] private DisplayModeOption? _selectedDisplayMode;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsVirtualDisplay))]
+    private DisplaySourceOption? _selectedDisplaySource;
 
-    partial void OnSelectedDisplayModeChanged(DisplayModeOption? value)
+    [ObservableProperty] private DisplayFormatOption? _selectedDisplayFormat;
+
+    /// <summary>Un compte secondaire ne peut pas tourner sur l'écran physique.</summary>
+    public bool IsSecondaryAccountMirror => ActiveMirror?.AccountUserId != null;
+    public bool DisplaySourceEnabled => !IsSecondaryAccountMirror;
+    public bool IsVirtualDisplay => SelectedDisplaySource?.Virtual == true;
+
+    partial void OnSelectedDisplaySourceChanged(DisplaySourceOption? value)
     {
         if (value == null || _suppressSave)
             return;
-        if (ActivePrefs() is { } o) o.NewDisplay = value.Spec; else _settings.NewDisplay = value.Spec;
+        ApplyDisplaySpec(value.Virtual ? SelectedDisplayFormat?.Spec ?? "" : null);
+    }
+
+    partial void OnSelectedDisplayFormatChanged(DisplayFormatOption? value)
+    {
+        if (value == null || _suppressSave || !IsVirtualDisplay)
+            return;
+        ApplyDisplaySpec(value.Spec);
+    }
+
+    private void ApplyDisplaySpec(string? spec)
+    {
+        if (ActivePrefs() is { } o) o.NewDisplay = spec; else _settings.NewDisplay = spec;
         ScheduleSave();
         if (!_suppressReconnect)
             _ = ReconnectActiveAsync();
@@ -124,6 +154,8 @@ public partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ActiveMirrorName))]
     [NotifyPropertyChangedFor(nameof(IsActiveMirrorIos))]
     [NotifyPropertyChangedFor(nameof(IosBleActive))]
+    [NotifyPropertyChangedFor(nameof(IsSecondaryAccountMirror))]
+    [NotifyPropertyChangedFor(nameof(DisplaySourceEnabled))]
     private MirrorInstance? _activeMirror;
 
     /// <summary>Vrai si le miroir actif est un iPhone AirPlay.</summary>
@@ -239,6 +271,9 @@ public partial class MainViewModel : ObservableObject
         LocalApiPort = _settings.LocalApiPort;
         LocalApiToken = _settings.LocalApiToken ?? "";
         LocalApiEnabled = _settings.LocalApiEnabled;
+        SelectedDisplayFormat = DisplayFormatOptions.FirstOrDefault(f => f.Spec == _settings.NewDisplay)
+            ?? DisplayFormatOptions[0];
+        SelectedDisplaySource = DisplaySourceOptions[_settings.NewDisplay == null ? 0 : 1];
         _suppressSave = false;
         _suppressReconnect = false;
         foreach (var w in _settings.Workspaces)
@@ -308,6 +343,8 @@ public partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(TurnScreenOffText))]
     private bool _turnScreenOff;
     [ObservableProperty] private bool _autoLaunchDofus;
+    /// <summary>Débit adaptatif : réduit à chaud quand le flux prend du retard.</summary>
+    [ObservableProperty] private bool _adaptiveBitrate = true;
     public string TurnScreenOffText => TurnScreenOff ? L("misc.on") : L("misc.off");
 
     [ObservableProperty]
@@ -347,6 +384,7 @@ public partial class MainViewModel : ObservableObject
         RefreshInactiveMirrors();
         UpdateStatus();
         LoadEffectiveSettings();
+        RefreshKeybindProfiles(instance);
         _apiHost.Publish("mirror.active", new { slot = instance.Slot, name = instance.DeviceName });
     }
 
@@ -813,7 +851,12 @@ public partial class MainViewModel : ObservableObject
 
     // ═══ Plugins — scripts utilisateurs du dossier plugins/ ═══
 
-    private PluginApi ApiFor(PluginInstance p) => new(_apiHost, msg => p.Emit(msg), p.Id);
+    // Dossier confiné : plugins/<id>/ pour plugin.js en dossier ;
+    // pour un fichier plat plugins/<id>.js, un sous-dossier plugins/<id>/.
+    private PluginApi ApiFor(PluginInstance p) => new(_apiHost, msg => p.Emit(msg), p.Id,
+        Path.GetFileName(p.FilePath).Equals("plugin.js", StringComparison.OrdinalIgnoreCase)
+            ? Path.GetDirectoryName(p.FilePath)!
+            : Path.Combine(Path.GetDirectoryName(p.FilePath)!, p.Id));
 
     [RelayCommand]
     private void RescanPlugins()
@@ -869,6 +912,8 @@ public partial class MainViewModel : ObservableObject
         }
         foreach (var c in Catalog)
             c.Refresh(Plugins);
+        CatalogView.Refresh();
+        RefreshGuidesVisibility();
     }
 
     /// <summary>Hash déjà validé par l'utilisateur pour ce contenu exact.</summary>
@@ -906,6 +951,7 @@ public partial class MainViewModel : ObservableObject
                 _settings.EnabledPlugins.Add(plugin.Id);
             Log($"plugin lancé : {plugin.Name}");
         }
+        RefreshGuidesVisibility();
         ScheduleSave();
     }
 
@@ -925,33 +971,29 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _catalogStatus = "";
     [ObservableProperty] private bool _catalogBusy;
     [ObservableProperty] private string _catalogFilter = "";
-    [ObservableProperty] private int _catalogTab;
+    [ObservableProperty] private Visibility _guidesVisibility = Visibility.Collapsed;
+    [ObservableProperty] private int _guidesColumns = 3;
 
     private bool _catalogLoaded;
 
+    /// <summary>La section Guides n'existe que si le plugin « guides » tourne —
+    /// module opt-in installé depuis le catalogue.</summary>
+    private void RefreshGuidesVisibility()
+    {
+        var on = Plugins.Any(p => p.Running && p.Id == "guides");
+        GuidesVisibility = on ? Visibility.Visible : Visibility.Collapsed;
+        GuidesColumns = on ? 4 : 3;
+    }
+
     partial void OnCatalogFilterChanged(string value) => CatalogView.Refresh();
-    partial void OnCatalogTabChanged(int value) => CatalogView.Refresh();
 
     private bool CatalogPredicate(object o)
     {
         if (o is not MarketplaceItem m)
             return false;
-        var ok = CatalogTab switch
-        {
-            1 => m.Official,
-            2 => m.IsPresent,
-            _ => true
-        };
-        return ok && (string.IsNullOrWhiteSpace(CatalogFilter)
-                      || m.Name.Contains(CatalogFilter, StringComparison.OrdinalIgnoreCase)
-                      || m.Description.Contains(CatalogFilter, StringComparison.OrdinalIgnoreCase));
-    }
-
-    [RelayCommand]
-    private void SelectCatalogTab(string? tab)
-    {
-        if (int.TryParse(tab, out var t))
-            CatalogTab = t;
+        return string.IsNullOrWhiteSpace(CatalogFilter)
+               || m.Name.Contains(CatalogFilter, StringComparison.OrdinalIgnoreCase)
+               || m.Description.Contains(CatalogFilter, StringComparison.OrdinalIgnoreCase);
     }
 
     [RelayCommand]
@@ -973,9 +1015,10 @@ public partial class MainViewModel : ObservableObject
             CatalogStatus = Catalog.Count == 0 ? "catalogue vide" : "";
             _catalogLoaded = true;
         }
-        catch
+        catch (Exception ex)
         {
             CatalogStatus = L("st.catalog_down");
+            Log($"catalogue : {ex.Message}");
         }
         finally
         {
@@ -1001,6 +1044,7 @@ public partial class MainViewModel : ObservableObject
             RescanPlugins();
             ScheduleSave();
             item.Refresh(Plugins);
+            CatalogView.Refresh();
             Log($"plugin installé : {item.Name}");
         }
         catch (Exception ex)
@@ -1021,6 +1065,30 @@ public partial class MainViewModel : ObservableObject
         SelectedPlugin = item;
         if (item != null)
             _ = LoadDetailAsync(item);
+    }
+
+    /// <summary>Fiche détail depuis un plugin installé — entrée du catalogue si connue, sinon synthétisée.</summary>
+    [RelayCommand]
+    private void OpenInstalledPlugin(PluginInstance? p)
+    {
+        if (p == null)
+            return;
+        var item = Catalog.FirstOrDefault(c => c.Id == p.Id);
+        if (item == null)
+        {
+            item = new MarketplaceItem
+            {
+                Entry = new MarketplaceEntry
+                {
+                    Id = p.Id, Name = p.Name, Version = p.Version ?? "",
+                    Author = p.Author ?? "", Icon = p.Icon,
+                    Description = p.Description ?? "",
+                    Hash = p.ContentHash ?? "", Official = p.IsVerified
+                }
+            };
+            item.Refresh(Plugins);
+        }
+        SelectPlugin(item);
     }
 
     [RelayCommand]
@@ -1204,6 +1272,7 @@ public partial class MainViewModel : ObservableObject
         AutoLaunchPackage = account != null
             ? $"com.ankama.dofustouch@{account.UserId}"
             : AutoLaunchDofus ? "com.ankama.dofustouch" : null,
+        AdaptiveBitrate = o?.AdaptiveBitrate ?? _settings.AdaptiveBitrate,
     };
 
     /// <summary>Réglages propres de l'appareil actif dans l'espace courant (nul hors espace/membre).</summary>
@@ -1222,9 +1291,15 @@ public partial class MainViewModel : ObservableObject
         VideoDecoder = o?.VideoDecoder ?? _settings.VideoDecoder;
         EnableAudio = o?.EnableAudio ?? _settings.EnableAudio;
         TurnScreenOff = o?.TurnScreenOff ?? _settings.TurnScreenOff;
-        SelectedDisplayMode = DisplayModeOptions
-            .FirstOrDefault(d => d.Spec == (o?.NewDisplay ?? _settings.NewDisplay))
-            ?? DisplayModeOptions[0];
+        AdaptiveBitrate = o?.AdaptiveBitrate ?? _settings.AdaptiveBitrate;
+        if (ActiveMirror != null)
+            ActiveMirror.AdaptiveBitrate = AdaptiveBitrate;
+        var spec = o?.NewDisplay ?? _settings.NewDisplay;
+        SelectedDisplayFormat = DisplayFormatOptions.FirstOrDefault(f => f.Spec == spec)
+            ?? (IsSecondaryAccountMirror && spec == null
+                ? DisplayFormatOptions.First(f => f.Spec == "1920x1200/280")
+                : DisplayFormatOptions[0]);
+        SelectedDisplaySource = DisplaySourceOptions[spec == null && !IsSecondaryAccountMirror ? 0 : 1];
         _suppressSave = false;
         _suppressReconnect = false;
         OnPropertyChanged(nameof(ActiveSettingsScope));
@@ -1273,6 +1348,14 @@ public partial class MainViewModel : ObservableObject
         if (ActivePrefs() is { } o) o.EnableAudio = value; else _settings.EnableAudio = value;
         ScheduleSave();
         if (!_suppressReconnect) _ = ReconnectActiveAsync();
+    }
+    partial void OnAdaptiveBitrateChanged(bool value)
+    {
+        if (_suppressSave) return;
+        if (ActivePrefs() is { } o) o.AdaptiveBitrate = value; else _settings.AdaptiveBitrate = value;
+        ScheduleSave();
+        if (ActiveMirror != null)
+            ActiveMirror.AdaptiveBitrate = value;
     }
     partial void OnStayAwakeChanged(bool value) => ScheduleSave();
     partial void OnAutoLaunchDofusChanged(bool value) => ScheduleSave();
@@ -1709,6 +1792,9 @@ public partial class MainViewModel : ObservableObject
                 Mirrors.Remove(m);
                 PromoteNextActive(m);
             };
+            instance.OverlayLineClicked += (m, id, idx) =>
+                _apiHost.Publish("overlay.line",
+                    new { slot = m.Slot, id, index = idx });
 
             Mirrors.Add(instance);
             ApplyMirrorOrder();
@@ -1899,6 +1985,9 @@ public partial class MainViewModel : ObservableObject
                 PromoteNextActive(m);
                 StopAirPlayIfUnused();
             };
+            instance.OverlayLineClicked += (m, id, idx) =>
+                _apiHost.Publish("overlay.line",
+                    new { slot = m.Slot, id, index = idx });
 
             Mirrors.Add(instance);
             ApplyMirrorOrder();
@@ -1966,7 +2055,7 @@ public partial class MainViewModel : ObservableObject
     {
         var key = instance.IdentityKey;
         if (_settings.Devices.TryGetValue(key, out var prefs))
-            instance.LoadKeybinds(prefs.Keybinds,
+            instance.LoadKeybinds(ProfileKeybinds(prefs),
                 prefs.KeybindStyle, prefs.KeybindOpacity, prefs.KeybindSize);
         else
             instance.LoadKeybinds(Enumerable.Empty<KeybindData>());
@@ -1974,13 +2063,105 @@ public partial class MainViewModel : ObservableObject
         {
             if (!_settings.Devices.TryGetValue(key, out var p))
                 _settings.Devices[key] = p = new DevicePrefs();
-            p.Keybinds = instance.SaveKeybinds();
+            SaveKeybindsToProfile(instance, p);
             p.KeybindStyle = instance.KeybindStyle;
             p.KeybindOpacity = instance.KeybindOpacity;
             p.KeybindSize = instance.KeybindSize;
             ScheduleSave();
         };
         instance.EditModeExitRequested += () => KeybindEditMode = false;
+        RefreshKeybindProfiles(instance);
+    }
+
+    public sealed record KeybindProfileOption(string? Key, string Name);
+
+    /// <summary>Profils du miroir actif : entrée 0 = « Défaut » (Key = null).</summary>
+    [ObservableProperty] private ObservableCollection<KeybindProfileOption> _keybindProfiles = new();
+    [ObservableProperty] private KeybindProfileOption? _selectedKeybindProfile;
+    private bool _suppressProfileSwitch;
+
+    /// <summary>Liste du profil actif — « Défaut » vit dans prefs.Keybinds.</summary>
+    private static List<KeybindData> ProfileKeybinds(DevicePrefs p) =>
+        p.ActiveKeybindProfile != null
+        && p.KeybindProfiles.TryGetValue(p.ActiveKeybindProfile, out var l)
+            ? l : p.Keybinds;
+
+    private static void SaveKeybindsToProfile(MirrorInstance m, DevicePrefs p)
+    {
+        var data = m.SaveKeybinds();
+        if (p.ActiveKeybindProfile == null)
+            p.Keybinds = data;
+        else
+            p.KeybindProfiles[p.ActiveKeybindProfile] = data;
+    }
+
+    private void LoadKeybindsFromProfile(MirrorInstance m, DevicePrefs p)
+        => m.LoadKeybinds(ProfileKeybinds(p), p.KeybindStyle, p.KeybindOpacity, p.KeybindSize);
+
+    private void RefreshKeybindProfiles(MirrorInstance m)
+    {
+        _suppressProfileSwitch = true;
+        try
+        {
+            _settings.Devices.TryGetValue(m.IdentityKey, out var prefs);
+            KeybindProfiles.Clear();
+            KeybindProfiles.Add(new KeybindProfileOption(null, L("defaut")));
+            if (prefs != null)
+                foreach (var name in prefs.KeybindProfiles.Keys.OrderBy(k => k))
+                    KeybindProfiles.Add(new KeybindProfileOption(name, name));
+            SelectedKeybindProfile = KeybindProfiles.FirstOrDefault(o => o.Key == prefs?.ActiveKeybindProfile)
+                ?? KeybindProfiles[0];
+        }
+        finally { _suppressProfileSwitch = false; }
+    }
+
+    partial void OnSelectedKeybindProfileChanged(KeybindProfileOption? value)
+    {
+        if (_suppressProfileSwitch || value == null || ActiveMirror == null)
+            return;
+        var prefs = PrefsFor(ActiveMirror);
+        if (prefs.ActiveKeybindProfile == value.Key)
+            return;
+        SaveKeybindsToProfile(ActiveMirror, prefs);
+        prefs.ActiveKeybindProfile = value.Key;
+        LoadKeybindsFromProfile(ActiveMirror, prefs);
+        ScheduleSave();
+    }
+
+    [RelayCommand]
+    private void NewKeybindProfile()
+    {
+        if (ActiveMirror == null)
+            return;
+        var prefs = PrefsFor(ActiveMirror);
+        var i = 1;
+        string name;
+        do { name = $"{L("profil")} {i++}"; } while (prefs.KeybindProfiles.ContainsKey(name));
+        SaveKeybindsToProfile(ActiveMirror, prefs);
+        prefs.KeybindProfiles[name] = ActiveMirror.SaveKeybinds();
+        prefs.ActiveKeybindProfile = name;
+        RefreshKeybindProfiles(ActiveMirror);
+        ScheduleSave();
+    }
+
+    [RelayCommand]
+    private void DeleteKeybindProfile()
+    {
+        if (ActiveMirror == null || SelectedKeybindProfile?.Key == null)
+            return;
+        var prefs = PrefsFor(ActiveMirror);
+        prefs.KeybindProfiles.Remove(SelectedKeybindProfile.Key);
+        prefs.ActiveKeybindProfile = null;
+        LoadKeybindsFromProfile(ActiveMirror, prefs);
+        RefreshKeybindProfiles(ActiveMirror);
+        ScheduleSave();
+    }
+
+    private DevicePrefs PrefsFor(MirrorInstance m)
+    {
+        if (!_settings.Devices.TryGetValue(m.IdentityKey, out var p))
+            _settings.Devices[m.IdentityKey] = p = new DevicePrefs();
+        return p;
     }
 
     private void RememberDevice(AdbDevice device)

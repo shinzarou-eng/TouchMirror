@@ -21,6 +21,7 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
     private SwsContext* _sws;
 
     private int _swsW = -1, _swsH = -1;
+    private int _swsColorInfo = -1;
     private AVPixelFormat _swsFmt = AVPixelFormat.AV_PIX_FMT_NONE;
 
     private readonly ConcurrentQueue<byte[]> _pool = new();
@@ -32,7 +33,7 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
     public event Action? FrameAvailable;
     public event Action<string>? Error;
 
-    public event Action<IntPtr, int, int, int>? GpuFrame;
+    public event Action<IntPtr, int, int, int, int>? GpuFrame;
 
     public GpuPresenter? GpuPresenter { get; }
 
@@ -75,12 +76,27 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
             _ => AVCodecID.AV_CODEC_ID_H264,
         };
 
-        var codec = ffmpeg.avcodec_find_decoder(avCodecId);
+        AVCodec* codec = null;
+        if (preferHardware && avCodecId == AVCodecID.AV_CODEC_ID_AV1)
+        {
+            var native = ffmpeg.avcodec_find_decoder_by_name("av1");
+            if (native != null)
+            {
+                OpenContext(native, hw: true);
+                if (_ctx != null)
+                {
+                    codec = native;
+                    _av1HwAttempt = true;
+                }
+            }
+        }
+        if (codec == null)
+            codec = ffmpeg.avcodec_find_decoder(avCodecId);
         if (codec == null)
             throw new InvalidOperationException($"Codec FFmpeg introuvable : {codecId}");
         _avCodecId = avCodecId;
 
-        if (preferHardware)
+        if (preferHardware && _ctx == null)
             OpenContext(codec, hw: true);
         if (_ctx == null)
             OpenContext(codec, hw: false);
@@ -92,6 +108,8 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
     }
 
     private readonly AVCodecID _avCodecId;
+    private bool _av1HwAttempt;
+    private int _av1SwFrames;
 
     /// <summary>Ouvre le contexte de décodage, GPU (D3D11VA) si hw=true.</summary>
     private void OpenContext(AVCodec* codec, bool hw)
@@ -205,6 +223,7 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
                     var src = _frame;
                     if (_frame->format == (int)AVPixelFormat.AV_PIX_FMT_D3D11)
                     {
+                        _av1SwFrames = 0;
                         if (GpuFrame != null)
                         {
                             if (!HardwareDecoding)
@@ -213,7 +232,8 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
                                 Error?.Invoke(LocalizationService.Get("log.hw_decode"));
                             }
                             GpuFrame.Invoke((IntPtr)_frame->data[0],
-                                (int)(IntPtr)_frame->data[1], _frame->width, _frame->height);
+                                (int)(IntPtr)_frame->data[1], _frame->width, _frame->height,
+                                FrameColorInfo(_frame));
                             continue;
                         }
                         // frame en mémoire GPU → copie vers mémoire système
@@ -234,6 +254,12 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
                         }
                         src = _swFrame;
                     }
+                    else if (_av1HwAttempt && ++_av1SwFrames > 15)
+                    {
+                        _av1HwAttempt = false;
+                        ReopenSoftware();
+                        break;
+                    }
                     ConvertAndPublish(src);
                 }
             }
@@ -242,6 +268,18 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
                 Error?.Invoke(ex.Message);
             }
         }
+    }
+
+    private static int FrameColorInfo(AVFrame* f)
+    {
+        int space = f->colorspace switch
+        {
+            AVColorSpace.AVCOL_SPC_BT470BG or AVColorSpace.AVCOL_SPC_SMPTE170M => 0,
+            AVColorSpace.AVCOL_SPC_BT2020_NCL or AVColorSpace.AVCOL_SPC_BT2020_CL => 2,
+            AVColorSpace.AVCOL_SPC_BT709 => 1,
+            _ => f->height > 576 ? 1 : 0,
+        };
+        return space * 2 + (f->color_range == AVColorRange.AVCOL_RANGE_JPEG ? 1 : 0);
     }
 
     /// <summary>swscale multithread : la conversion YUV→BGRA est le poste CPU dominant du pipeline.</summary>
@@ -286,8 +324,19 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
             _swsW = w;
             _swsH = h;
             _swsFmt = fmt;
+            _swsColorInfo = -1;
             _frameW = w;
             _frameH = h;
+        }
+
+        var colorInfo = FrameColorInfo(f);
+        if (colorInfo != _swsColorInfo)
+        {
+            int swsCs = (colorInfo >> 1) switch { 0 => 5, 2 => 9, _ => 1 };
+            int srcRange = colorInfo & 1;
+            var coefs = *(int_array4*)ffmpeg.sws_getCoefficients(swsCs);
+            ffmpeg.sws_setColorspaceDetails(_sws, coefs, srcRange, coefs, 1, 0, 1 << 16, 1 << 16);
+            _swsColorInfo = colorInfo;
         }
 
         var needed = w * h * 4;

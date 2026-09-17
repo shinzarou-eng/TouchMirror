@@ -195,20 +195,29 @@ await tm.getMirrors();           // miroirs et leurs slots
 await tm.connect("RFGL22M2JQM"); // connecter un appareil
 await tm.activate(0);            // slot 0 en grand miroir
 await tm.screenshot(0);          // capture
+await tm.mute(1, true);          // coupe l'audio local du miroir
+                                 // (le volume du téléphone n'est pas touché)
 tm.overlay(1, { visible: true, title: "FPS", color: "#3ECF8E",
                 pos: "bl", compact: false });
                                  // widget déplaçable sur le miroir —
                                  // pos : tl/tr/bl/br, compact : valeur seule
+tm.overlay(1, { compact: true, lines: ["☐ tâche a", "☑ tâche b"] });
+                                 // liste de lignes cliquables — un clic émet
+                                 // « overlay.line » { slot, id, index }
 tm.push(1, 60);                  // ajoute un point à la courbe
 tm.push(1, { value: 60, label: "60 fps" });
                                  // libellé libre au lieu du nombre
                                  // un widget par plugin (option "id" pour plus)
-tm.on("devices", e => …);        // événements temps réel
+tm.on("devices", e => …);        // événements temps réel — aussi mirror.active,
+                                 // mirror.connected, mirror.disconnected,
+                                 // mirror.recording, overlay.line
 tm.setInterval(fn, ms); tm.setTimeout(fn, ms);
+tm.read("checklist.txt");        // lit un fichier dans le dossier du plugin
+tm.write("state.json", "{}");    // et peut y écrire — extensions data seulement
 tm.log("message");               // → journal de l'app
 ```
 
-Aucun accès au système de fichiers, au réseau ou aux process depuis le sandbox — et comme l'API locale, **rien ne peut injecter d'input vers le téléphone**. Le moteur est borné (mémoire, récursion, timers, 30 appels/s max) et chaque action d'un plugin est tracée dans le journal.
+Aucun accès réseau ou processus depuis le sandbox — et comme l'API locale, **rien ne peut injecter d'input vers le téléphone**. Les fichiers sont confinés au dossier du plugin (`.txt`/`.json`/`.csv`… données seulement, jamais de code). Le moteur est borné (mémoire, récursion, timers, 30 appels/s max) et chaque action d'un plugin est tracée dans le journal.
 
 Un plugin est du code : n'installe que ce que tu lis ou qui vient de nous. Les plugins officiels portent un badge bouclier vert (hash SHA-256 vérifié) — tout autre plugin demande une confirmation avant activation, et toute modification d'un plugin déjà approuvé redemande ton accord. Les plugins pilotent l'app — jamais le jeu.
 

@@ -56,29 +56,36 @@ public enum VideoCodec implements Codec {
     }
 
     /**
-     * « auto » : préfère H.265 (même qualité à ~moitié débit) quand un encodeur
-     * HEVC matériel existe, sinon H.264. Un encodeur HEVC logiciel serait bien
-     * trop lent sur téléphone, d'où le filtre matériel.
+     * « auto » : meilleur ratio qualité/débit parmi les encodeurs matériels —
+     * AV1 > H.265 > H.264. Un encodeur logiciel serait trop lent sur
+     * téléphone, d'où le filtre matériel.
      */
     public static VideoCodec pickAuto() {
+        if (hasHardwareEncoder(MediaFormat.MIMETYPE_VIDEO_AV1)) {
+            return AV1;
+        }
+        if (hasHardwareEncoder(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
+            return H265;
+        }
+        return H264;
+    }
+
+    private static boolean hasHardwareEncoder(String mimeType) {
         try {
             for (MediaCodecInfo info : new MediaCodecList(MediaCodecList.REGULAR_CODECS).getCodecInfos()) {
                 if (!info.isEncoder()) {
                     continue;
                 }
                 for (String type : info.getSupportedTypes()) {
-                    if (!MediaFormat.MIMETYPE_VIDEO_HEVC.equalsIgnoreCase(type)) {
-                        continue;
-                    }
-                    if (isHardware(info)) {
-                        return H265;
+                    if (mimeType.equalsIgnoreCase(type) && isHardware(info)) {
+                        return true;
                     }
                 }
             }
         } catch (Throwable t) {
             // MediaCodecList indisponible : repli H.264
         }
-        return H264;
+        return false;
     }
 
     private static boolean isHardware(MediaCodecInfo info) {

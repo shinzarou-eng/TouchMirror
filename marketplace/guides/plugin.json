@@ -1,0 +1,9 @@
+{
+  "name": "Guides Dofus",
+  "description": "Active la section Guides — navigateur intégré avec encyclopédie, Atlas, carte interactive, Almanax, Papycha et support Ankama. L'app reste épurée sans ce module.",
+  "version": "1.0",
+  "author": "TouchMirror",
+  "icon": "📖",
+  "featured": true,
+  "tags": ["guides", "dofus"]
+}

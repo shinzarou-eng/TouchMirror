@@ -1,0 +1,9 @@
+{
+  "name": "Auto-mute",
+  "description": "Un seul miroir sonore : l'actif. Ré-applique la règle en continu — couvre l'audio qui démarre après le changement de focus. Le volume du téléphone n'est pas touché.",
+  "version": "1.0",
+  "author": "TouchMirror",
+  "icon": "🔇",
+  "featured": true,
+  "tags": ["audio", "multi-compte"]
+}

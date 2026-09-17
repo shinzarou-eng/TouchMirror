@@ -17,6 +17,7 @@
                     Background="#0A0C0E" ClipToBounds="True">
                 <Polyline x:Name="Line" Stroke="#3ECF8E" StrokeThickness="1.5" />
             </Canvas>
+            <StackPanel x:Name="LinesPanel" Margin="0,4,0,0" Visibility="Collapsed" />
         </StackPanel>
     </Border>
 </UserControl>

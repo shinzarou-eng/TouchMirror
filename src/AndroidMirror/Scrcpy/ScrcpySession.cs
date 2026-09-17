@@ -23,6 +23,8 @@ public sealed class ScrcpyOptions
     public string? NewDisplay { get; init; }
     /// <summary>Package Android lancé automatiquement au démarrage de la session (ex: com.ankama.dofustouch).</summary>
     public string? AutoLaunchPackage { get; init; }
+    /// <summary>Débit adaptatif côté client : baisse à chaud quand le retard de lecture croît.</summary>
+    public bool AdaptiveBitrate { get; init; }
 }
 
 public sealed class VideoPacket

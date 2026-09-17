@@ -235,6 +235,14 @@ public partial class MainWindow : FluentWindow
         ShowDock(_activeDock == "market" ? null : "market");
     }
 
+    private void OnPluginDetailClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement fe || fe.DataContext is not PluginInstance p)
+            return;
+        _vm.OpenInstalledPluginCommand.Execute(p);
+        ShowDock("market");
+    }
+
     private void OnDockClose(object sender, RoutedEventArgs e)
     {
         _vm.SelectedPlugin = null;

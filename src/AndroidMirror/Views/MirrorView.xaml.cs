@@ -9,6 +9,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using TouchMirror.Scrcpy;
 using TouchMirror.Video;
 using TouchMirror.ViewModels;
@@ -28,6 +29,11 @@ public partial class MirrorView : UserControl
     private uint _pressedButtons;
     private bool _mouseCaptured;
 
+    private readonly DispatcherTimer _moveFlush = new() { Interval = TimeSpan.FromMilliseconds(8) };
+    private int _pendingMoveX, _pendingMoveY;
+    private int _lastSentMoveX = -1, _lastSentMoveY = -1;
+    private bool _hasPendingMove, _iosPendingMove;
+
     private int _frameCounter;
     private readonly Stopwatch _fpsWatch = Stopwatch.StartNew();
     private double _fps;
@@ -45,6 +51,7 @@ public partial class MirrorView : UserControl
         CompositionTarget.Rendering += OnRendering;
         Focusable = true;
         SizeChanged += (_, _) => LayoutKeybinds();
+        _moveFlush.Tick += (_, _) => FlushPendingMove();
     }
 
     public void AttachDecoder(IFrameSource decoder) => _decoder = decoder;
@@ -157,6 +164,15 @@ public partial class MirrorView : UserControl
 
     private void OnKeybindsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        if (e.Action == NotifyCollectionChangedAction.Reset)
+        {
+            if (_pending != null && (_keybinds == null || !_keybinds.Contains(_pending)))
+                _pending = null;
+            if (_dragging != null && (_keybinds == null || !_keybinds.Contains(_dragging)))
+                _dragging = null;
+            RebuildKeybindVisuals();
+            return;
+        }
         if (e.NewItems != null)
             foreach (KeybindItem k in e.NewItems)
                 AddKeybindVisual(k);
@@ -304,6 +320,7 @@ public partial class MirrorView : UserControl
                 foreach (var k in _keybindEls.Keys) k.IsEditing = false;
                 kb.IsEditing = true;
                 _pending = kb;
+                Keyboard.Focus(InputSurface);
             }
             e.Handled = true;
         };
@@ -427,6 +444,9 @@ public partial class MirrorView : UserControl
 
     private readonly Dictionary<string, GraphWidget> _overlays = new();
 
+    /// <summary>Clic sur une ligne d'un widget — (id widget, index ligne).</summary>
+    public event Action<string, int>? OverlayLineClicked;
+
     /// <summary>Frames/s mesurées sur ce flux — exposé aux plugins.</summary>
     public double CurrentFps => _fps;
 
@@ -434,17 +454,21 @@ public partial class MirrorView : UserControl
     /// couleur, mode compact (sans courbe) et coin d'ancrage (« tl » « tr »
     /// « bl » « br »). Un widget est créé au premier appel.</summary>
     public void SetGraphOverlay(string id, bool? visible, string? title,
-        string? colorHex, bool? compact = null, string? pos = null)
+        string? colorHex, bool? compact = null, string? pos = null,
+        string[]? lines = null)
     {
         if (!_overlays.TryGetValue(id, out var w))
         {
             w = new GraphWidget { Host = OverlayLayer };
             w.DragBegan += () => Activated?.Invoke(this);
+            w.LineClicked += idx => OverlayLineClicked?.Invoke(id, idx);
             AnchorOverlay(w, pos ?? "bl");
             OverlayLayer.Children.Add(w);
             _overlays[id] = w;
         }
         w.Configure(title, colorHex, compact);
+        if (lines != null)
+            w.SetLines(lines);
         if (!string.IsNullOrEmpty(pos) && !w.Dragged)
             AnchorOverlay(w, pos);
         if (visible is bool v)
@@ -479,8 +503,11 @@ public partial class MirrorView : UserControl
     {
         _videoW = w;
         _videoH = h;
-        _bitmap = new WriteableBitmap(w, h, 96, 96, PixelFormats.Bgra32, null);
-        VideoImage.Source = _bitmap;
+        if (_presenter == null)
+        {
+            _bitmap = new WriteableBitmap(w, h, 96, 96, PixelFormats.Bgra32, null);
+            VideoImage.Source = _bitmap;
+        }
         SetWaitingOverlay(false);
         VideoSizeChanged?.Invoke(w, h);
         LayoutKeybinds();
@@ -625,6 +652,7 @@ public partial class MirrorView : UserControl
                 _iosRy = (double)iy / Math.Max(1, _videoH - 1);
                 _iosPointer.Down(_iosRx, _iosRy);
                 _iosMouseDown = true;
+                _moveFlush.Start();
                 InputSurface.CaptureMouse();
                 _mouseCaptured = true;
             }
@@ -650,6 +678,9 @@ public partial class MirrorView : UserControl
         _pressedButtons |= flag;
         _control.InjectTouch(AndroidMotionEvent.ActionDown, AndroidMotionEvent.PointerIdMouse,
             x, y, (ushort)_videoW, (ushort)_videoH, 1f, flag, _pressedButtons);
+        _lastSentMoveX = (int)x;
+        _lastSentMoveY = (int)y;
+        _moveFlush.Start();
         InputSurface.CaptureMouse();
         _mouseCaptured = true;
     }
@@ -662,7 +693,7 @@ public partial class MirrorView : UserControl
             {
                 _iosRx = (double)ix / Math.Max(1, _videoW - 1);
                 _iosRy = (double)iy / Math.Max(1, _videoH - 1);
-                _iosPointer.MoveTo(_iosRx, _iosRy);
+                _iosPendingMove = true;
             }
             return;
         }
@@ -670,8 +701,30 @@ public partial class MirrorView : UserControl
             return;
         if (!TryMapPoint(e.GetPosition(InputSurface), out var x, out var y))
             return;
+        _pendingMoveX = (int)x;
+        _pendingMoveY = (int)y;
+        _hasPendingMove = true;
+    }
+
+    private void FlushPendingMove()
+    {
+        if (_iosPendingMove && _iosMouseDown && _iosPointer != null)
+        {
+            _iosPendingMove = false;
+            _iosPointer.MoveTo(_iosRx, _iosRy);
+        }
+        if (!_hasPendingMove)
+            return;
+        _hasPendingMove = false;
+        if (_control == null || _pressedButtons == 0)
+            return;
+        if (_pendingMoveX == _lastSentMoveX && _pendingMoveY == _lastSentMoveY)
+            return;
+        _lastSentMoveX = _pendingMoveX;
+        _lastSentMoveY = _pendingMoveY;
         _control.InjectTouch(AndroidMotionEvent.ActionMove, AndroidMotionEvent.PointerIdMouse,
-            x, y, (ushort)_videoW, (ushort)_videoH, 1f, 0, _pressedButtons);
+            (uint)_pendingMoveX, (uint)_pendingMoveY,
+            (ushort)_videoW, (ushort)_videoH, 1f, 0, _pressedButtons);
     }
 
     private void OnMouseUp(object sender, MouseButtonEventArgs e)
@@ -685,6 +738,8 @@ public partial class MirrorView : UserControl
                 _iosRy = (double)iy / Math.Max(1, _videoH - 1);
             }
             _iosPointer?.Up(_iosRx, _iosRy);
+            _iosPendingMove = false;
+            _moveFlush.Stop();
             if (_mouseCaptured)
             {
                 InputSurface.ReleaseMouseCapture();
@@ -700,10 +755,15 @@ public partial class MirrorView : UserControl
             _control.InjectTouch(AndroidMotionEvent.ActionUp, AndroidMotionEvent.PointerIdMouse,
                 x, y, (ushort)_videoW, (ushort)_videoH, _pressedButtons != 0 ? 1f : 0f, flag, _pressedButtons);
         }
-        if (_pressedButtons == 0 && _mouseCaptured)
+        if (_pressedButtons == 0)
         {
-            InputSurface.ReleaseMouseCapture();
-            _mouseCaptured = false;
+            _hasPendingMove = false;
+            _moveFlush.Stop();
+            if (_mouseCaptured)
+            {
+                InputSurface.ReleaseMouseCapture();
+                _mouseCaptured = false;
+            }
         }
     }
 
@@ -715,6 +775,8 @@ public partial class MirrorView : UserControl
                 0, 0, (ushort)_videoW, (ushort)_videoH, 0f, 0, 0);
             _pressedButtons = 0;
         }
+        _hasPendingMove = false;
+        _moveFlush.Stop();
         _mouseCaptured = false;
     }
 
@@ -835,6 +897,8 @@ public partial class MirrorView : UserControl
     {
         _decoder = null;
         _control = null;
+        _presenter = null;
+        _gpuImage = null;
         _bitmap = null;
         VideoImage.Source = null;
         foreach (var w in _overlays.Values)

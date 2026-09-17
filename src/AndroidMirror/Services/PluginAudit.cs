@@ -31,6 +31,9 @@ public static class PluginAudit
                 case "disconnect": Add(LocalizationService.Get("audit.disconnect")); break;
                 case "record": Add(LocalizationService.Get("audit.record")); break;
                 case "screenshot": Add(LocalizationService.Get("audit.screenshot")); break;
+                case "mute": Add(LocalizationService.Get("audit.mute")); break;
+                case "overlay" or "push": Add(LocalizationService.Get("audit.overlay")); break;
+                case "read" or "write": Add(LocalizationService.Get("audit.files")); break;
                 case "on":
                     if (onIndex < 0)
                         onIndex = labels.Count;

@@ -26,3 +26,10 @@ engine/**/build/
 engine/.gradle/
 engine/local.properties
 engine/bin/
+
+.relnotes/
+
+# fichiers locaux poste dev
+AGENTS.local.md
+MEMORY.md
+GRAPHISME.md

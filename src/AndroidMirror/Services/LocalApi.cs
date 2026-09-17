@@ -21,7 +21,7 @@ public sealed class LocalApiHost
 
     public sealed record MirrorDto(int Slot, string Name, string Serial, string Model,
         bool Connected, bool Active, bool Recording, bool Wifi, double Fps,
-        int W, int H);
+        int W, int H, double Lag, double Jit, int Bitrate, bool Muted);
     public sealed record DeviceDto(string Serial, string Name, string Model,
         bool Ready, bool Remembered, bool Wifi, bool Blocked);
     public sealed record ApiResult(bool Ok, string? Message = null, object? Data = null);
@@ -93,7 +93,9 @@ public sealed class LocalApiHost
         Data: _vm.Mirrors.Select(m => new MirrorDto(
             m.Slot, m.DeviceName, m.Device.Serial, m.Device.Model, m.IsConnected,
             ReferenceEquals(m, _vm.ActiveMirror), m.IsRecording, m.Device.IsWifi,
-            m.View.CurrentFps, m.View.VideoWidth, m.View.VideoHeight)).ToList()));
+            m.View.CurrentFps, m.View.VideoWidth, m.View.VideoHeight,
+            Math.Max(0, m.StreamLagMs), m.StreamJitterMs, m.CurrentBitRate,
+            m.AudioMuted)).ToList()));
 
     public Task<ApiResult> GetDevicesAsync() => Ui(() => new ApiResult(true,
         Data: _vm.Devices.Select(d => new DeviceDto(
@@ -147,8 +149,21 @@ public sealed class LocalApiHost
         return new ApiResult(true, $"connecté — {d.DisplayName}");
     });
 
+    /// <summary>Coupe/retablit la sortie audio locale d'un miroir — n'envoie
+    /// rien au téléphone (le volume Android n'est pas touché).</summary>
+    public Task<ApiResult> SetAudioMutedAsync(int slot, bool muted) => Ui(() =>
+    {
+        var m = _vm.MirrorAtSlot(slot);
+        if (m == null)
+            return new ApiResult(false, $"slot {slot} inconnu");
+        m.SetAudioMuted(muted);
+        return new ApiResult(true,
+            muted ? $"miroir {slot} muet" : $"miroir {slot} sonore",
+            new { muted });
+    });
+
     private sealed record OverlayOpts(int Slot, string? Id, bool? Visible,
-        string? Title, string? Color, bool? Compact, string? Pos);
+        string? Title, string? Color, bool? Compact, string? Pos, string[]? Lines);
     private sealed record OverlayPush(int Slot, string? Id, double Value, string? Label);
 
     /// <summary>Widget graphe déplaçable sur un miroir — piloté par les plugins.</summary>
@@ -163,7 +178,7 @@ public sealed class LocalApiHost
         if (m == null)
             return new ApiResult(false, $"slot {o.Slot} inconnu");
         m.View.SetGraphOverlay(o.Id ?? "default", o.Visible, o.Title,
-            o.Color, o.Compact, o.Pos);
+            o.Color, o.Compact, o.Pos, o.Lines);
         return new ApiResult(true);
     });
 
@@ -225,6 +240,7 @@ public sealed class LocalApiServer : IAsyncDisposable
         app.MapPost("/api/mirrors/{slot:int}/record", async (int slot) => Http(await host.ToggleRecordingAsync(slot)));
         app.MapPost("/api/mirrors/{slot:int}/screenshot", async (int slot) => Http(await host.ScreenshotAsync(slot)));
         app.MapPost("/api/mirrors/{slot:int}/disconnect", async (int slot) => Http(await host.DisconnectMirrorAsync(slot)));
+        app.MapPost("/api/mirrors/{slot:int}/mute/{muted:bool}", async (int slot, bool muted) => Http(await host.SetAudioMutedAsync(slot, muted)));
         app.MapPost("/api/devices/{serial}/connect", async (string serial) => Http(await host.ConnectAsync(serial)));
         app.MapGet("/api/events", ctx => StreamEventsAsync(host, ctx));
 
