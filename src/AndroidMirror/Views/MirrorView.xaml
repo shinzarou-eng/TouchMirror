@@ -35,17 +35,20 @@
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
                     <TextBlock Text="{loc:Loc style}" FontSize="10.5" Foreground="#9AA6B5" VerticalAlignment="Center" />
                     <ComboBox SelectedIndex="{Binding KeybindStyle}" Width="92" Height="24"
-                              FontSize="11" Margin="6,0,14,0" VerticalContentAlignment="Center">
+                              FontSize="11" Margin="6,0,14,0" VerticalContentAlignment="Center"
+                              Focusable="False">
                         <ComboBoxItem Content="{loc:Loc pastille}" />
                         <ComboBoxItem Content="{loc:Loc cercle}" />
                         <ComboBoxItem Content="{loc:Loc minimal}" />
                     </ComboBox>
                     <TextBlock Text="{loc:Loc opacite}" FontSize="10.5" Foreground="#9AA6B5" VerticalAlignment="Center" />
                     <Slider Value="{Binding KeybindOpacity}" Minimum="0.3" Maximum="1"
-                            Width="72" Margin="6,0,14,0" VerticalAlignment="Center" />
+                            Width="72" Margin="6,0,14,0" VerticalAlignment="Center"
+                            Focusable="False" />
                     <TextBlock Text="{loc:Loc taille}" FontSize="10.5" Foreground="#9AA6B5" VerticalAlignment="Center" />
                     <Slider Value="{Binding KeybindSize}" Minimum="22" Maximum="44"
-                            Width="72" Margin="6,0,0,0" VerticalAlignment="Center" />
+                            Width="72" Margin="6,0,0,0" VerticalAlignment="Center"
+                            Focusable="False" />
                 </StackPanel>
             </StackPanel>
         </Border>

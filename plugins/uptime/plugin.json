@@ -1,0 +1,9 @@
+{
+  "name": "Uptime",
+  "description": "Journal de session par miroir : durée de la connexion en cours et nombre de coupures depuis le lancement. Repère d'un coup l'appareil qui lâche.",
+  "version": "1.0",
+  "author": "TouchMirror",
+  "icon": "⏱️",
+  "featured": false,
+  "tags": ["session", "fiabilité", "overlay"]
+}

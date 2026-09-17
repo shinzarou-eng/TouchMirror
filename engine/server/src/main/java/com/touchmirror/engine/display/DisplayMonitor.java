@@ -36,6 +36,24 @@ public class DisplayMonitor {
 
     private Listener listener;
 
+    private static final long POLL_INTERVAL_MS = 500;
+    private HandlerThread pollThread;
+    private Handler pollHandler;
+    private final Runnable pollRunnable = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                checkDisplayPropertiesChanged();
+            } catch (Throwable e) {
+                Ln.e("DisplayMonitor error", e);
+            }
+            Handler h = pollHandler;
+            if (h != null) {
+                h.postDelayed(this, POLL_INTERVAL_MS);
+            }
+        }
+    };
+
     public void start(int displayId, Listener listener) {
         // Once started, the listener and the displayId must never change
         assert listener != null;
@@ -82,6 +100,11 @@ public class DisplayMonitor {
             };
             ServiceManager.getWindowManager().registerDisplayWindowListener(displayWindowListener);
         }
+
+        pollThread = new HandlerThread("DisplayMonitorPoll");
+        pollThread.start();
+        pollHandler = new Handler(pollThread.getLooper());
+        pollHandler.postDelayed(pollRunnable, POLL_INTERVAL_MS);
     }
 
     /**
@@ -104,6 +127,12 @@ public class DisplayMonitor {
         } else if (displayWindowListener != null) {
             ServiceManager.getWindowManager().unregisterDisplayWindowListener(displayWindowListener);
         }
+
+        if (pollThread != null) {
+            pollHandler = null;
+            pollThread.quitSafely();
+            pollThread = null;
+        }
     }
 
     private synchronized DisplayProperties getAndSetDisplayProperties(DisplayProperties props) {
@@ -116,7 +145,7 @@ public class DisplayMonitor {
         this.props = props;
     }
 
-    private void checkDisplayPropertiesChanged() {
+    private synchronized void checkDisplayPropertiesChanged() {
         DisplayInfo di = ServiceManager.getDisplayManager().getDisplayInfo(displayId);
         if (di == null) {
             Ln.w("DisplayInfo for " + displayId + " cannot be retrieved");

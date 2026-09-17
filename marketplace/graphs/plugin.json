@@ -1,9 +1,0 @@
-{
-  "name": "Graphs",
-  "description": "Graphe FPS en surimpression sur chaque miroir — petit panneau sombre déplaçable à la souris, masqué en mode capture.",
-  "version": "1.0",
-  "author": "TouchMirror",
-  "icon": "📈",
-  "featured": false,
-  "tags": ["stats", "overlay"]
-}

@@ -22,8 +22,9 @@ public sealed class PluginManifest
 /// <summary>
 /// Plugin utilisateur en JavaScript, exécuté en sandbox (Jint) dans un thread
 /// dédié. Le script ne voit que l'objet tm.* (control-plane : miroirs,
-/// connexion, capture, enregistrement) — aucun accès fichier, processus,
-/// réseau ou injection d'input vers le téléphone.
+/// connexion, capture, enregistrement) — aucun accès processus, réseau ou
+/// injection d'input vers le téléphone ; fichiers limités à son dossier
+/// (extensions data, pas de code réinscriptible).
 /// Structure : plugins/<id>/plugin.js (+ plugin.json optionnel) ou plugins/<id>.js
 /// </summary>
 public partial class PluginInstance : ObservableObject
@@ -295,6 +296,10 @@ public partial class PluginInstance : ObservableObject
           screenshot:  s     => JSON.parse(__call('screenshot',  String(s))),
           disconnect:  s     => JSON.parse(__call('disconnect',  String(s))),
           connect:     s     => JSON.parse(__call('connect',     String(s))),
+          mute:      (s, m)  => JSON.parse(__call('mute', JSON.stringify({ slot: s, muted: !!m }))),
+          read:      name    => JSON.parse(__call('read', String(name))),
+          write:   (name, d) => JSON.parse(__call('write', JSON.stringify(
+                                  { name: String(name), data: String(d) }))),
           overlay:    (s, o) => JSON.parse(__call('overlay', JSON.stringify(Object.assign({ slot: s }, o || {})))),
           push:       (s, v) => JSON.parse(__call('push', JSON.stringify(
                                   typeof v === 'object' ? Object.assign({ slot: s }, v)

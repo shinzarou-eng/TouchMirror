@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -31,6 +32,14 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     [ObservableProperty] private int _slot;
     /// <summary>Couleur d'accent hex de l'appareil (nulle = accent par défaut).</summary>
     [ObservableProperty] private string? _accentHex;
+    /// <summary>Codec vidéo réellement négocié + « · GPU » quand le décodage matériel est actif.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CodecBadgeVisibility))]
+    private string? _codecBadge;
+    public Visibility CodecBadgeVisibility =>
+        string.IsNullOrEmpty(CodecBadge) ? Visibility.Collapsed : Visibility.Visible;
+    private bool _codecHwSeen;
+
     /// <summary>Réglages propres de l'appareil dans l'espace de travail actif (nul = globaux).</summary>
     public WorkspaceDevice? Prefs { get; set; }
 
@@ -74,6 +83,9 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     /// <summary>Levée quand la vue demande à quitter le mode édition (Échap).</summary>
     public event Action? EditModeExitRequested;
 
+    /// <summary>Clic sur une ligne d'un widget overlay — (miroir, id widget, index).</summary>
+    public event Action<MirrorInstance, string, int>? OverlayLineClicked;
+
     partial void OnKeybindEditModeChanged(bool value) =>
         View.Dispatcher.Invoke(() => View.SetKeybindEditMode(value));
 
@@ -86,6 +98,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             KeybindStyle = style;
             KeybindOpacity = opacity;
             KeybindSize = size;
+            Keybinds.Clear();
             foreach (var d in data)
                 Keybinds.Add(new KeybindItem { Key = d.Key, Rx = d.Rx, Ry = d.Ry });
         }
@@ -124,6 +137,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         DeviceName = device.DisplayName;
         View.BindKeybinds(Keybinds);
         View.EditModeExitRequested += () => EditModeExitRequested?.Invoke();
+        View.OverlayLineClicked += (id, idx) => OverlayLineClicked?.Invoke(this, id, idx);
         Keybinds.CollectionChanged += OnKeybindsCollectionChanged;
     }
 
@@ -149,7 +163,12 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         var session = new ScrcpySession(Device, options);
         Session = session;
         _videoBitRate = options.VideoBitRate;
-
+        _currentBitRate = options.VideoBitRate;
+        _adaptiveBitrate = options.AdaptiveBitrate;
+        _mBasePts = -1;
+        _mLagEma = _mJitterEma = _adaptLagRef = 0;
+        _adaptGoodStreak = 0;
+        _adaptWatch.Restart();
         session.ServerLog += m => Log?.Invoke(m);
         session.VideoSizeChanged += (w, h) =>
             View.Dispatcher.Invoke(() => View.OnVideoSize(w, h));
@@ -167,6 +186,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
 
         session.VideoPacketReceived += packet =>
         {
+            TrackStreamMetrics(packet);
             // Miroir inactif : on saute le décodage (CPU/GPU économisés,
             // l'enregistrement écrit les paquets bruts et continue).
             if (!_videoHidden)
@@ -204,8 +224,15 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                         Decoder.Error += m => Log?.Invoke($"decoder: {m}");
                         var p = presenter;
                         View.Dispatcher.Invoke(() => View.AttachDecoder(Decoder, p));
+                        _codecHwSeen = false;
+                        CodecBadge = (session.VideoCodecId ?? "h264").ToUpperInvariant();
                     }
                     Decoder.Feed(packet.Data);
+                    if (!_codecHwSeen && Decoder.HardwareDecoding)
+                    {
+                        _codecHwSeen = true;
+                        CodecBadge += " · GPU";
+                    }
                 }
             }
             try
@@ -226,6 +253,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                 {
                     Audio = new AudioPlayer(session.AudioCodecId ?? "opus");
                     Audio.Error += m => Log?.Invoke($"audio: {m}");
+                    Audio.Volume = _audioMuted ? 0f : 1f;
                 }
                 Audio.Feed(packet.Data, packet.IsConfig);
             }
@@ -281,13 +309,91 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Vrai quand la sortie audio locale est coupée — conservé même
+    /// avant la création du lecteur (mute demandé avant le 1er paquet audio).</summary>
+    protected volatile bool _audioMuted;
+    public bool AudioMuted => _audioMuted;
+
     public virtual void SetAudioMuted(bool muted)
     {
+        _audioMuted = muted;
         try { if (Audio != null) Audio.Volume = muted ? 0f : 1f; } catch { }
     }
 
     private volatile bool _videoHidden;
     private int _videoBitRate = 8_000_000;
+
+    /// <summary>Débit courant demandé à l'encodeur (réduit par le mode adaptatif).</summary>
+    public int CurrentBitRate => _currentBitRate;
+
+    /// <summary>Retard de lecture vs temps réel, ms (dérive arrivée − pts).</summary>
+    public double StreamLagMs => _mLagEma;
+    /// <summary>Gigue des paquets vs cadence encodeur, ms.</summary>
+    public double StreamJitterMs => _mJitterEma;
+    /// <summary>Débit adaptatif : réduit à chaud quand le retard de lecture croît.</summary>
+    public bool AdaptiveBitrate { get => _adaptiveBitrate; set => _adaptiveBitrate = value; }
+
+    private long _mBasePts = -1, _mBaseArrival, _mLastPts, _mLastArrival;
+    private double _mLagEma, _mJitterEma;
+
+    private const int AdaptMinBitRate = 1_500_000;
+    private int _currentBitRate = 8_000_000;
+    private bool _adaptiveBitrate;
+    private readonly Stopwatch _adaptWatch = new();
+    private double _adaptLagRef;
+    private int _adaptGoodStreak;
+
+    private void TrackStreamMetrics(VideoPacket p)
+    {
+        if (p.IsConfig || p.Pts <= 0)
+            return;
+        var now = Environment.TickCount64;
+        var ptsMs = p.Pts / 1000;
+        if (_mBasePts < 0)
+        {
+            _mBasePts = _mLastPts = ptsMs;
+            _mBaseArrival = _mLastArrival = now;
+            return;
+        }
+        var lag = (double)(now - _mBaseArrival) - (ptsMs - _mBasePts);
+        _mLagEma = _mLagEma == 0 ? lag : _mLagEma * 0.92 + lag * 0.08;
+        var dt = (now - _mLastArrival) - (double)(ptsMs - _mLastPts);
+        _mJitterEma = _mJitterEma * 0.9 + Math.Abs(dt) * 0.1;
+        _mLastPts = ptsMs;
+        _mLastArrival = now;
+        AdaptTick();
+    }
+
+    private void AdaptTick()
+    {
+        if (!_adaptiveBitrate || _videoHidden || _adaptWatch.ElapsedMilliseconds < 1500)
+            return;
+        _adaptWatch.Restart();
+        var growth = _mLagEma - _adaptLagRef;
+        _adaptLagRef = _mLagEma;
+        if (growth > 60 || _mLagEma > 400)
+        {
+            var nb = Math.Max(AdaptMinBitRate, (int)(_currentBitRate * 0.7));
+            if (nb >= _currentBitRate)
+                return;
+            _currentBitRate = nb;
+            _adaptGoodStreak = 0;
+            try { Session?.Control?.SetVideoParams(nb, suspend: false); } catch { }
+            RaiseLog(string.Format(L("log.bitrate_down"), Math.Round(nb / 1e6, 1)));
+        }
+        else if (_mLagEma < 150)
+        {
+            if (_currentBitRate < _videoBitRate && ++_adaptGoodStreak >= 5)
+            {
+                _adaptGoodStreak = 0;
+                _currentBitRate = Math.Min(_videoBitRate, (int)(_currentBitRate * 1.25));
+                try { Session?.Control?.SetVideoParams(_currentBitRate, suspend: false); } catch { }
+                RaiseLog(string.Format(L("log.bitrate_up"), Math.Round(_currentBitRate / 1e6, 1)));
+            }
+        }
+        else
+            _adaptGoodStreak = 0;
+    }
 
     /// <summary>Débit plancher d'une tuile en miniature (encodeur quasi au repos).</summary>
     private const int ThrottleBitRate = 500_000;
@@ -314,6 +420,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             }
             return;
         }
+        _currentBitRate = _videoBitRate;
         try { Session?.Control?.SetVideoParams(_videoBitRate, suspend: false); } catch { }
         RaiseLog(L("log.unthrottled"));
         lock (_decoderLock)
@@ -369,6 +476,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         StopRecordingInternal();
         IsRecording = false;
         IsConnected = false;
+        CodecBadge = null;
         View.Dispatcher.Invoke(View.Detach);
         Disconnected?.Invoke(this);
     }

@@ -60,7 +60,12 @@ public sealed partial class IosMirrorInstance : MirrorInstance
             });
         service.AudioFrame += (rate, ch, bits, data, len) =>
         {
-            _audio ??= CreateAudio();
+            if (_audio == null)
+            {
+                _audio = CreateAudio();
+                if (_audio != null && _audioMuted)
+                    try { _audio.Volume = 0f; } catch { }
+            }
             _audio?.Feed(rate, ch, bits, data, len);
         };
         service.Exited += () =>
@@ -163,6 +168,7 @@ public sealed partial class IosMirrorInstance : MirrorInstance
 
     public override void SetAudioMuted(bool muted)
     {
+        _audioMuted = muted;
         try { if (_audio != null) _audio.Volume = muted ? 0f : 1f; } catch { }
     }
 

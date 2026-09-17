@@ -1,0 +1,9 @@
+{
+  "name": "HUD",
+  "description": "Panneau déplaçable sur chaque miroir — courbe FPS, résolution, retard du flux et débit. Fusionne les anciens plugins Graphs, Stats et Perf.",
+  "version": "1.0",
+  "author": "TouchMirror",
+  "icon": "📈",
+  "featured": true,
+  "tags": ["stats", "overlay"]
+}

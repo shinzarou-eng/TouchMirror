@@ -12,25 +12,60 @@ if (args.Length > 1 && args[1] == "mux")
     MuxTest(path, codec, bytes);
     return;
 }
+if (args.Length > 1 && args[1] == "probe")
+{
+    VideoDecoder.InitializeFFmpeg();
+    unsafe
+    {
+        void* iter = null;
+        AVCodec* c;
+        while ((c = ffmpeg.av_codec_iterate(&iter)) != null)
+            if (ffmpeg.av_codec_is_decoder(c) != 0 &&
+                (System.Runtime.InteropServices.Marshal.PtrToStringAnsi((IntPtr)c->name)?.Contains("av1") == true
+                 || System.Runtime.InteropServices.Marshal.PtrToStringAnsi((IntPtr)c->name)?.Contains("hevc") == true))
+                Console.WriteLine($"decoder: {System.Runtime.InteropServices.Marshal.PtrToStringAnsi((IntPtr)c->name)}");
+    }
+    return;
+}
 var iters = args.Length > 1 ? int.Parse(args[1]) : 3;
-
-var nals = SplitAnnexB(bytes);
 
 var auFile = Path.Combine(Path.GetDirectoryName(path) ?? ".", "au_sizes.json");
 var packets = new List<byte[]>();
-if (File.Exists(auFile))
+if (codec == "av1")
 {
-    var sizes = System.Text.Json.JsonSerializer.Deserialize<int[]>(File.ReadAllText(auFile))!;
-    var off = 0;
-    foreach (var sz in sizes)
+    var i = 0;
+    while (i < bytes.Length && !TryObu(bytes, i, out _, out _)) i++;
+    while (i < bytes.Length)
     {
-        var au = new List<byte[]>();
-        var acc = 0;
-        while (acc < sz && nals.Count > 0) { au.Add(nals[0]); acc += nals[0].Length; nals.RemoveAt(0); }
-        packets.Add(au.SelectMany(x => x).ToArray());
+        var j = i;
+        while (j < bytes.Length)
+        {
+            if (!TryObu(bytes, j, out var t, out var l)) { j = bytes.Length; break; }
+            if (t == 2 && j > i)
+                break;
+            j += l;
+        }
+        packets.Add(bytes[i..Math.Min(j, bytes.Length)]);
+        i = j <= i ? bytes.Length : j;
     }
 }
-else packets = nals;
+else
+{
+    var nals = SplitAnnexB(bytes);
+    if (File.Exists(auFile))
+    {
+        var sizes = System.Text.Json.JsonSerializer.Deserialize<int[]>(File.ReadAllText(auFile))!;
+        var off = 0;
+        foreach (var sz in sizes)
+        {
+            var au = new List<byte[]>();
+            var acc = 0;
+            while (acc < sz && nals.Count > 0) { au.Add(nals[0]); acc += nals[0].Length; nals.RemoveAt(0); }
+            packets.Add(au.SelectMany(x => x).ToArray());
+        }
+    }
+    else packets = nals;
+}
 Console.WriteLine($"{path} — {bytes.Length / 1024.0:F0} KB, {packets.Count} paquets, codec={codec}");
 
 foreach (var mode in new[] { "gpu", "cpu", "gpu", "cpu" })
@@ -43,6 +78,15 @@ foreach (var mode in new[] { "gpu", "cpu", "gpu", "cpu" })
     var sw = Stopwatch.StartNew();
     using (var dec = new VideoDecoder(codec, preferHardware: hw))
     {
+        var colorPrinted = false;
+        dec.GpuFrame += (t, s, w, h, ci) =>
+        {
+            frames++;
+            if (colorPrinted) return;
+            colorPrinted = true;
+            var sp = (ci >> 1) switch { 0 => "bt601", 2 => "bt2020", _ => "bt709" };
+            Console.WriteLine($"colorspace={sp} range={((ci & 1) == 1 ? "full" : "limited")}");
+        };
         dec.FrameAvailable += () =>
         {
             frames++;

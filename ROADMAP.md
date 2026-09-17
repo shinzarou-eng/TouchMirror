@@ -29,6 +29,7 @@ L'ordre indique les priorités, pas des dates de sortie. Les périmètres peuven
 | 4. Diagnostic et assistance | Expliquer les problèmes et faciliter leur résolution | Prévu | Étape 1, puis priorité après les espaces de travail |
 | 5. Capture et création | Sauvegarder les moments utiles et simplifier le streaming | À l'étude | Base stabilisée et mesures de ressources |
 | 6. Intégrations officielles | Relier TouchMirror aux outils du bureau sans automatiser le jeu | À l'étude | API fiabilisée à l'étape 1 |
+| 7. Portage bureau | Évaluer Linux puis macOS via une interface réécrite en Avalonia | À l'étude | Étapes 1–4 stabilisées |
 
 ## 1. Fiabilité et confiance
 
@@ -37,7 +38,7 @@ L'ordre indique les priorités, pas des dates de sortie. Les périmètres peuven
 - [x] Vérifier le contenu des plugins à chaque lancement, y compris au démarrage de TouchMirror, et empêcher l'exécution d'un contenu différent de celui validé.
 - [x] Lier l'autorisation d'un script tiers à son empreinte : toute modification doit demander un nouvel accord.
 - [x] Refuser le lancement d'un script non autorisé si la confirmation ne peut pas être affichée.
-- [x] Remplacer l'exécution de scripts externes par un moteur JavaScript sandboxé (Jint) : aucun processus enfant, aucun accès fichier/réseau/process depuis le plugin, seulement l'API `tm.*`.
+- [x] Remplacer l'exécution de scripts externes par un moteur JavaScript sandboxé (Jint) : aucun processus enfant, aucun accès réseau/process depuis le plugin ; fichiers confinés au dossier du plugin, extensions data uniquement — seulement l'API `tm.*`.
 - [x] Durcir le sandbox : limites mémoire/récursion/tableaux/regex, files et timers bornés, appels API limités à 30/s, actions mutantes tracées au journal, hash couvrant `plugin.js` + `plugin.json`.
 - [x] Arrêter les plugins retirés et fiabiliser leur cycle de démarrage, d'arrêt et de sortie.
 - [x] Distribuer chaque événement SSE à chaque client abonné, avec des files limitées et un nettoyage à la déconnexion.
@@ -50,7 +51,7 @@ L'ordre indique les priorités, pas des dates de sortie. Les périmètres peuven
 
 ### Limites actuelles à connaître
 
-La vérification repose sur des empreintes SHA-256 embarquées, pas sur une signature numérique d'éditeur. Les plugins tournent dans un moteur JavaScript sandboxé qui n'expose que l'API `tm.*` (control-plane) — pas d'accès fichier, réseau ou processus. Le sandbox limite la portée, mais le code d'un plugin tiers reste à lire avant activation.
+La vérification repose sur des empreintes SHA-256 embarquées, pas sur une signature numérique d'éditeur. Les plugins tournent dans un moteur JavaScript sandboxé qui n'expose que l'API `tm.*` (control-plane) — pas d'accès réseau ni processus ; les fichiers sont confinés au dossier du plugin (extensions data uniquement, jamais de code réinscriptible). Le sandbox limite la portée, mais le code d'un plugin tiers reste à lire avant activation.
 
 ## 2. Espaces de travail
 
@@ -117,6 +118,19 @@ La vérification repose sur des empreintes SHA-256 embarquées, pas sur une sign
 - [ ] Documenter le contrat API, les erreurs et la compatibilité entre versions avant diffusion des intégrations.
 
 **Validation avant diffusion :** plusieurs intégrations coexistent sans perte d'événements ; les autorisations sont explicites et révocables ; aucun parcours officiel n'exécute de commandes de jeu.
+
+## 7. Portage bureau (Linux / macOS)
+
+**Résultat attendu :** TouchMirror sur Linux puis macOS, sans renoncer à la qualité du pipeline Windows.
+
+Le cœur est déjà portable : protocole scrcpy, adb, FFmpeg, API locale, plugins Jint, marketplace. Le travail porte sur la couche plateforme — interface WPF → Avalonia, pipeline GPU D3D11/D3D9Ex → VAAPI ou Metal (ou repli CPU), audio NAudio → backend portable, BLE iPhone → BlueZ / Core Bluetooth.
+
+- [ ] Évaluer Avalonia pour l'interface : réutilisation maximale des vues, des modèles et de la logique existante.
+- [ ] Chiffrer un premier portage Linux en décodage CPU (bitmap logiciel) avant d'étudier le GPU (VAAPI/GL, puis Metal/VideoToolbox sur macOS).
+- [ ] Évaluer un backend audio portable (PortAudio, SDL2) et le BLE hors APIs Windows.
+- [ ] Identifier et isoler ce qui reste spécifique à Windows (D3DImage, D3D9Ex, firewall, Win32) derrière des interfaces.
+
+**Validation avant engagement :** un prototype affiche un miroir sur Linux ; la consommation CPU est mesurée ; le partage de code entre Windows et les autres OS est démontré sans duplication de la logique. macOS est envisagé après Linux, sur la même base Avalonia.
 
 ## Hors périmètre
 

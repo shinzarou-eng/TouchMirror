@@ -20,8 +20,13 @@ public sealed class DevicePrefs
     public string? LastSerial { get; set; }
     /// <summary>Couleur d'accent de l'appareil (hex « #RRGGBB »), nulle = couleur par défaut.</summary>
     public string? Color { get; set; }
-    /// <summary>Raccourcis plaqués sur la vidéo — touche clavier = tap à la position.</summary>
+    /// <summary>Raccourcis plaqués sur la vidéo — touche clavier = tap à la position.
+    /// Contenu du profil par défaut (« Défaut »).</summary>
     public List<KeybindData> Keybinds { get; set; } = new();
+    /// <summary>Profils de raccourcis nommés (PvP, métiers…) — bascule sans perdre le défaut.</summary>
+    public Dictionary<string, List<KeybindData>> KeybindProfiles { get; set; } = new();
+    /// <summary>Profil actif : nul = « Défaut » (contenu dans Keybinds).</summary>
+    public string? ActiveKeybindProfile { get; set; }
     /// <summary>Style des raccourcis : 0 = pastille, 1 = cercle, 2 = minimal.</summary>
     public int KeybindStyle { get; set; }
     /// <summary>Opacité des raccourcis (0.3–1).</summary>
@@ -51,6 +56,8 @@ public sealed class WorkspaceDevice
     public int? AccountUserId { get; set; }
     /// <summary>Nom affiché du profil secondaire.</summary>
     public string? AccountName { get; set; }
+    /// <summary>Débit adaptatif : nul = hérite du global.</summary>
+    public bool? AdaptiveBitrate { get; set; }
 }
 
 /// <summary>Disposition mémorisée : membres (dans l'ordre des tuiles) + miroir actif.</summary>
@@ -77,6 +84,8 @@ public sealed class AppSettings
     public bool TurnScreenOff { get; set; }
     /// <summary>Lance Dofus Touch (com.ankama.dofustouch) au démarrage du mirroring.</summary>
     public bool AutoLaunchDofus { get; set; }
+    /// <summary>Débit adaptatif : baisse à chaud quand le flux prend du retard.</summary>
+    public bool AdaptiveBitrate { get; set; } = true;
     /// <summary>DeviceKey des tels pour lesquels l'assistant de config a été refusé définitivement.</summary>
     public List<string> SetupDismissed { get; set; } = new();
     /// <summary>Écran virtuel : null = écran physique, "" = auto, "WxH/DPI" sinon.</summary>
@@ -121,6 +130,14 @@ public static class SettingsStore
                     s.EnabledPlugins.Add("reconnect");
                 if (s.ApprovedPlugins.Remove("watchdog", out var h))
                     s.ApprovedPlugins["reconnect"] = h;
+                bool hud = false;
+                foreach (var old in new[] { "graphs", "stats", "perf" })
+                {
+                    hud |= s.EnabledPlugins.Remove(old);
+                    s.ApprovedPlugins.Remove(old, out _);
+                }
+                if (hud && !s.EnabledPlugins.Contains("hud"))
+                    s.EnabledPlugins.Add("hud");
                 return s;
             }
         }

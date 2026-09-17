@@ -82,18 +82,37 @@ VSOut main(uint id : SV_VertexID) {
 }";
 
     private const string PsSrc = @"
+cbuffer ColorCB : register(b0) {
+    float4 yuvT;
+    float4 coefR;
+    float4 coefG;
+    float4 coefB;
+};
 Texture2D<float> texY : register(t0);
 Texture2D<float2> texUV : register(t1);
 SamplerState samp : register(s0);
 float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
-    float y = texY.Sample(samp, uv);
-    float2 c = texUV.Sample(samp, uv) - 0.5;
+    float y = texY.Sample(samp, uv) * yuvT.x + yuvT.y;
+    float2 c = texUV.Sample(samp, uv) * yuvT.z + yuvT.w;
     float3 rgb;
-    rgb.r = 1.164 * (y - 0.0625) + 1.596 * c.y;
-    rgb.g = 1.164 * (y - 0.0625) - 0.392 * c.x - 0.813 * c.y;
-    rgb.b = 1.164 * (y - 0.0625) + 2.017 * c.x;
+    rgb.r = y + coefR.x * c.y;
+    rgb.g = y + coefG.x * c.x + coefG.y * c.y;
+    rgb.b = y + coefB.x * c.x;
     return float4(saturate(rgb), 1.0);
 }";
+
+    private ID3D11Buffer? _cb;
+    private int _lastColorInfo = -1;
+
+    private static readonly float[][] ColorTable =
+    {
+        new[] { 1.164383f, -0.073059f, 1.138393f, -0.571429f, 1.402f, 0f, 0f, 0f, -0.344136f, -0.714136f, 0f, 0f, 1.772f, 0f, 0f, 0f },
+        new[] { 1f, 0f, 1f, -0.5f, 1.402f, 0f, 0f, 0f, -0.344136f, -0.714136f, 0f, 0f, 1.772f, 0f, 0f, 0f },
+        new[] { 1.164383f, -0.073059f, 1.138393f, -0.571429f, 1.5748f, 0f, 0f, 0f, -0.187324f, -0.468124f, 0f, 0f, 1.8556f, 0f, 0f, 0f },
+        new[] { 1f, 0f, 1f, -0.5f, 1.5748f, 0f, 0f, 0f, -0.187324f, -0.468124f, 0f, 0f, 1.8556f, 0f, 0f, 0f },
+        new[] { 1.164383f, -0.073059f, 1.138393f, -0.571429f, 1.4746f, 0f, 0f, 0f, -0.164553f, -0.571353f, 0f, 0f, 1.8814f, 0f, 0f, 0f },
+        new[] { 1f, 0f, 1f, -0.5f, 1.4746f, 0f, 0f, 0f, -0.164553f, -0.571353f, 0f, 0f, 1.8814f, 0f, 0f, 0f },
+    };
 
     public GpuPresenter()
     {
@@ -106,6 +125,12 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
             ShaderFlags.None, EffectFlags.None);
         _vs = dev.CreateVertexShader(vsBytes.Span, null);
         _ps = dev.CreatePixelShader(psBytes.Span, null);
+        _cb = dev.CreateBuffer(new BufferDescription
+        {
+            ByteWidth = 64,
+            Usage = ResourceUsage.Default,
+            BindFlags = BindFlags.ConstantBuffer,
+        });
         _sampler = dev.CreateSamplerState(new SamplerDescription
         {
             Filter = Filter.MinMagMipLinear,
@@ -146,12 +171,19 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         SizeChanged?.Invoke(w, h);
     }
 
-    public void Present(IntPtr srcTexture, int sliceIndex, int w, int h)
+    public unsafe void Present(IntPtr srcTexture, int sliceIndex, int w, int h, int colorInfo)
     {
         if (srcTexture == IntPtr.Zero)
             return;
         lock (_sync)
         {
+            if (colorInfo != _lastColorInfo && colorInfo >= 0 && colorInfo < ColorTable.Length)
+            {
+                var coefs = ColorTable[colorInfo];
+                fixed (float* p = coefs)
+                    _ctx.UpdateSubresource(_cb!, 0, null, (IntPtr)p, 0, 0);
+                _lastColorInfo = colorInfo;
+            }
             EnsureTargets(w, h);
             if (_rtv == null || _pendingRebind)
                 return;
@@ -191,6 +223,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
             _ctx.VSSetShader(_vs!);
             _ctx.PSSetShader(_ps!);
             _ctx.PSSetShaderResources(0, new[] { srvY, srvUV });
+            _ctx.PSSetConstantBuffer(0, _cb!);
             _ctx.PSSetSampler(0, _sampler!);
             _ctx.Draw(3, 0);
             _ctx.Flush();
@@ -283,7 +316,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
             _srcCache.Clear();
             _srvY?.Dispose(); _srvUV?.Dispose(); _nv12?.Dispose();
             _rtv?.Dispose(); _bgra?.Dispose();
-            _vs?.Dispose(); _ps?.Dispose(); _sampler?.Dispose();
+            _vs?.Dispose(); _ps?.Dispose(); _sampler?.Dispose(); _cb?.Dispose();
         }
         _tex9?.Dispose();
     }

@@ -25,6 +25,8 @@ public partial class GraphWidget : UserControl
     public bool Dragged { get; private set; }
     /// <summary>Le plugin demande l'affichage (indépendant du mode capture).</summary>
     public bool On { get; set; } = true;
+    /// <summary>Clic sur une ligne de la liste — index de la ligne.</summary>
+    public event Action<int>? LineClicked;
 
     public GraphWidget()
     {
@@ -72,6 +74,28 @@ public partial class GraphWidget : UserControl
     {
         _vals.Clear();
         Line.Points.Clear();
+    }
+
+    /// <summary>Remplace la liste de lignes cliquables sous le titre
+    /// (<paramref name="lines"/> vide → panneau masqué).</summary>
+    public void SetLines(string[] lines)
+    {
+        LinesPanel.Children.Clear();
+        LinesPanel.Visibility = lines.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var idx = i;
+            var tb = new TextBlock
+            {
+                Text = lines[i],
+                Foreground = new SolidColorBrush(Color.FromRgb(0xEA, 0xEA, 0xEA)),
+                FontSize = 11,
+                Cursor = Cursors.Hand,
+                Margin = new Thickness(0, 1, 0, 1)
+            };
+            tb.MouseLeftButtonDown += (s, e) => { LineClicked?.Invoke(idx); e.Handled = true; };
+            LinesPanel.Children.Add(tb);
+        }
     }
 
     private void Redraw()

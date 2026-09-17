@@ -195,20 +195,29 @@ await tm.getMirrors();           // mirrors and their slots
 await tm.connect("RFGL22M2JQM"); // connect a device
 await tm.activate(0);            // slot 0 as the main mirror
 await tm.screenshot(0);          // capture
+await tm.mute(1, true);          // mute the mirror's local audio
+                                 // (phone volume untouched)
 tm.overlay(1, { visible: true, title: "FPS", color: "#3ECF8E",
                 pos: "bl", compact: false });
                                  // draggable widget on the mirror —
                                  // pos: tl/tr/bl/br, compact: value only
+tm.overlay(1, { compact: true, lines: ["☐ task a", "☑ task b"] });
+                                 // clickable text list — a click emits
+                                 // "overlay.line" { slot, id, index }
 tm.push(1, 60);                  // append a point to its curve
 tm.push(1, { value: 60, label: "60 fps" });
                                  // custom label instead of raw number
                                  // one widget per plugin (option "id" for more)
-tm.on("devices", e => …);        // real-time events
+tm.on("devices", e => …);        // real-time events — also mirror.active,
+                                 // mirror.connected, mirror.disconnected,
+                                 // mirror.recording, overlay.line
 tm.setInterval(fn, ms); tm.setTimeout(fn, ms);
+tm.read("checklist.txt");        // read a file in the plugin's own folder
+tm.write("state.json", "{}");    // write there too — data extensions only
 tm.log("message");               // → app log
 ```
 
-No filesystem, network or process access from the sandbox — and like the local API, **nothing can inject input toward the phone**. The engine is bounded (memory, recursion, timers, 30 calls/s max) and every plugin action is logged.
+No network or process access from the sandbox — and like the local API, **nothing can inject input toward the phone**. File I/O is confined to the plugin's own folder (`.txt`/`.json`/`.csv`… data only, never code). The engine is bounded (memory, recursion, timers, 30 calls/s max) and every plugin action is logged.
 
 A plugin is code: only install what you can read or what comes from us. Official plugins carry a green shield badge (SHA-256 verified hash) — any other plugin asks for confirmation before activation, and any change to an approved plugin requires your consent again. Plugins drive the app — never the game.
 

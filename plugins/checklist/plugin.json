@@ -1,0 +1,13 @@
+{
+  "name": "Checklist",
+  "description": "Bloc-note éditable sur chaque miroir — modifie checklist.txt au bloc-notes, clic sur une ligne pour cocher. Parfait pour Almanax, archis, HDV, quêtes.",
+  "version": "1.0",
+  "author": "TouchMirror",
+  "icon": "✅",
+  "featured": true,
+  "tags": [
+    "overlay",
+    "dofus",
+    "organisation"
+  ]
+}
