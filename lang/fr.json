@@ -376,5 +376,7 @@
   "log.bitrate_up": "débit remonté → {0} Mbps",
   "audit.files": "Lire / écrire des fichiers dans son dossier",
   "audit.mute": "Couper / remettre l'audio local d'un miroir",
-  "audit.overlay": "Afficher des widgets sur les miroirs"
+  "audit.overlay": "Afficher des widgets sur les miroirs",
+  "nettete_video": "Netteté vidéo (GPU)",
+  "accentue_la_netette_gpu": "Filtre de netteté sur le GPU — les petites tuiles multi-téléphones restent lisibles"
 }

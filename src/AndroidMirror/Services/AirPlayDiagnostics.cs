@@ -5,11 +5,6 @@ using System.Runtime.InteropServices;
 
 namespace TouchMirror.Services;
 
-/// <summary>
-/// Diagnostic réseau AirPlay : détecte ce qui empêcherait un iPhone de
-/// joindre le récepteur — règle pare-feu entrante absente, port déjà occupé
-/// par un autre process, profil réseau public, IP locale à indiquer.
-/// </summary>
 public static class AirPlayDiagnostics
 {
     public sealed record Result(
@@ -33,7 +28,6 @@ public static class AirPlayDiagnostics
             FirewallRuleBlocking: fw == RuleState.Block);
     }
 
-    /// <summary>Phrase courte pour le statut utilisateur (null si tout va bien).</summary>
     public static string? Summarize(Result r)
     {
         if (r.FirewallRuleBlocking)
@@ -62,12 +56,10 @@ public static class AirPlayDiagnostics
         return null;
     }
 
-    /// <summary>Profil du réseau actif via Network List Manager (COM, pas d'admin).</summary>
     private static string? ActiveProfileKind()
     {
         try
         {
-            // CLSID de NetworkListManager (pas de ProgID enregistré).
             var t = Type.GetTypeFromCLSID(
                 new Guid("DCB00C01-570F-4A9B-8D69-199FDBA5723B"));
             if (t == null) return null;
@@ -85,7 +77,6 @@ public static class AirPlayDiagnostics
 
     private enum RuleState { None, Allow, Block }
 
-    /// <summary>Règle pare-feu entrante visant l'exécutable du host (COM FwPolicy2).</summary>
     private static RuleState FirewallRuleState(string exePath)
     {
         try
@@ -101,7 +92,6 @@ public static class AirPlayDiagnostics
                 if (app == null ||
                     !app.EndsWith("airplayhost.exe", StringComparison.OrdinalIgnoreCase))
                     continue;
-                // Direction entrante seulement
                 int dir = 1;
                 try { dir = (int)rule.Direction; } catch { }
                 if (dir != 1) continue;
@@ -117,7 +107,6 @@ public static class AirPlayDiagnostics
         catch { return RuleState.None; }
     }
 
-    /// <summary>Ports TCP déjà écoutés par un AUTRE processus (GetExtendedTcpTable).</summary>
     private static IReadOnlyList<string> PortOwners(int[] ports, int ownHostPid)
     {
         var conflicts = new List<string>();

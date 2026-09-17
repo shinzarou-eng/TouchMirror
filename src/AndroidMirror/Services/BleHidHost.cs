@@ -5,11 +5,6 @@ using Windows.Storage.Streams;
 
 namespace TouchMirror.Services;
 
-/// <summary>
-/// Souris Bluetooth LE HID émulée par le PC (HID over GATT, rôle périphérique).
-/// L'iPhone s'y jumelle via Réglages → Accessibilité → Toucher → AssistiveTouch
-/// → Appareils. Rapports en coordonnées absolues 0..32767 → clic à une position.
-/// </summary>
 public sealed class BleHidHost : IDisposable
 {
     private static readonly Guid HidService = BluetoothUuidHelper.FromShortId(0x1812);
@@ -20,7 +15,6 @@ public sealed class BleHidHost : IDisposable
     private static readonly Guid ReportUuid = BluetoothUuidHelper.FromShortId(0x2A4D);
     private static readonly Guid ReportRefUuid = BluetoothUuidHelper.FromShortId(0x2908);
 
-    /// <summary>Descripteur HID : souris à coordonnées ABSOLUES (0..32767).</summary>
     private static readonly byte[] ReportMap =
     {
         0x05, 0x01,       // USAGE_PAGE (Generic Desktop)
@@ -64,11 +58,9 @@ public sealed class BleHidHost : IDisposable
     private ushort _x, _y;
 
     public bool IsRunning => _provider != null;
-    /// <summary>Un appareil (l'iPhone) a souscrit aux notifications HID.</summary>
     public bool IsLinked => (_report?.SubscribedClients.Count ?? 0) > 0;
 
     public event Action<string>? Log;
-    /// <summary>Levée quand l'iPhone souscrit/se désabonne (connexion BLE effective).</summary>
     public event Action<bool>? LinkChanged;
 
     public async Task StartAsync()
@@ -82,7 +74,6 @@ public sealed class BleHidHost : IDisposable
         _provider = result.ServiceProvider;
         var service = _provider.Service;
 
-        // Protocol Mode : mode rapport fixe (1), en lecture seule côté valeur.
         await CreateAsync(service, ProtocolModeUuid, new GattLocalCharacteristicParameters
         {
             CharacteristicProperties = GattCharacteristicProperties.Read
@@ -92,7 +83,6 @@ public sealed class BleHidHost : IDisposable
             StaticValue = (new byte[] { 0x01 }).AsBuffer()
         });
 
-        // HID Information : bcdHID 1.11, pays 0, flags RemoteWake|NormallyConnectable.
         await CreateAsync(service, HidInfoUuid, new GattLocalCharacteristicParameters
         {
             CharacteristicProperties = GattCharacteristicProperties.Read,
@@ -100,14 +90,12 @@ public sealed class BleHidHost : IDisposable
             StaticValue = (new byte[] { 0x11, 0x01, 0x00, 0x03 }).AsBuffer()
         });
 
-        // HID Control Point : suspend/resume (ignoré, écriture sans réponse).
         await CreateAsync(service, HidControlUuid, new GattLocalCharacteristicParameters
         {
             CharacteristicProperties = GattCharacteristicProperties.WriteWithoutResponse,
             WriteProtectionLevel = GattProtectionLevel.EncryptionRequired
         });
 
-        // Report Map : le descripteur HID ci-dessus.
         await CreateAsync(service, ReportMapUuid, new GattLocalCharacteristicParameters
         {
             CharacteristicProperties = GattCharacteristicProperties.Read,
@@ -115,7 +103,6 @@ public sealed class BleHidHost : IDisposable
             StaticValue = ReportMap.AsBuffer()
         });
 
-        // Report (id 1, entrée) : notifiable + Report Reference obligatoire.
         var report = await CreateAsync(service, ReportUuid, new GattLocalCharacteristicParameters
         {
             CharacteristicProperties = GattCharacteristicProperties.Read
@@ -181,7 +168,6 @@ public sealed class BleHidHost : IDisposable
         _x = x; _y = y; _buttons = 0; SendReport();
     }
 
-    /// <summary>Clic : down puis up après un court délai.</summary>
     public void Click(ushort x, ushort y)
     {
         PointerDown(x, y);

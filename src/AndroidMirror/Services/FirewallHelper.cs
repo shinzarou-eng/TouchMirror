@@ -4,17 +4,10 @@ using System.Text;
 
 namespace TouchMirror.Services;
 
-/// <summary>
-/// Pare-feu Windows : vérifie qu'une règle entrante « allow » existe pour un
-/// exécutable et la crée au besoin. La lecture passe par le COM FwPolicy2
-/// (pas d'admin requis) ; la création lance netsh élevé — une seule invite
-/// UAC regroupant toutes les règles manquantes.
-/// </summary>
 public static class FirewallHelper
 {
     public enum State { None, Allow, Block }
 
-    /// <summary>État de la règle entrante visant exactement cet exécutable.</summary>
     public static State InboundState(string exePath)
     {
         try
@@ -45,11 +38,6 @@ public static class FirewallHelper
         catch { return State.None; }
     }
 
-    /// <summary>
-    /// Crée les règles entrantes manquantes (et remplace les règles « block »).
-    /// Une seule élévation UAC pour tout le lot ; sans accord utilisateur,
-    /// on loggue et on continue — Windows affichera son propre prompt au bind.
-    /// </summary>
     public static async Task EnsureRulesAsync(
         IReadOnlyList<(string Exe, string Name)> items, Action<string>? log = null)
     {
@@ -57,16 +45,11 @@ public static class FirewallHelper
         if (todo.Count == 0)
             return;
 
-        // Pas de script .cmd sur disque : un fichier à nom prévisible dans
-        // %TEMP% pouvait être réécrit entre sa création et l'approbation UAC
-        // (EoP locale). Le batch netsh part en -EncodedCommand, rien à altérer.
         var sb = new StringBuilder();
         foreach (var i in todo)
         {
             var exe = i.Exe.Replace("'", "''");
             var name = i.Name.Replace("'", "''");
-            // Supprime d'abord toute règle existante (un « block » gagnerait
-            // sinon sur l'allow qu'on ajoute), puis crée l'allow.
             sb.AppendLine($"netsh advfirewall firewall delete rule name=all program='{exe}' | Out-Null");
             sb.AppendLine($"netsh advfirewall firewall add rule name='{name}' dir=in action=allow program='{exe}' enable=yes profile=any | Out-Null");
         }

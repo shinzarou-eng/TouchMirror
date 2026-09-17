@@ -16,7 +16,6 @@ public sealed record AdbDevice(string Serial, string Model, string State, int? B
     public bool NeedsAuthorization => State == "unauthorized";
     public bool IsOffline => State == "offline";
     public bool IsRememberedOnly => State == "remembered";
-    /// <summary>Verdict du diagnostic USB (câble, instabilité…) — null si tout va bien.</summary>
     public bool HasDiag => Diag != null;
     private static string L(string key) => LocalizationService.Get(key);
     public string StateText => State switch
@@ -54,20 +53,12 @@ public sealed record AdbDevice(string Serial, string Model, string State, int? B
         => Serial == serial ? this : AltSerial == serial ? this with { Serial = serial } : this;
 }
 
-/// <summary>Profil Android secondaire (utilisateur ou profil clone) sur un appareil.</summary>
 public sealed record AndroidProfile(int Id, string Name, bool Running);
 
 public static class AdbService
 {
-    /// <summary>Serial adb attendu : « RFGL22M2JQM », « emulator-5554 », « 192.168.x.x:5555 ».</summary>
     private static readonly Regex SerialOk = new(@"^[A-Za-z0-9._:\-]+$", RegexOptions.Compiled);
 
-    /// <summary>
-    /// Un serial annoncé par adb est de la donnée non fiable : un périphérique
-    /// rogue (WiFi notamment) pourrait y glisser espaces/guillemets et injecter
-    /// des arguments dans la ligne de commande. Tout serial est validé avant
-    /// interpolation.
-    /// </summary>
     private static string S(string serial)
         => SerialOk.IsMatch(serial) ? serial
            : throw new ArgumentException($"serial adb invalide : « {serial} »");
@@ -154,11 +145,6 @@ public static class AdbService
         }
     }
 
-    /// <summary>
-    /// Flux long « adb track-devices » : invoque <paramref name="onChanged"/> à
-    /// chaque changement d'état (branchement, autorisation, débranchement).
-    /// Reconnecte le flux automatiquement s'il se coupe.
-    /// </summary>
     public static async Task TrackDevicesAsync(Action onChanged, CancellationToken ct)
     {
         var adb = FindAdb();
@@ -178,8 +164,6 @@ public static class AdbService
                     StandardOutputEncoding = Encoding.UTF8
                 };
                 using var p = Process.Start(psi)!;
-                // Chaque bloc du flux = un nouvel état de la liste. Le contenu
-                // est ignoré : on réinterroge « devices -l » via onChanged.
                 while (!p.HasExited && !ct.IsCancellationRequested)
                 {
                     var n = await p.StandardOutput.ReadAsync(buf, ct);
@@ -336,9 +320,6 @@ public static class AdbService
         catch { }
     }
 
-    // ── Profils secondaires (multi-compte) ─────────────────────────────────
-
-    /// <summary>Liste les profils Android hors utilisateur principal (clone, travail…).</summary>
     public static async Task<List<AndroidProfile>> ListProfilesAsync(string serial, CancellationToken ct = default)
     {
         var output = await RunAsync($"-s {S(serial)} shell pm list users", ct);
@@ -356,13 +337,10 @@ public static class AdbService
         return list;
     }
 
-    /// <summary>Nom de profil : lettres/chiffres/espaces/_/- — jamais de métacaractères shell.</summary>
     private static readonly Regex ProfileNameOk = new(@"^[\p{L}\p{N} _\-]{1,32}$", RegexOptions.Compiled);
 
-    /// <summary>Crée un profil clone (type Dual Apps) sans action sur le téléphone.</summary>
     public static async Task<int> CreateCloneProfileAsync(string serial, string name, CancellationToken ct = default)
     {
-        // Le nom part dans une commande shell adb entre guillemets : whitelist stricte.
         if (!ProfileNameOk.IsMatch(name))
             throw new ArgumentException($"nom de profil invalide : « {name} »");
         var output = await RunAsync(
@@ -373,7 +351,6 @@ public static class AdbService
         return int.Parse(m.Groups[1].Value);
     }
 
-    /// <summary>Installe une app déjà présente dans un profil (clone, sans téléchargement).</summary>
     public static async Task InstallAppForUserAsync(string serial, int userId, string packageName, CancellationToken ct = default)
     {
         var output = await RunAsync($"-s {S(serial)} shell pm install-existing --user {userId} {packageName}", ct);
@@ -381,11 +358,9 @@ public static class AdbService
             throw new InvalidOperationException(string.Format(LocalizationService.Get("ex.install_denied"), output.Trim()));
     }
 
-    /// <summary>Démarre un profil (requis avant de pouvoir y lancer des apps).</summary>
     public static async Task StartUserAsync(string serial, int userId, CancellationToken ct = default)
         => await RunAsync($"-s {S(serial)} shell am start-user {userId}", ct);
 
-    /// <summary>Supprime un profil et toutes ses données (comptes de jeu inclus).</summary>
     public static async Task RemoveUserProfileAsync(string serial, int userId, CancellationToken ct = default)
     {
         var output = await RunAsync($"-s {S(serial)} shell pm remove-user {userId}", ct);

@@ -42,7 +42,6 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
     public int Width => _frameW;
     public int Height => _frameH;
 
-    /// <summary>Vrai dès qu'une frame a été décodée par le GPU (D3D11VA).</summary>
     public bool HardwareDecoding { get; private set; }
 
     public int HardwareFallbacks => _hwFailCount;
@@ -111,7 +110,6 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
     private bool _av1HwAttempt;
     private int _av1SwFrames;
 
-    /// <summary>Ouvre le contexte de décodage, GPU (D3D11VA) si hw=true.</summary>
     private void OpenContext(AVCodec* codec, bool hw)
     {
         var ctx = ffmpeg.avcodec_alloc_context3(codec);
@@ -151,7 +149,6 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
         var ret = ffmpeg.avcodec_open2(ctx, codec, null);
         if (ret < 0)
         {
-            // ouverture GPU impossible → contexte propre pour le repli logiciel
             ffmpeg.avcodec_free_context(&ctx);
             _ctx = null;
             if (_hwDeviceCtx != null)
@@ -165,10 +162,8 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
         _hwFailCount = 0;
     }
 
-    // static : le délégué doit rester raciné tant qu'un décodeur vit
     private static readonly AVCodecContext_get_format _getFormatCallback = SelectHwFormat;
 
-    /// <summary>Préfère le format GPU quand le décodeur le propose ; sinon premier format (logiciel).</summary>
     private static AVPixelFormat SelectHwFormat(AVCodecContext* s, AVPixelFormat* fmts)
     {
         for (var p = fmts; *p != AVPixelFormat.AV_PIX_FMT_NONE; p++)
@@ -177,7 +172,6 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
         return fmts[0];
     }
 
-    /// <summary>Repli définitif vers le décodage logiciel après échecs GPU répétés.</summary>
     private void ReopenSoftware()
     {
         GpuPresenter?.ClearSources();
@@ -194,7 +188,7 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
         Error?.Invoke(LocalizationService.Get("log.hw_fallback"));
     }
 
-    public void Feed(byte[] data)
+    public void Feed(byte[] data, int len)
     {
         lock (_sync)
         {
@@ -202,10 +196,10 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
                 return;
             try
             {
-            var ret = ffmpeg.av_new_packet(_packet, data.Length);
+            var ret = ffmpeg.av_new_packet(_packet, len);
             if (ret < 0)
                 return;
-            System.Runtime.InteropServices.Marshal.Copy(data, 0, (IntPtr)_packet->data, data.Length);
+            System.Runtime.InteropServices.Marshal.Copy(data, 0, (IntPtr)_packet->data, len);
 
             ret = ffmpeg.avcodec_send_packet(_ctx, _packet);
             ffmpeg.av_packet_unref(_packet);
@@ -236,7 +230,6 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
                                 FrameColorInfo(_frame));
                             continue;
                         }
-                        // frame en mémoire GPU → copie vers mémoire système
                         if (_swFrame == null)
                             _swFrame = ffmpeg.av_frame_alloc();
                         ffmpeg.av_frame_unref(_swFrame);
@@ -282,7 +275,6 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
         return space * 2 + (f->color_range == AVColorRange.AVCOL_RANGE_JPEG ? 1 : 0);
     }
 
-    /// <summary>swscale multithread : la conversion YUV→BGRA est le poste CPU dominant du pipeline.</summary>
     private static SwsContext* CreateSws(int w, int h, AVPixelFormat fmt)
     {
         var ctx = ffmpeg.sws_alloc_context();
@@ -298,7 +290,6 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
         ffmpeg.av_opt_set_int(ctx, "threads", Math.Min(Environment.ProcessorCount, 4), 0);
         if (ffmpeg.sws_init_context(ctx, null, null) < 0)
         {
-            // options non reconnues par ce build → contexte classique mono-thread
             ffmpeg.sws_freeContext(ctx);
             return ffmpeg.sws_getContext(w, h, fmt, w, h,
                 AVPixelFormat.AV_PIX_FMT_BGRA, (int)SwsFlags.SWS_BILINEAR, null, null, null);

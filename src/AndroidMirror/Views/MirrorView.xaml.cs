@@ -45,20 +45,34 @@ public partial class MirrorView : UserControl
 
     public event Action<MirrorView>? Activated;
 
+    private bool _renderingHooked;
+
     public MirrorView()
     {
         InitializeComponent();
-        CompositionTarget.Rendering += OnRendering;
         Focusable = true;
         SizeChanged += (_, _) => LayoutKeybinds();
         _moveFlush.Tick += (_, _) => FlushPendingMove();
     }
 
-    public void AttachDecoder(IFrameSource decoder) => _decoder = decoder;
+    private void HookRendering()
+    {
+        if (_renderingHooked)
+            return;
+        _renderingHooked = true;
+        CompositionTarget.Rendering += OnRendering;
+    }
+
+    public void AttachDecoder(IFrameSource decoder)
+    {
+        _decoder = decoder;
+        HookRendering();
+    }
 
     public void AttachDecoder(IFrameSource decoder, GpuPresenter? presenter)
     {
         _decoder = decoder;
+        HookRendering();
         _presenter = presenter;
         if (presenter == null)
             return;
@@ -90,19 +104,16 @@ public partial class MirrorView : UserControl
         }
     }
 
-    /// <summary>Badge « iOS · affichage seul » — rappel permanent qu'aucun contrôle n'existe.</summary>
     public void SetIosReadOnly(bool readOnly)
     {
         IosBadge.Visibility = readOnly ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    /// <summary>Voile « en attente d'iPhone » avec les étapes de recopie d'écran.</summary>
     public void SetWaitingOverlay(bool waiting)
     {
         WaitingOverlay.Visibility = waiting ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    /// <summary>Avertissement réseau affiché dans le voile d'attente (pare-feu, profil public…).</summary>
     public void SetWaitingHint(string? hint)
     {
         WaitingHint.Text = hint ?? "";
@@ -112,10 +123,6 @@ public partial class MirrorView : UserControl
 
     public void AttachControl(ControlChannel control) => _control = control;
 
-    /// <summary>
-    /// Pointeur alternatif pour iOS : le PC émule une souris Bluetooth HID,
-    /// les coordonnées sont normalisées 0..1 dans l'image vidéo.
-    /// </summary>
     public interface IIosPointer
     {
         void MoveTo(double rx, double ry);
@@ -131,7 +138,6 @@ public partial class MirrorView : UserControl
 
     public void SetIosPointer(IIosPointer? pointer) => _iosPointer = pointer;
 
-    /// <summary>Texte du badge iOS (« AFFICHAGE SEUL » → « CONTRÔLE BLE »).</summary>
     public void SetIosBadgeText(string text)
     {
         if (IosBadge.Child is StackPanel sp && sp.Children.Count > 1
@@ -139,10 +145,9 @@ public partial class MirrorView : UserControl
             tb.Text = text;
     }
 
-    // ═══ Raccourcis clavier plaqués sur la vidéo ═══
-
     private ObservableCollection<KeybindItem>? _keybinds;
     private readonly Dictionary<KeybindItem, Border> _keybindEls = new();
+    private readonly Dictionary<Key, KeybindItem> _keybindByKey = new();
     private bool _editMode;
     private int _kbStyle;            // 0 pastille, 1 cercle, 2 minimal
     private double _kbOpacity = 0.92;
@@ -152,7 +157,6 @@ public partial class MirrorView : UserControl
     private bool _dragMoved;
     private Point _dragStart;
 
-    /// <summary>Demande de sortie du mode édition (Échap) — remontée au VM.</summary>
     public event Action? EditModeExitRequested;
 
     public void BindKeybinds(ObservableCollection<KeybindItem> keybinds)
@@ -171,20 +175,42 @@ public partial class MirrorView : UserControl
             if (_dragging != null && (_keybinds == null || !_keybinds.Contains(_dragging)))
                 _dragging = null;
             RebuildKeybindVisuals();
+            RebuildKeybindMap();
             return;
         }
         if (e.NewItems != null)
             foreach (KeybindItem k in e.NewItems)
+            {
+                k.PropertyChanged += OnKeybindItemChanged;
                 AddKeybindVisual(k);
+            }
         if (e.OldItems != null)
             foreach (KeybindItem k in e.OldItems)
             {
+                k.PropertyChanged -= OnKeybindItemChanged;
                 if (_keybindEls.Remove(k, out var el))
                     KeybindLayer.Children.Remove(el);
                 if (_pending == k) _pending = null;
                 if (_dragging == k) _dragging = null;
             }
+        RebuildKeybindMap();
         LayoutKeybinds();
+    }
+
+    private void OnKeybindItemChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(KeybindItem.Key))
+            RebuildKeybindMap();
+    }
+
+    private void RebuildKeybindMap()
+    {
+        _keybindByKey.Clear();
+        if (_keybinds == null)
+            return;
+        foreach (var kb in _keybinds)
+            if (!string.IsNullOrEmpty(kb.Key) && Enum.TryParse<Key>(kb.Key, out var k))
+                _keybindByKey[k] = kb;
     }
 
     public void SetKeybindEditMode(bool edit)
@@ -200,7 +226,6 @@ public partial class MirrorView : UserControl
         }
     }
 
-    /// <summary>Style / opacité / taille des raccourcis — appliqué à toutes les keycaps.</summary>
     public void SetKeybindAppearance(int style, double opacity, double size)
     {
         _kbStyle = style;
@@ -261,7 +286,6 @@ public partial class MirrorView : UserControl
                 label.FontSize = Math.Max(9, s * 0.37);
                 break;
         }
-        // En attente de touche → ambre.
         var style = new Style(typeof(Border));
         var trig = new DataTrigger
         {
@@ -273,7 +297,6 @@ public partial class MirrorView : UserControl
         trig.Setters.Add(new Setter(Border.OpacityProperty, 1.0));
         style.Triggers.Add(trig);
         el.Style = style;
-        // Le texte passe ambre aussi quand le rond attend une touche.
         var labelStyle = new Style(typeof(TextBlock));
         var labelTrig = new DataTrigger
         {
@@ -316,7 +339,6 @@ public partial class MirrorView : UserControl
             _dragging = null;
             if (!_dragMoved)
             {
-                // Simple clic → en attente d'une touche.
                 foreach (var k in _keybindEls.Keys) k.IsEditing = false;
                 kb.IsEditing = true;
                 _pending = kb;
@@ -344,7 +366,11 @@ public partial class MirrorView : UserControl
         if (_keybinds == null)
             return;
         foreach (var kb in _keybinds)
+        {
+            kb.PropertyChanged -= OnKeybindItemChanged;
+            kb.PropertyChanged += OnKeybindItemChanged;
             AddKeybindVisual(kb);
+        }
         LayoutKeybinds();
     }
 
@@ -361,7 +387,6 @@ public partial class MirrorView : UserControl
         }
     }
 
-    /// <summary>Repère appareil (0..1) → position vue, rotation d'affichage comprise.</summary>
     private Point VideoToView(double rx, double ry, double ox, double oy, double scale)
     {
         var vx = rx * (_videoW - 1);
@@ -377,7 +402,6 @@ public partial class MirrorView : UserControl
         return new Point(ox + dx * scale, oy + dy * scale);
     }
 
-    /// <summary>Zone vidéo dessinée dans la vue (letterbox Uniform inclus).</summary>
     private bool GetVideoDrawRect(out double ox, out double oy, out double scale,
         out double vw, out double vh)
     {
@@ -413,7 +437,6 @@ public partial class MirrorView : UserControl
     {
         if (_videoW <= 0)
             return;
-        // iOS : le tap part sur la souris Bluetooth à la position normalisée.
         if (_control == null)
         {
             _iosPointer?.Click(kb.Rx, kb.Ry);
@@ -424,35 +447,25 @@ public partial class MirrorView : UserControl
         }
         var x = (uint)Math.Clamp(kb.Rx * (_videoW - 1), 0, _videoW - 1);
         var y = (uint)Math.Clamp(kb.Ry * (_videoH - 1), 0, _videoH - 1);
-        // PointerId dédié pour ne pas parasiter le doigt souris.
         _control.InjectTouch(AndroidMotionEvent.ActionDown, AndroidMotionEvent.PointerIdVirtualFinger,
             x, y, (ushort)_videoW, (ushort)_videoH, 1f,
             AndroidMotionEvent.ButtonPrimary, AndroidMotionEvent.ButtonPrimary);
         _control.InjectTouch(AndroidMotionEvent.ActionUp, AndroidMotionEvent.PointerIdVirtualFinger,
             x, y, (ushort)_videoW, (ushort)_videoH, 0f,
             AndroidMotionEvent.ButtonPrimary, 0);
-        // Flash bref de la keycap → le tap est visuellement confirmé.
         if (_keybindEls.TryGetValue(kb, out var el))
             el.BeginAnimation(OpacityProperty,
                 new System.Windows.Media.Animation.DoubleAnimation(0.35, _kbOpacity, TimeSpan.FromMilliseconds(220)));
     }
 
-
     private bool _statsVisible = true;
-
-    // ═══ Widgets graphe pilotés par les plugins (un par id) ═══
 
     private readonly Dictionary<string, GraphWidget> _overlays = new();
 
-    /// <summary>Clic sur une ligne d'un widget — (id widget, index ligne).</summary>
     public event Action<string, int>? OverlayLineClicked;
 
-    /// <summary>Frames/s mesurées sur ce flux — exposé aux plugins.</summary>
     public double CurrentFps => _fps;
 
-    /// <summary>Affiche/masque le widget <paramref name="id"/> et règle titre,
-    /// couleur, mode compact (sans courbe) et coin d'ancrage (« tl » « tr »
-    /// « bl » « br »). Un widget est créé au premier appel.</summary>
     public void SetGraphOverlay(string id, bool? visible, string? title,
         string? colorHex, bool? compact = null, string? pos = null,
         string[]? lines = null)
@@ -491,8 +504,6 @@ public partial class MirrorView : UserControl
         }
     }
 
-    /// <summary>Ajoute un point à la courbe du widget <paramref name="id"/>
-    /// (ignoré si le plugin n'a pas encore affiché de widget).</summary>
     public void PushGraphValue(string id, double v, string? label = null)
     {
         if (_overlays.TryGetValue(id, out var w))
@@ -516,7 +527,6 @@ public partial class MirrorView : UserControl
     public void SetStatsVisible(bool visible)
     {
         _statsVisible = visible;
-        // Mode capture OBS : les widgets plugin se masquent, fenêtre propre.
         foreach (var w in _overlays.Values)
             w.Visibility = w.On && visible ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -632,7 +642,6 @@ public partial class MirrorView : UserControl
             return;
         }
 
-        // Mode édition des raccourcis : clic gauche = placer un rond.
         if (_editMode)
         {
             if (e.ChangedButton == MouseButton.Left
@@ -642,7 +651,6 @@ public partial class MirrorView : UserControl
             return;
         }
 
-        // iOS : pas de ControlChannel — le pointeur BLE prend le relais.
         if (_control == null)
         {
             if (_iosPointer != null && e.ChangedButton == MouseButton.Left
@@ -807,6 +815,21 @@ public partial class MirrorView : UserControl
 
     public void SaveScreenshot(string path)
     {
+        if (_presenter != null)
+        {
+            var px = _presenter.CaptureBgra(out var gw, out var gh);
+            if (px == null)
+                return;
+            var gpuBmp = new WriteableBitmap(gw, gh, 96, 96, PixelFormats.Bgra32, null);
+            gpuBmp.WritePixels(new Int32Rect(0, 0, gw, gh), px, gw * 4, 0);
+            using (var gfs = System.IO.File.Create(path))
+            {
+                var gpuEnc = new PngBitmapEncoder();
+                gpuEnc.Frames.Add(BitmapFrame.Create(gpuBmp));
+                gpuEnc.Save(gfs);
+            }
+            return;
+        }
         if (_bitmap == null)
             return;
         _bitmap.Lock();
@@ -819,7 +842,6 @@ public partial class MirrorView : UserControl
 
     public bool HandleKey(Key key, bool isDown, bool isRepeat = false)
     {
-        // Mode édition : la touche sert à assigner / quitter, pas à piloter.
         if (_editMode)
         {
             if (!isDown)
@@ -837,8 +859,7 @@ public partial class MirrorView : UserControl
             return true;
         }
 
-        // Raccourci plaqué : la touche envoie un tap à la position liée.
-        var kb = _keybinds?.FirstOrDefault(k => k.Key == key.ToString());
+        _keybindByKey.TryGetValue(key, out var kb);
         if (kb != null)
         {
             if (isDown && !isRepeat)
@@ -901,6 +922,12 @@ public partial class MirrorView : UserControl
         _gpuImage = null;
         _bitmap = null;
         VideoImage.Source = null;
+        _moveFlush.Stop();
+        if (_renderingHooked)
+        {
+            CompositionTarget.Rendering -= OnRendering;
+            _renderingHooked = false;
+        }
         foreach (var w in _overlays.Values)
         {
             w.Visibility = Visibility.Collapsed;

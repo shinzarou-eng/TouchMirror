@@ -1718,6 +1718,13 @@
                                                   SelectedValuePath="Value" DisplayMemberPath="Label" />
                                     </Grid>
                                     <Border Height="1" Background="{DynamicResource SurfaceFaintBrush}" />
+                                    <Grid MinHeight="38"
+                                          ToolTip="{loc:Loc accentue_la_netette_gpu}">
+                                        <TextBlock Text="{loc:Loc nettete_video}" FontSize="12" VerticalAlignment="Center" />
+                                        <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                         IsChecked="{Binding VideoSharpen}" />
+                                    </Grid>
+                                    <Border Height="1" Background="{DynamicResource SurfaceFaintBrush}" />
                                     <Grid MinHeight="38">
                                         <TextBlock Text="{loc:Loc audio_du_jeu_sur_le_pc}" FontSize="12" VerticalAlignment="Center" />
                                         <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"

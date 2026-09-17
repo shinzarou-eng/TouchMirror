@@ -86,13 +86,19 @@ cbuffer ColorCB : register(b0) {
     float4 yuvT;
     float4 coefR;
     float4 coefG;
-    float4 coefB;
+    float4 coefB;   // coefB.y = intensité de netteté (unsharp mask luminance)
 };
 Texture2D<float> texY : register(t0);
 Texture2D<float2> texUV : register(t1);
 SamplerState samp : register(s0);
 float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
-    float y = texY.Sample(samp, uv) * yuvT.x + yuvT.y;
+    float y0 = texY.Sample(samp, uv);
+    if (coefB.y > 0.0) {
+        float n = texY.Sample(samp, uv, int2(0, -1)) + texY.Sample(samp, uv, int2(0, 1))
+                + texY.Sample(samp, uv, int2(-1, 0)) + texY.Sample(samp, uv, int2(1, 0));
+        y0 = saturate(y0 + coefB.y * (4.0 * y0 - n));
+    }
+    float y = y0 * yuvT.x + yuvT.y;
     float2 c = texUV.Sample(samp, uv) * yuvT.z + yuvT.w;
     float3 rgb;
     rgb.r = y + coefR.x * c.y;
@@ -103,6 +109,19 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
 
     private ID3D11Buffer? _cb;
     private int _lastColorInfo = -1;
+    private float _sharpness;
+    private bool _cbDirty = true;
+    private readonly float[] _cbData = new float[16];
+
+    public float Sharpness
+    {
+        get => _sharpness;
+        set
+        {
+            _sharpness = Math.Clamp(value, 0f, 1f);
+            _cbDirty = true;
+        }
+    }
 
     private static readonly float[][] ColorTable =
     {
@@ -177,12 +196,15 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
             return;
         lock (_sync)
         {
-            if (colorInfo != _lastColorInfo && colorInfo >= 0 && colorInfo < ColorTable.Length)
+            if ((colorInfo != _lastColorInfo || _cbDirty) && colorInfo >= 0 && colorInfo < ColorTable.Length)
             {
                 var coefs = ColorTable[colorInfo];
-                fixed (float* p = coefs)
+                Array.Copy(coefs, _cbData, 16);
+                _cbData[13] = _sharpness; // coefB.y : slot inutilisé de la table
+                fixed (float* p = _cbData)
                     _ctx.UpdateSubresource(_cb!, 0, null, (IntPtr)p, 0, 0);
                 _lastColorInfo = colorInfo;
+                _cbDirty = false;
             }
             EnsureTargets(w, h);
             if (_rtv == null || _pendingRebind)
@@ -280,6 +302,44 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         _image.SetBackBuffer(D3DResourceType.IDirect3DSurface9, surface.NativePointer);
         _image.Unlock();
         surface.Dispose();
+    }
+
+    public unsafe byte[]? CaptureBgra(out int w, out int h)
+    {
+        lock (_sync)
+        {
+            w = _w; h = _h;
+            if (_bgra == null || _w <= 0)
+                return null;
+            var desc = _bgra.Description;
+            desc.Usage = ResourceUsage.Staging;
+            desc.BindFlags = BindFlags.None;
+            desc.CPUAccessFlags = CpuAccessFlags.Read;
+            desc.MiscFlags = ResourceOptionFlags.None;
+            using var staging = SharedDevice!.CreateTexture2D(desc);
+            _ctx.CopyResource(staging, _bgra);
+            var map = _ctx.Map(staging, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+            try
+            {
+                var buf = new byte[w * h * 4];
+                var src = (byte*)map.DataPointer;
+                var pitch = (int)map.RowPitch;
+                fixed (byte* dst = buf)
+                {
+                    if (pitch == w * 4)
+                        Buffer.MemoryCopy(src, dst, buf.Length, buf.Length);
+                    else
+                        for (var row = 0; row < h; row++)
+                            Buffer.MemoryCopy(src + row * pitch, dst + row * w * 4,
+                                (long)w * h * 4, w * 4L);
+                }
+                return buf;
+            }
+            finally
+            {
+                _ctx.Unmap(staging, 0);
+            }
+        }
     }
 
     public void Invalidate()

@@ -4,10 +4,6 @@ using TouchMirror.Views;
 
 namespace TouchMirror.ViewModels;
 
-/// <summary>
-/// Tuile iOS : miroir AirPlay + contrôle optionnel par souris Bluetooth HID
-/// (AssistiveTouch). Réutilise la plomberie MirrorInstance sans ScrcpySession.
-/// </summary>
 public sealed partial class IosMirrorInstance : MirrorInstance
 {
     private AirPlayService? _service;
@@ -15,13 +11,9 @@ public sealed partial class IosMirrorInstance : MirrorInstance
     private BleHidHost? _ble;
     private BlePointerAdapter? _pointer;
 
-    /// <summary>Souris Bluetooth en diffusion.</summary>
     [ObservableProperty] private bool _bleActive;
-    /// <summary>L'iPhone est jumelé et souscrit aux rapports HID.</summary>
     [ObservableProperty] private bool _bleLinked;
-    /// <summary>Message d'état du contrôle Bluetooth.</summary>
     [ObservableProperty] private string _bleStatus = "";
-    /// <summary>Levée quand le statut BLE change (pour la barre de statut).</summary>
     public event Action<string>? BleStatusChanged;
 
     public override bool IsIos => true;
@@ -77,7 +69,6 @@ public sealed partial class IosMirrorInstance : MirrorInstance
             });
         service.Log += m => RaiseLog(m);
 
-        // L'iPhone peut s'être connecté avant la souscription — on resynchronise.
         var already = service.ConnectedDeviceName;
         return View.Dispatcher.InvokeAsync(() =>
         {
@@ -99,10 +90,6 @@ public sealed partial class IosMirrorInstance : MirrorInstance
         return a;
     }
 
-    /// <summary>
-    /// Active la souris Bluetooth HID. L'iPhone se jumelle dans
-    /// Réglages → Accessibilité → Toucher → AssistiveTouch → Appareils.
-    /// </summary>
     public async Task<bool> EnableBleControlAsync()
     {
         if (_ble != null)
@@ -152,7 +139,6 @@ public sealed partial class IosMirrorInstance : MirrorInstance
         BleStatusChanged?.Invoke(BleStatus);
     }
 
-    /// <summary>Position normalisée vidéo → coordonnées absolues HID 0..32767.</summary>
     private sealed class BlePointerAdapter : MirrorView.IIosPointer
     {
         private readonly BleHidHost _host;

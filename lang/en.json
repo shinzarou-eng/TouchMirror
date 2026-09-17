@@ -376,5 +376,7 @@
   "log.bitrate_up": "bitrate restored → {0} Mbps",
   "audit.files": "Read / write files in its own folder",
   "audit.mute": "Mute / unmute a mirror's local audio",
-  "audit.overlay": "Display widgets on mirrors"
+  "audit.overlay": "Display widgets on mirrors",
+  "nettete_video": "Video sharpening (GPU)",
+  "accentue_la_netette_gpu": "GPU sharpening filter — keeps small multi-phone tiles readable"
 }

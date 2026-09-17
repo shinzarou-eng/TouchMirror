@@ -3,10 +3,6 @@ using FFmpeg.AutoGen;
 
 namespace TouchMirror.Video;
 
-/// <summary>
-/// Frames YUV420P décodées poussées par le process AirPlayHost.
-/// Convertit en BGRA via swscale et expose le dernier frame, comme <see cref="VideoDecoder"/>.
-/// </summary>
 public sealed unsafe class AirPlayFrameSource : IFrameSource, IDisposable
 {
     private SwsContext* _sws;
@@ -21,10 +17,6 @@ public sealed unsafe class AirPlayFrameSource : IFrameSource, IDisposable
     public int Width => _frameW;
     public int Height => _frameH;
 
-    /// <summary>
-    /// data = plans Y|U|V contigus ; dataLen[i] inclut le padding de pitch.
-    /// Appelé depuis le thread de lecture du pipe.
-    /// </summary>
     public void Publish(int width, int height,
                         uint pitch0, uint pitch1, uint pitch2,
                         uint len0, uint len1, uint len2,

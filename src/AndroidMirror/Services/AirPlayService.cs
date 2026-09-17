@@ -8,12 +8,6 @@ using TouchMirror.Video;
 
 namespace TouchMirror.Services;
 
-/// <summary>
-/// Récepteur AirPlay iOS : pilote le process natif AirPlayHost (sockets RAOP +
-/// AirPlay + décodage), annonce les services en mDNS, et lit les frames YUV
-/// décodées poussées sur un named pipe.
-/// Affichage seul — aucun canal d'input n'existe dans cette voie.
-/// </summary>
 public sealed class AirPlayService : IDisposable
 {
     public const int RaopPort = 5001;
@@ -35,10 +29,8 @@ public sealed class AirPlayService : IDisposable
 
     public IFrameSource Frames => _frames;
     public bool IsRunning { get; private set; }
-    /// <summary>PID du process host (pour exclure ses ports du diagnostic).</summary>
     public int HostPid { get; private set; }
 
-    /// <summary>Nom et deviceId de l'iPhone actuellement connecté (vide sinon).</summary>
     public string? ConnectedDeviceName { get; private set; }
     public string? ConnectedDeviceId { get; private set; }
 
@@ -46,7 +38,6 @@ public sealed class AirPlayService : IDisposable
     public event Action<string, string>? DeviceDisconnected;
     public event Action<string>? Log;
     public event Action? Exited;
-    /// <summary>PCM décodé : (sampleRate, channels, bitsPerSample, data, length).</summary>
     public event Action<int, int, int, byte[], int>? AudioFrame;
 
     public async Task StartAsync(CancellationToken ct = default)
@@ -59,9 +50,6 @@ public sealed class AirPlayService : IDisposable
         if (!File.Exists(exe))
             throw new FileNotFoundException(string.Format(LocalizationService.Get("air.missing_exe"), exe));
 
-        // Règles entrantes créées/vérifiées au premier lancement : le host
-        // pour RAOP/AirPlay/RTP, l'app elle-même pour l'écoute mDNS (5353)
-        // — sans elle l'iPhone ne voit jamais le récepteur.
         var rules = new List<(string Exe, string Name)> { (exe, "TouchMirror AirPlay") };
         if (Environment.ProcessPath is { } self)
             rules.Add((self, "TouchMirror"));
@@ -103,8 +91,6 @@ public sealed class AirPlayService : IDisposable
         HostPid = _host.Id;
         _host.BeginErrorReadLine();
 
-        // Timeout + mort du host : sans ça, un host qui crashe avant de se
-        // connecter laisse la commande pendue (menu grisé pour toujours).
         var hostDead = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         void onExit(object? s, EventArgs e) => hostDead.TrySetResult();
         _host.Exited += onExit;
@@ -173,7 +159,6 @@ public sealed class AirPlayService : IDisposable
 
     private void ParseVideo(byte[] p)
     {
-        // [msg u32][pts u64][w u32][h u32][pitch u32×3][dataLen u32×3][isKey u8][idLen u32][id][data]
         var w = BitConverter.ToUInt32(p, 12);
         var h = BitConverter.ToUInt32(p, 16);
         var pitch0 = BitConverter.ToUInt32(p, 20);
@@ -201,7 +186,6 @@ public sealed class AirPlayService : IDisposable
 
     private void ParseAudio(byte[] p)
     {
-        // [msg u32][pts u64][sampleRate u32][channels u16][bits u16][dataLen u32][data]
         if (p.Length < 24)
             return;
         var rate = BitConverter.ToInt32(p, 12);
@@ -272,16 +256,10 @@ public sealed class AirPlayService : IDisposable
     }
 }
 
-/// <summary>
-/// Annonce mDNS des services AirPlay (_airplay._tcp + _raop._tcp) sans service
-/// Bonjour ni élévation : multicast UDP 5353 géré par Makaretu.Dns.
-/// </summary>
 public sealed class AirPlayAdvertiser : IDisposable
 {
     private ServiceDiscovery? _sd;
 
-    // Identité fixe locale administrée — doit matcher le deviceID/macAddress
-    // exposés par /info (airplay2dll). Une vraie MAC fuiterait sur le LAN.
     private const string DeviceId = "aa:54:01:af:c3:c1";
     private const string PairingIdentity = "2e388006-13ba-4041-9a67-25dd4a43d536";
     private const string PairingPublicKey =

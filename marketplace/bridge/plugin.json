@@ -1,0 +1,9 @@
+{
+  "name": "Bridge",
+  "description": "Affiche le contenu de data.txt sur les miroirs — n'importe quel outil externe peut y écrire (alertes stream, scripts, données maison). Un pont simple entre tes scripts et les miroirs.",
+  "version": "1.0",
+  "author": "TouchMirror",
+  "icon": "📡",
+  "featured": false,
+  "tags": ["overlay", "intégration", "stream"]
+}

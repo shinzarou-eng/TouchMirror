@@ -50,10 +50,10 @@ public sealed unsafe class AudioPlayer : IDisposable
 
         _provider = new BufferedWaveProvider(new WaveFormat(48000, 16, 2))
         {
-            BufferDuration = TimeSpan.FromMilliseconds(400),
+            BufferDuration = TimeSpan.FromMilliseconds(200),
             DiscardOnBufferOverflow = true
         };
-        _output = new WaveOutEvent { DesiredLatency = 80 };
+        _output = new WaveOutEvent { DesiredLatency = 60 };
         _output.Init(_provider);
         _output.Play();
     }
@@ -87,7 +87,7 @@ public sealed unsafe class AudioPlayer : IDisposable
         _opened = true;
     }
 
-    public void Feed(byte[] data, bool isConfig)
+    public void Feed(byte[] data, bool isConfig, int len)
     {
         lock (_sync)
         {
@@ -95,7 +95,7 @@ public sealed unsafe class AudioPlayer : IDisposable
                 return;
             if (isConfig)
             {
-                _pendingConfig = data;
+                _pendingConfig = data.AsSpan(0, len).ToArray();
                 TryOpen();
                 return;
             }
@@ -106,10 +106,10 @@ public sealed unsafe class AudioPlayer : IDisposable
 
             try
             {
-                var ret = ffmpeg.av_new_packet(_packet, data.Length);
+                var ret = ffmpeg.av_new_packet(_packet, len);
                 if (ret < 0)
                     return;
-                System.Runtime.InteropServices.Marshal.Copy(data, 0, (IntPtr)_packet->data, data.Length);
+                System.Runtime.InteropServices.Marshal.Copy(data, 0, (IntPtr)_packet->data, len);
 
                 ret = ffmpeg.avcodec_send_packet(_ctx, _packet);
                 ffmpeg.av_packet_unref(_packet);
@@ -125,6 +125,8 @@ public sealed unsafe class AudioPlayer : IDisposable
             }
         }
     }
+
+    private byte[]? _resampleBuf;
 
     private void ResampleAndPlay(AVFrame* f)
     {
@@ -147,7 +149,9 @@ public sealed unsafe class AudioPlayer : IDisposable
 
         var outSamples = ffmpeg.swr_get_out_samples(_swr, f->nb_samples) + 64;
         var bufSize = outSamples * 2 * 2;
-        var buffer = new byte[bufSize + 256];
+        if (_resampleBuf == null || _resampleBuf.Length < bufSize + 256)
+            _resampleBuf = new byte[bufSize + 256];
+        var buffer = _resampleBuf;
         fixed (byte* dst = buffer)
         {
             var dstSlice = stackalloc byte*[] { dst };

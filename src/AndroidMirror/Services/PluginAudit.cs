@@ -2,7 +2,6 @@ using System.Text.RegularExpressions;
 
 namespace TouchMirror.Services;
 
-/// <summary>Lit les appels tm.* d'un plugin pour afficher ce qu'il peut vraiment faire.</summary>
 public static class PluginAudit
 {
     private static readonly Regex Calls = new(@"\btm\.(\w+)", RegexOptions.Compiled);
