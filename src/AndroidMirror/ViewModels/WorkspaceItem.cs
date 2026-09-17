@@ -3,7 +3,6 @@ using TouchMirror.Services;
 
 namespace TouchMirror.ViewModels;
 
-/// <summary>Enveloppe observable d'un espace de travail pour l'UI (nom, édition, état).</summary>
 public partial class WorkspaceItem : ObservableObject
 {
     public Workspace Model { get; }
@@ -24,8 +23,6 @@ public partial class WorkspaceItem : ObservableObject
     public void Refresh() => DeviceCount = Model.Devices.Count;
 }
 
-/// <summary>Membre d'un espace non connecté — affiché en tuile fantôme.</summary>
 public sealed record MissingDeviceItem(WorkspaceDevice Prefs, string Name, string? ColorHex);
 
-/// <summary>Profil Android secondaire ouvert en tuile miroir (multi-compte).</summary>
 public sealed record MirrorAccount(int UserId, string Name);

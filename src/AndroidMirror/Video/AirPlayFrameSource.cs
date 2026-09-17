@@ -3,10 +3,6 @@ using FFmpeg.AutoGen;
 
 namespace TouchMirror.Video;
 
-/// <summary>
-/// Frames YUV420P décodées poussées par le process AirPlayHost.
-/// Convertit en BGRA via swscale et expose le dernier frame, comme <see cref="VideoDecoder"/>.
-/// </summary>
 public sealed unsafe class AirPlayFrameSource : IFrameSource, IDisposable
 {
     private SwsContext* _sws;
@@ -21,10 +17,6 @@ public sealed unsafe class AirPlayFrameSource : IFrameSource, IDisposable
     public int Width => _frameW;
     public int Height => _frameH;
 
-    /// <summary>
-    /// data = plans Y|U|V contigus ; dataLen[i] inclut le padding de pitch.
-    /// Appelé depuis le thread de lecture du pipe.
-    /// </summary>
     public void Publish(int width, int height,
                         uint pitch0, uint pitch1, uint pitch2,
                         uint len0, uint len1, uint len2,
@@ -32,10 +24,19 @@ public sealed unsafe class AirPlayFrameSource : IFrameSource, IDisposable
     {
         lock (_sync)
         {
-            if (_disposed || width <= 0 || height <= 0)
+            if (_disposed || width <= 0 || height <= 0 || width > 8192 || height > 8192)
                 return;
 
-            VideoDecoder.InitializeFFmpeg(); // idempotent — pose ffmpeg.RootPath
+            var need0 = (long)pitch0 * (height - 1) + width;
+            var need1 = (long)pitch1 * (height / 2 - 1) + width / 2;
+            var need2 = (long)pitch2 * (height / 2 - 1) + width / 2;
+            if (need0 < 0 || need1 < 0 || need2 < 0
+                || len0 > data.Length || len1 > data.Length || len2 > data.Length
+                || (long)len0 + len1 + len2 > data.Length
+                || need0 > len0 || need1 > len1 || need2 > len2)
+                return;
+
+            VideoDecoder.InitializeFFmpeg();
 
             if (width != _swsW || height != _swsH)
             {

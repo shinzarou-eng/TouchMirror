@@ -28,6 +28,6 @@ TouchMirror affiche et contrôle ton téléphone Android depuis le PC : tu branc
 ## En bref
 
 - **Plateforme** : Windows 10/11 (x64)
-- **Version** : 0.1.1
+- **Version** : 0.7.1
 - **Licence** : MIT
 - **Stack** : WPF / .NET 10 · serveur scrcpy · FFmpeg · NAudio · WebView2

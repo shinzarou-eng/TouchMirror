@@ -9,7 +9,6 @@ using Jint.Native.Function;
 
 namespace TouchMirror.Services;
 
-/// <summary>Métadonnées d'un plugin (plugin.json à côté de plugin.js).</summary>
 public sealed class PluginManifest
 {
     public string? Name { get; set; }
@@ -19,18 +18,9 @@ public sealed class PluginManifest
     public string? Icon { get; set; }
 }
 
-/// <summary>
-/// Plugin utilisateur en JavaScript, exécuté en sandbox (Jint) dans un thread
-/// dédié. Le script ne voit que l'objet tm.* (control-plane : miroirs,
-/// connexion, capture, enregistrement) — aucun accès processus, réseau ou
-/// injection d'input vers le téléphone ; fichiers limités à son dossier
-/// (extensions data, pas de code réinscriptible).
-/// Structure : plugins/<id>/plugin.js (+ plugin.json optionnel) ou plugins/<id>.js
-/// </summary>
 public partial class PluginInstance : ObservableObject
 {
     public string FilePath { get; }
-    /// <summary>Identifiant stable : nom du dossier ou du fichier .js.</summary>
     public string Id { get; }
     public string Name { get; }
     public string? Description { get; }
@@ -38,7 +28,6 @@ public partial class PluginInstance : ObservableObject
     public string? Author { get; }
     public string Icon { get; }
     [ObservableProperty] private bool _isVerified;
-    /// <summary>Hash SHA-256 du plugin.js au dernier scan/vérification.</summary>
     public string? ContentHash { get; private set; }
     [ObservableProperty] private bool _running;
 
@@ -81,8 +70,8 @@ public partial class PluginInstance : ObservableObject
         IsVerified = ComputeIsVerified();
     }
 
-    /// <summary>Revérifie le hash du fichier à l'instant du lancement.
-    /// Couvre plugin.js + plugin.json : un manifest modifié invalide aussi la confiance.</summary>
+    private byte[]? _verifiedCode;
+
     public bool VerifyNow()
     {
         try
@@ -95,14 +84,13 @@ public partial class PluginInstance : ObservableObject
             ContentHash = Convert.ToHexString(
                 SHA256.HashData(bytes.Concat(manifest).ToArray()));
             IsVerified = VerifiedPlugins.Hashes.Contains(ContentHash);
+            _verifiedCode = bytes;
         }
-        catch { ContentHash = null; IsVerified = false; }
+        catch { ContentHash = null; IsVerified = false; _verifiedCode = null; }
         return IsVerified;
     }
 
     private bool ComputeIsVerified() => VerifyNow();
-
-    // ── API exposée au script ────────────────────────────────────────
 
     private PluginApi? _api;
     private Engine? _engine;
@@ -134,8 +122,6 @@ public partial class PluginInstance : ObservableObject
         catch { }
     }
 
-    /// <summary>Appelé par l'app quand un événement TM est publié. File bornée :
-    /// un plugin lent ou planté ne fait pas gonfler la mémoire de l'app.</summary>
     private const int MaxQueuedEvents = 256;
 
     public void DispatchEvent(string json)
@@ -163,8 +149,6 @@ public partial class PluginInstance : ObservableObject
                 return;
             var raw = doc.RootElement.TryGetProperty("data", out var dp)
                 ? dp.GetRawText() : "null";
-            // Parenthèses obligatoires : un objet littéral en tête de programme
-            // se parse comme un bloc ({ "k": v } → Unexpected token ':').
             var data = e.Evaluate("(" + raw + ")");
             foreach (var fn in fns.ToArray())
                 ((Function)fn).Call(JsValue.Undefined, new[] { data });
@@ -211,8 +195,6 @@ public partial class PluginInstance : ObservableObject
         return Math.Clamp(ms, 5, 60000);
     }
 
-    // ── Moteur ───────────────────────────────────────────────────────
-
     private void Run(PluginApi api, CancellationToken ct)
     {
         try
@@ -226,12 +208,9 @@ public partial class PluginInstance : ObservableObject
                 o.CancellationToken(ct);
                 o.Constraints.MaxArraySize = 10_000;
                 o.Constraints.RegexTimeout = TimeSpan.FromMilliseconds(250);
-                // Interop CLR non activé : le script ne peut atteindre aucun type .NET,
-                // seulement les delegates explicitement exposés (__call, __schedule…).
             });
             _engine = engine;
 
-            // pont unique : __call(méthode, arg?) -> JSON string
             engine.SetValue("__call", new Func<string, string?, string?>(api.Call));
             engine.SetValue("__schedule", new Func<JsValue, int, bool, int>(AddTimer));
             engine.SetValue("__clearTimer", new Action<int>(ClearTimer));
@@ -248,9 +227,9 @@ public partial class PluginInstance : ObservableObject
             }));
 
             engine.Execute(Prelude, "tm-prelude.js");
-            engine.Execute(File.ReadAllText(FilePath), Path.GetFileName(FilePath));
+            var code = _verifiedCode ?? File.ReadAllBytes(FilePath);
+            engine.Execute(System.Text.Encoding.UTF8.GetString(code), Path.GetFileName(FilePath));
 
-            // boucle d'événements : timers + events publiés
             while (!ct.IsCancellationRequested)
             {
                 Action? work = null;
@@ -271,7 +250,6 @@ public partial class PluginInstance : ObservableObject
         }
         catch (Exception) when (ct.IsCancellationRequested)
         {
-            // arrêt demandé — sortie silencieuse
         }
         catch (Exception ex)
         {
@@ -284,7 +262,6 @@ public partial class PluginInstance : ObservableObject
         }
     }
 
-    /// <summary>Surface JS : tm.* — control-plane uniquement.</summary>
     private const string Prelude = """
         const tm = {
           log:        (...a) => __call('log', a.map(String).join(' ')),

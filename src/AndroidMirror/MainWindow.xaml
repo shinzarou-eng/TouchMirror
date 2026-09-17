@@ -1218,7 +1218,7 @@
                                                             <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                                                                 <TextBlock Text="{Binding TransportText}" FontSize="12"
                                                                            Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                                                <TextBox Text="{Binding Serial}" IsReadOnly="True"
+                                                                <TextBox Text="{Binding MaskedSerial, Mode=OneWay}" IsReadOnly="True"
                                                                          FontSize="10.5" Margin="8,0,0,0" Padding="0"
                                                                          Background="Transparent" BorderThickness="0"
                                                                          VerticalAlignment="Center"
@@ -1716,6 +1716,13 @@
                                                   ItemsSource="{Binding DecoderOptions}"
                                                   SelectedValue="{Binding VideoDecoder}"
                                                   SelectedValuePath="Value" DisplayMemberPath="Label" />
+                                    </Grid>
+                                    <Border Height="1" Background="{DynamicResource SurfaceFaintBrush}" />
+                                    <Grid MinHeight="38"
+                                          ToolTip="{loc:Loc accentue_la_netette_gpu}">
+                                        <TextBlock Text="{loc:Loc nettete_video}" FontSize="12" VerticalAlignment="Center" />
+                                        <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                         IsChecked="{Binding VideoSharpen}" />
                                     </Grid>
                                     <Border Height="1" Background="{DynamicResource SurfaceFaintBrush}" />
                                     <Grid MinHeight="38">

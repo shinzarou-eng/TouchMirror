@@ -2,11 +2,6 @@ using NAudio.Wave;
 
 namespace TouchMirror.Video;
 
-/// <summary>
-/// Lecture de l'audio PCM décodé par AirPlayHost (RAOP → PCM entrelacé).
-/// Pas de décodage FFmpeg : le flux arrive prêt à jouer, le WaveFormat est
-/// déduit des métadonnées de la première frame et recréé s'il change.
-/// </summary>
 public sealed class AirPlayAudioPlayer : IDisposable
 {
     private BufferedWaveProvider? _provider;
@@ -28,7 +23,6 @@ public sealed class AirPlayAudioPlayer : IDisposable
         }
     }
 
-    /// <summary>Appelé depuis le thread de lecture du pipe — thread-safe.</summary>
     public void Feed(int sampleRate, int channels, int bitsPerSample, byte[] data, int length)
     {
         lock (_sync)
@@ -52,7 +46,6 @@ public sealed class AirPlayAudioPlayer : IDisposable
     {
         if (sampleRate <= 0 || channels <= 0 || bitsPerSample != 16)
         {
-            // AirPlay livre du PCM s16le — autre chose, on jette plutôt que jouer du bruit.
             _rate = sampleRate; _channels = channels; _bits = bitsPerSample;
             return;
         }

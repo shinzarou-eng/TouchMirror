@@ -9,11 +9,6 @@ using TouchMirror.ViewModels;
 
 namespace TouchMirror.Services;
 
-/// <summary>
-/// Façade de l'API locale — control-plane uniquement (activation, record,
-/// capture, connexion). Aucun accès à ControlChannel / ScrcpySession :
-/// l'API ne peut pas produire d'input sur le téléphone. Ne pas l'ouvrir.
-/// </summary>
 public sealed class LocalApiHost
 {
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -32,11 +27,6 @@ public sealed class LocalApiHost
 
     public LocalApiHost(MainViewModel vm) => _vm = vm;
 
-    /// <summary>
-    /// Chaque abonné SSE reçoit sa propre file bornée : tous les clients voient
-    /// tous les événements, et un client lent perd les plus anciens au lieu de
-    /// faire gonfler la mémoire.
-    /// </summary>
     public IDisposable SubscribeEvents(out ChannelReader<string> reader)
     {
         var ch = Channel.CreateBounded<string>(new BoundedChannelOptions(64)
@@ -63,7 +53,6 @@ public sealed class LocalApiHost
         }
     }
 
-    /// <summary>Événements JSON pour les plugins JS (même contenu que le flux SSE).</summary>
     public event Action<string>? PluginEvent;
 
     public void Publish(string type, object data)
@@ -149,8 +138,6 @@ public sealed class LocalApiHost
         return new ApiResult(true, $"connecté — {d.DisplayName}");
     });
 
-    /// <summary>Coupe/retablit la sortie audio locale d'un miroir — n'envoie
-    /// rien au téléphone (le volume Android n'est pas touché).</summary>
     public Task<ApiResult> SetAudioMutedAsync(int slot, bool muted) => Ui(() =>
     {
         var m = _vm.MirrorAtSlot(slot);
@@ -166,7 +153,6 @@ public sealed class LocalApiHost
         string? Title, string? Color, bool? Compact, string? Pos, string[]? Lines);
     private sealed record OverlayPush(int Slot, string? Id, double Value, string? Label);
 
-    /// <summary>Widget graphe déplaçable sur un miroir — piloté par les plugins.</summary>
     public Task<ApiResult> SetOverlayAsync(string json) => Ui(() =>
     {
         OverlayOpts? o;
@@ -197,7 +183,6 @@ public sealed class LocalApiHost
     });
 }
 
-/// <summary>HTTP local (Kestrel, 127.0.0.1) + SSE. Auth : Bearer ou ?token=.</summary>
 public sealed class LocalApiServer : IAsyncDisposable
 {
     private WebApplication? _app;
@@ -218,9 +203,16 @@ public sealed class LocalApiServer : IAsyncDisposable
                 return;
             }
             var expected = token();
-            var authorized = !string.IsNullOrEmpty(expected)
-                && (ctx.Request.Headers.Authorization == $"Bearer {expected}"
-                    || ctx.Request.Query["token"] == expected);
+            string? provided = null;
+            var auth = (string?)ctx.Request.Headers.Authorization;
+            if (auth != null && auth.StartsWith("Bearer ", StringComparison.Ordinal))
+                provided = auth["Bearer ".Length..];
+            else if (ctx.Request.Query.TryGetValue("token", out var q))
+                provided = q;
+            var authorized = expected is { Length: > 0 } && provided != null
+                && System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                    System.Text.Encoding.UTF8.GetBytes(expected),
+                    System.Text.Encoding.UTF8.GetBytes(provided));
             if (!authorized)
             {
                 ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;

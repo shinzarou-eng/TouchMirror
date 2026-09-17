@@ -5,27 +5,18 @@ using System.Windows.Media;
 
 namespace TouchMirror.Views;
 
-/// <summary>
-/// Petit panneau déplaçable affiché sur un miroir : titre + valeur + courbe.
-/// Créé et piloté par les plugins (tm.overlay / tm.push) — un widget par id.
-/// </summary>
 public partial class GraphWidget : UserControl
 {
-    private const int Cap = 76;                  // ~2 px par point sur 152
+    private const int Cap = 76;
     private const double PlotW = 152, PlotH = 40;
     private readonly List<double> _vals = new();
     private bool _dragging;
     private Point _grab;
 
-    /// <summary>Canvas hôte pour les bornes de déplacement — posé par MirrorView.</summary>
     public Canvas? Host { get; set; }
-    /// <summary>Début de glisser — MirrorView en profite pour activer la tuile.</summary>
     public event Action? DragBegan;
-    /// <summary>Vrai dès que l'utilisateur a déplacé le widget (pos n'agit plus).</summary>
     public bool Dragged { get; private set; }
-    /// <summary>Le plugin demande l'affichage (indépendant du mode capture).</summary>
     public bool On { get; set; } = true;
-    /// <summary>Clic sur une ligne de la liste — index de la ligne.</summary>
     public event Action<int>? LineClicked;
 
     public GraphWidget()
@@ -56,8 +47,6 @@ public partial class GraphWidget : UserControl
         }
     }
 
-    /// <summary>Ajoute un point à la courbe ; <paramref name="label"/> remplace
-    /// l'affichage numérique si fourni.</summary>
     public void Push(double v, string? label)
     {
         if (double.IsFinite(v))
@@ -76,8 +65,6 @@ public partial class GraphWidget : UserControl
         Line.Points.Clear();
     }
 
-    /// <summary>Remplace la liste de lignes cliquables sous le titre
-    /// (<paramref name="lines"/> vide → panneau masqué).</summary>
     public void SetLines(string[] lines)
     {
         LinesPanel.Children.Clear();
@@ -123,7 +110,6 @@ public partial class GraphWidget : UserControl
         DragBegan?.Invoke();
         _dragging = true;
         _grab = e.GetPosition(this);
-        // Ancre de coin → coordonnées absolues Left/Top au premier glisser.
         if (Host != null)
         {
             if (ReadLocalValue(Canvas.LeftProperty) == DependencyProperty.UnsetValue)

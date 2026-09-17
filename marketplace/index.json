@@ -32,6 +32,22 @@
                         "hash":  "3b23ae38347b9a7d8ff71d3af01708339a0d19608d8667b4d374830ee4b28a6c"
                     },
                     {
+                        "id":  "bridge",
+                        "name":  "Bridge",
+                        "version":  "1.0",
+                        "author":  "TouchMirror",
+                        "icon":  "📡",
+                        "description":  "Affiche le contenu de data.txt sur les miroirs — n\u0027importe quel outil externe peut y écrire (alertes stream, scripts, données maison). Un pont simple entre tes scripts et les miroirs.",
+                        "official":  true,
+                        "featured":  false,
+                        "tags":  [
+                                     "overlay",
+                                     "intégration",
+                                     "stream"
+                                 ],
+                        "hash":  "8ef6edc93851a96c8b64073aeea321f0e25e166d36b7c93c02d7020f2908f0b1"
+                    },
+                    {
                         "id":  "checklist",
                         "name":  "Checklist",
                         "version":  "1.0",
@@ -80,17 +96,17 @@
                     {
                         "id":  "reconnect",
                         "name":  "Reconnect",
-                        "version":  "2.0",
+                        "version":  "2.1",
                         "author":  "TouchMirror",
                         "icon":  "🔗",
-                        "description":  "Restaure un miroir dont la session a lâché (câble, WiFi, plantage) — jamais après une déconnexion volontaire, jamais de lancement sur le téléphone.",
+                        "description":  "Restaure un miroir dont la session a lâché (câble, WiFi, plantage) ou dont le flux est figé (0 fps) — jamais après une déconnexion volontaire, jamais de lancement sur le téléphone.",
                         "official":  true,
                         "featured":  true,
                         "tags":  [
                                      "fiabilité",
                                      "connexion"
                                  ],
-                        "hash":  "f52363adfb80b4dd62ef0c3d96ac36bb2cc178d9dd2a77b6e101d44ad6162630"
+                        "hash":  "a2ff5e3a8f69d80f26897ebf9a45cc24c984c93f872ce3abd242e55c2bc83cf9"
                     },
                     {
                         "id":  "session-log",
@@ -106,6 +122,22 @@
                                      "diagnostic"
                                  ],
                         "hash":  "72675b1735bde5fc8094103c83b0748a42a8dd794aedd507d9e06548e21a67e6"
+                    },
+                    {
+                        "id":  "splits",
+                        "name":  "Splits",
+                        "version":  "1.0",
+                        "author":  "TouchMirror",
+                        "icon":  "⏱️",
+                        "description":  "Chrono de run sur chaque miroir : clic sur le chrono pour poser un split, reset pour un nouveau run, record personnel sauvegardé par téléphone. Idéal pour les donjons en boucle.",
+                        "official":  true,
+                        "featured":  true,
+                        "tags":  [
+                                     "chrono",
+                                     "dofus",
+                                     "farm"
+                                 ],
+                        "hash":  "ba71186cb90b3beba5344e6cf5da368ebdff7baed0c0205a5a1c05b97d5a72f1"
                     },
                     {
                         "id":  "uptime",

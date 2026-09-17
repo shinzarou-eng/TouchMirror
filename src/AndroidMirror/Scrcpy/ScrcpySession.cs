@@ -14,22 +14,20 @@ public sealed class ScrcpyOptions
     public int MaxFps { get; init; } = 60;
     public int VideoBitRate { get; init; } = 8_000_000;
     public string VideoCodec { get; init; } = "auto";
-    /// <summary>Décodeur PC : "gpu" (D3D11VA, défaut) ou "cpu" (logiciel FFmpeg).</summary>
     public string VideoDecoder { get; init; } = "gpu";
+    public bool VideoSharpen { get; init; }
     public bool StayAwake { get; init; }
     public bool Audio { get; init; } = true;
     public bool TurnScreenOff { get; init; }
-    /// <summary>Écran virtuel Android : null = écran physique, "" = auto, "WxH/DPI" sinon.</summary>
     public string? NewDisplay { get; init; }
-    /// <summary>Package Android lancé automatiquement au démarrage de la session (ex: com.ankama.dofustouch).</summary>
     public string? AutoLaunchPackage { get; init; }
-    /// <summary>Débit adaptatif côté client : baisse à chaud quand le retard de lecture croît.</summary>
     public bool AdaptiveBitrate { get; init; }
 }
 
 public sealed class VideoPacket
 {
     public required byte[] Data { get; init; }
+    public int Length { get; init; }
     public bool IsConfig { get; init; }
     public bool IsKeyFrame { get; init; }
     public long Pts { get; init; }
@@ -37,7 +35,7 @@ public sealed class VideoPacket
 
 public sealed class ScrcpySession : IAsyncDisposable
 {
-    private const string ServerVersion = "4.1-tm.1"; // protocole hérité scrcpy 4.1, révision TouchMirror 1
+    private const string ServerVersion = "4.1-tm.1";
     private const string RemoteJarPath = "/data/local/tmp/touchmirror-engine.jar";
 
     private readonly AdbDevice _device;
@@ -86,7 +84,7 @@ public sealed class ScrcpySession : IAsyncDisposable
 
         var scid = Random.Shared.Next(0, 0x7fffffff);
         var scidHex = scid.ToString("x8");
-        _socketName = $"touchmirror_{scidHex}"; // doit matcher SOCKET_NAME_PREFIX de l'engine
+        _socketName = $"touchmirror_{scidHex}";
 
         var port = FindFreePort();
         _listener = new TcpListener(IPAddress.Loopback, port);
@@ -143,7 +141,6 @@ public sealed class ScrcpySession : IAsyncDisposable
         _control = new ControlChannel(controlSocket);
         _control.ClipboardReceived += t => DeviceClipboard?.Invoke(t);
 
-        // Écran virtuel : le contrôleur attend l'ID du VD puis lance l'app dessus.
         if (!string.IsNullOrWhiteSpace(_options.AutoLaunchPackage) && _options.NewDisplay != null)
             try { _control.StartApp(_options.AutoLaunchPackage); } catch { }
 
@@ -173,8 +170,6 @@ public sealed class ScrcpySession : IAsyncDisposable
             sb.Append(" stay_awake=true");
         if (_options.NewDisplay != null)
             sb.Append($" new_display={_options.NewDisplay}");
-        // start_app au boot part toujours sur l'écran principal — en mode écran
-        // virtuel on passe par le canal de contrôle qui attend l'ID du VD.
         if (!string.IsNullOrWhiteSpace(_options.AutoLaunchPackage) && _options.NewDisplay == null)
             sb.Append($" start_app={_options.AutoLaunchPackage}");
         return sb.ToString();
@@ -232,17 +227,22 @@ public sealed class ScrcpySession : IAsyncDisposable
                 var size = (int)BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(8));
                 if (size is < 0 or > 64 << 20)
                     break;
-                var payload = new byte[size];
-                if (!await ReadExactAsync(_videoSocket!, payload, _cts.Token))
-                    break;
-
-                VideoPacketReceived?.Invoke(new VideoPacket
+                var payload = System.Buffers.ArrayPool<byte>.Shared.Rent(size);
+                try
                 {
-                    Data = payload,
-                    IsConfig = (flags & 0x40) != 0,
-                    IsKeyFrame = (flags & 0x20) != 0,
-                    Pts = pts
-                });
+                    if (!await ReadExactAsync(_videoSocket!, payload.AsMemory(0, size), _cts.Token))
+                        break;
+
+                    VideoPacketReceived?.Invoke(new VideoPacket
+                    {
+                        Data = payload,
+                        Length = size,
+                        IsConfig = (flags & 0x40) != 0,
+                        IsKeyFrame = (flags & 0x20) != 0,
+                        Pts = pts
+                    });
+                }
+                finally { System.Buffers.ArrayPool<byte>.Shared.Return(payload); }
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -264,16 +264,21 @@ public sealed class ScrcpySession : IAsyncDisposable
                 var size = (int)BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(8));
                 if (size is < 0 or > 16 << 20)
                     break;
-                var payload = new byte[size];
-                if (!await ReadExactAsync(_audioSocket!, payload, _cts.Token))
-                    break;
-                AudioPacketReceived?.Invoke(new VideoPacket
+                var payload = System.Buffers.ArrayPool<byte>.Shared.Rent(size);
+                try
                 {
-                    Data = payload,
-                    IsConfig = (header[0] & 0x40) != 0,
-                    IsKeyFrame = (header[0] & 0x20) != 0,
-                    Pts = (long)(BinaryPrimitives.ReadUInt64BigEndian(header.AsSpan(0)) & 0x3FFFFFFFFFFFFFFF)
-                });
+                    if (!await ReadExactAsync(_audioSocket!, payload.AsMemory(0, size), _cts.Token))
+                        break;
+                    AudioPacketReceived?.Invoke(new VideoPacket
+                    {
+                        Data = payload,
+                        Length = size,
+                        IsConfig = (header[0] & 0x40) != 0,
+                        IsKeyFrame = (header[0] & 0x20) != 0,
+                        Pts = (long)(BinaryPrimitives.ReadUInt64BigEndian(header.AsSpan(0)) & 0x3FFFFFFFFFFFFFFF)
+                    });
+                }
+                finally { System.Buffers.ArrayPool<byte>.Shared.Return(payload); }
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

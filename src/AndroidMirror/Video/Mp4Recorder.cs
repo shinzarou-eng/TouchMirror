@@ -40,16 +40,16 @@ public unsafe sealed class Mp4Recorder : IDisposable
         _fmt->pb = io;
     }
 
-    public void WriteConfig(byte[] annexb)
+    public void WriteConfig(byte[] annexb, int len)
     {
         if (_headerWritten || _disposed)
             return;
 
         byte[]? extra = _codecId switch
         {
-            AVCodecID.AV_CODEC_ID_HEVC => BuildHvcC(annexb),
-            AVCodecID.AV_CODEC_ID_AV1 => BuildAv1C(annexb),
-            _ => BuildAvcC(annexb),
+            AVCodecID.AV_CODEC_ID_HEVC => BuildHvcC(annexb, len),
+            AVCodecID.AV_CODEC_ID_AV1 => BuildAv1C(annexb, len),
+            _ => BuildAvcC(annexb, len),
         };
         if (extra == null)
             return;
@@ -65,7 +65,7 @@ public unsafe sealed class Mp4Recorder : IDisposable
     }
 
     private int _dbgPackets;
-    public void WritePacket(byte[] annexb, long ptsUs, bool keyframe)
+    public void WritePacket(byte[] annexb, int len, long ptsUs, bool keyframe)
     {
         if (!_headerWritten || _disposed)
         {
@@ -75,25 +75,30 @@ public unsafe sealed class Mp4Recorder : IDisposable
         if (_ptsOffset < 0)
             _ptsOffset = ptsUs;
 
-        var data = _codecId == AVCodecID.AV_CODEC_ID_AV1
-            ? ToAv1Sample(annexb)
-            : ToLengthPrefixed(annexb);
-        if (data.Length == 0)
+        var size = _codecId == AVCodecID.AV_CODEC_ID_AV1
+            ? Av1SampleSize(annexb, len)
+            : LengthPrefixedSize(annexb, len);
+        if (size <= 0)
             return;
 
         var pkt = ffmpeg.av_packet_alloc();
         try
         {
-            if (ffmpeg.av_new_packet(pkt, data.Length) < 0)
+            if (ffmpeg.av_new_packet(pkt, size) < 0)
                 return;
-            Marshal.Copy(data, 0, (IntPtr)pkt->data, data.Length);
+            if (_codecId == AVCodecID.AV_CODEC_ID_AV1)
+                WriteAv1Sample(annexb, len, pkt->data);
+            else
+                WriteLengthPrefixed(annexb, len, pkt->data);
             pkt->stream_index = _stream->index;
             var t = ptsUs - _ptsOffset;
             pkt->pts = t;
             pkt->dts = t;
             if (keyframe)
                 pkt->flags |= ffmpeg.AV_PKT_FLAG_KEY;
-            ffmpeg.av_interleaved_write_frame(_fmt, pkt);
+            var wr = ffmpeg.av_interleaved_write_frame(_fmt, pkt);
+            if (wr < 0 && _dbgPackets++ < 5)
+                Services.AppLogger.Write($"mp4: write_frame erreur {wr}");
         }
         finally
         {
@@ -102,55 +107,81 @@ public unsafe sealed class Mp4Recorder : IDisposable
         }
     }
 
-    private static byte[] ToLengthPrefixed(byte[] annexb)
+    private static int LengthPrefixedSize(byte[] buf, int len)
     {
-        var ms = new MemoryStream();
-        foreach (var nal in SplitAnnexB(annexb))
-        {
-            ms.WriteByte((byte)(nal.Length >> 24));
-            ms.WriteByte((byte)(nal.Length >> 16));
-            ms.WriteByte((byte)(nal.Length >> 8));
-            ms.WriteByte((byte)nal.Length);
-            ms.Write(nal, 0, nal.Length);
-        }
-        return ms.ToArray();
+        var total = 0;
+        var e = new AnnexBEnumerator(buf, len);
+        while (e.MoveNext())
+            total += 4 + e.Current.n;
+        return total;
     }
 
-    private static byte[] ToAv1Sample(byte[] data)
+    private static void WriteLengthPrefixed(byte[] buf, int len, byte* dst)
     {
-        var start = FindFirstObu(data);
-        if (start < 0)
-            return Array.Empty<byte>();
-        var ms = new MemoryStream();
-        var i = start;
-        while (i < data.Length)
+        var e = new AnnexBEnumerator(buf, len);
+        while (e.MoveNext())
         {
-            if (!TryReadObu(data, i, out int type, out int len))
+            var (off, n) = e.Current;
+            dst[0] = (byte)(n >> 24);
+            dst[1] = (byte)(n >> 16);
+            dst[2] = (byte)(n >> 8);
+            dst[3] = (byte)n;
+            Marshal.Copy(buf, off, (IntPtr)(dst + 4), n);
+            dst += 4 + n;
+        }
+    }
+
+    private static int Av1SampleSize(byte[] d, int len)
+    {
+        var start = FindFirstObu(d, len);
+        if (start < 0)
+            return 0;
+        var total = 0;
+        var i = start;
+        while (i < len)
+        {
+            if (!TryReadObu(d, i, len, out int type, out int n))
                 break;
             if (type != 2)
-                ms.Write(data, i, len);
-            i += len;
+                total += n;
+            i += n;
         }
-        return ms.ToArray();
+        return total;
     }
 
-    private static int FindFirstObu(byte[] d)
+    private static void WriteAv1Sample(byte[] d, int len, byte* dst)
     {
-        for (var i = 0; i < d.Length; i++)
+        var i = FindFirstObu(d, len);
+        while (i >= 0 && i < len)
         {
-            if (!TryReadObu(d, i, out _, out int len))
+            if (!TryReadObu(d, i, len, out int type, out int n))
+                break;
+            if (type != 2)
+            {
+                Marshal.Copy(d, i, (IntPtr)dst, n);
+                dst += n;
+            }
+            i += n;
+        }
+    }
+
+    private static int FindFirstObu(byte[] d, int end)
+    {
+        for (var i = 0; i < end; i++)
+        {
+            if (!TryReadObu(d, i, end, out _, out int len))
                 continue;
             var next = i + len;
-            if (next >= d.Length || TryReadObu(d, next, out _, out _))
+            if (next >= end || TryReadObu(d, next, end, out _, out _))
                 return i;
         }
         return -1;
     }
 
-    private static bool TryReadObu(byte[] d, int i, out int type, out int len)
+    private static bool TryReadObu(byte[] d, int i, int end, out int type, out int len)
     {
         type = -1; len = 0;
-        if (i >= d.Length || (d[i] & 0x80) != 0)
+        if (i >= end || (d[i] & 0x80) != 0)
             return false;
         type = (d[i] >> 3) & 0xF;
         bool ext = (d[i] & 0x04) != 0;
@@ -159,25 +190,25 @@ public unsafe sealed class Mp4Recorder : IDisposable
         if (!hasSize)
             return false;
         long size = 0; int sh = 0;
-        while (p < d.Length)
+        while (p < end)
         {
             size |= (long)(d[p] & 0x7f) << sh;
             if ((d[p++] & 0x80) == 0) break;
             sh += 7;
         }
         len = p - i + (int)size;
-        return i + len <= d.Length;
+        return i + len <= end;
     }
 
-    private static byte[]? BuildAv1C(byte[] data)
+    private static byte[]? BuildAv1C(byte[] data, int end)
     {
         byte[]? seqHeader = null;
-        var i = FindFirstObu(data);
+        var i = FindFirstObu(data, end);
         if (i < 0)
             return null;
-        while (i < data.Length)
+        while (i < end)
         {
-            if (!TryReadObu(data, i, out int type, out int len))
+            if (!TryReadObu(data, i, end, out int type, out int len))
                 break;
             if (type == 1)
             {
@@ -191,7 +222,7 @@ public unsafe sealed class Mp4Recorder : IDisposable
 
         var br = new BitReader(seqHeader, 8);
         var profile = br.Read(3);
-        br.Read(1); // still_picture
+        br.Read(1);
         var reduced = br.Read(1);
         int level = 0, tier = 0;
         if (reduced == 1)
@@ -201,21 +232,21 @@ public unsafe sealed class Mp4Recorder : IDisposable
         }
         else
         {
-            if (br.Read(1) == 1) // timing_info_present_flag
+            if (br.Read(1) == 1)
             {
                 br.Read(32); br.Read(32);
                 if (br.Read(1) == 1) br.ReadUv();
             }
-            if (br.Read(1) == 1) // decoder_model_info_present_flag
+            if (br.Read(1) == 1)
             {
                 br.Read(5); br.Read(32); br.Read(32); br.Read(32);
                 br.Read(1); br.Read(1);
             }
-            br.Read(1); // initial_display_delay_present_flag
+            br.Read(1);
             var opCount = br.Read(5) + 1;
             for (var op = 0; op < opCount; op++)
             {
-                br.Read(12); // operating_point_idc
+                br.Read(12);
                 var lvl = br.Read(5);
                 if (op == 0) level = lvl;
                 if (lvl > 7)
@@ -237,14 +268,17 @@ public unsafe sealed class Mp4Recorder : IDisposable
         return ms.ToArray();
     }
 
-    private static byte[]? BuildAvcC(byte[] annexb)
+    private static byte[]? BuildAvcC(byte[] annexb, int len)
     {
         var sps = new List<byte[]>();
         var pps = new List<byte[]>();
-        foreach (var nal in SplitAnnexB(annexb))
+        var e = new AnnexBEnumerator(annexb, len);
+        while (e.MoveNext())
         {
-            if (nal.Length < 2)
+            var (off, n) = e.Current;
+            if (n < 2)
                 continue;
+            var nal = annexb[off..(off + n)];
             var type = nal[0] & 0x1F;
             if (type == 7) sps.Add(nal);
             else if (type == 8) pps.Add(nal);
@@ -270,15 +304,18 @@ public unsafe sealed class Mp4Recorder : IDisposable
         return extra.ToArray();
     }
 
-    private static byte[]? BuildHvcC(byte[] annexb)
+    private static byte[]? BuildHvcC(byte[] annexb, int len)
     {
         var vps = new List<byte[]>();
         var sps = new List<byte[]>();
         var pps = new List<byte[]>();
-        foreach (var nal in SplitAnnexB(annexb))
+        var e = new AnnexBEnumerator(annexb, len);
+        while (e.MoveNext())
         {
-            if (nal.Length < 2)
+            var (off, n) = e.Current;
+            if (n < 2)
                 continue;
+            var nal = annexb[off..(off + n)];
             var type = (nal[0] >> 1) & 0x3F;
             if (type == 32) vps.Add(nal);
             else if (type == 33) sps.Add(nal);
@@ -288,26 +325,24 @@ public unsafe sealed class Mp4Recorder : IDisposable
             return null;
 
         var rbsp = RemoveEmulationPrevention(sps[0]);
-        // nal header 16 bits + sps_video_parameter_set_id 4 + max_sub_layers_minus1 3
-        // + temporal_id_nesting 1 → profile_tier_level démarre à l'octet 3
         if (rbsp.Length < 15)
             return null;
         var ptl = rbsp[3..15];
 
         var ms = new MemoryStream();
-        ms.WriteByte(1);          // configurationVersion
-        ms.WriteByte(ptl[0]);     // profile_space + tier + profile_idc
-        ms.Write(ptl, 1, 4);      // profile_compatibility_flags
-        ms.Write(ptl, 5, 6);      // constraint_indicator_flags
-        ms.WriteByte(ptl[11]);    // level_idc
-        ms.WriteByte(0xF0); ms.WriteByte(0x00); // min_spatial_segmentation_idc
-        ms.WriteByte(0xFC);       // parallelismType
-        ms.WriteByte(0xFD);       // chromaFormat = 1 (4:2:0)
-        ms.WriteByte(0xF8);       // bitDepthLumaMinus8
-        ms.WriteByte(0xF8);       // bitDepthChromaMinus8
-        ms.WriteByte(0); ms.WriteByte(0);       // avgFrameRate
-        ms.WriteByte(0x0B);       // numTemporalLayers=1, lengthSizeMinusOne=3
-        ms.WriteByte(3);          // numOfArrays
+        ms.WriteByte(1);
+        ms.WriteByte(ptl[0]);
+        ms.Write(ptl, 1, 4);
+        ms.Write(ptl, 5, 6);
+        ms.WriteByte(ptl[11]);
+        ms.WriteByte(0xF0); ms.WriteByte(0x00);
+        ms.WriteByte(0xFC);
+        ms.WriteByte(0xFD);
+        ms.WriteByte(0xF8);
+        ms.WriteByte(0xF8);
+        ms.WriteByte(0); ms.WriteByte(0);
+        ms.WriteByte(0x0B);
+        ms.WriteByte(3);
         foreach (var (type, list) in new (byte, List<byte[]>)[] { ((byte)32, vps), (33, sps), (34, pps) })
         {
             ms.WriteByte((byte)(0x80 | type));
@@ -340,28 +375,53 @@ public unsafe sealed class Mp4Recorder : IDisposable
         return ms.ToArray();
     }
 
-    private static IEnumerable<byte[]> SplitAnnexB(byte[] buf)
+    private ref struct AnnexBEnumerator
     {
-        var i = 0;
-        var start = -1;
-        while (i < buf.Length - 2)
+        private readonly byte[] _buf;
+        private readonly int _len;
+        private int _i;
+        private int _start = -1;
+
+        public AnnexBEnumerator(byte[] buf, int len)
         {
-            var isStart = buf[i] == 0 && buf[i + 1] == 0 &&
-                          (buf[i + 2] == 1 || (buf[i + 2] == 0 && i + 3 < buf.Length && buf[i + 3] == 1));
-            if (isStart)
-            {
-                if (start >= 0)
-                    yield return buf[start..i];
-                i += buf[i + 2] == 1 ? 3 : 4;
-                start = i;
-            }
-            else
-            {
-                i++;
-            }
+            _buf = buf;
+            _len = len;
+            _i = 0;
         }
-        if (start >= 0 && start < buf.Length)
-            yield return buf[start..];
+
+        public (int off, int n) Current { get; private set; }
+
+        public bool MoveNext()
+        {
+            while (_i < _len - 2)
+            {
+                var isStart = _buf[_i] == 0 && _buf[_i + 1] == 0 &&
+                              (_buf[_i + 2] == 1 || (_buf[_i + 2] == 0 && _i + 3 < _len && _buf[_i + 3] == 1));
+                if (isStart)
+                {
+                    if (_start >= 0)
+                    {
+                        Current = (_start, _i - _start);
+                        _i += _buf[_i + 2] == 1 ? 3 : 4;
+                        _start = _i;
+                        return true;
+                    }
+                    _i += _buf[_i + 2] == 1 ? 3 : 4;
+                    _start = _i;
+                }
+                else
+                {
+                    _i++;
+                }
+            }
+            if (_start >= 0 && _start < _len)
+            {
+                Current = (_start, _len - _start);
+                _start = -1;
+                return true;
+            }
+            return false;
+        }
     }
 
     private sealed class BitReader
@@ -394,7 +454,16 @@ public unsafe sealed class Mp4Recorder : IDisposable
         if (_disposed)
             return;
         _disposed = true;
-        try { if (_headerWritten) ffmpeg.av_write_trailer(_fmt); } catch { }
+        try
+        {
+            if (_headerWritten)
+            {
+                var tr = ffmpeg.av_write_trailer(_fmt);
+                if (tr < 0)
+                    Services.AppLogger.Write($"mp4: trailer erreur {tr} — fichier probablement illisible");
+            }
+        }
+        catch { }
         try
         {
             if (_fmt != null && _fmt->pb != null)

@@ -6,12 +6,6 @@ using System.Windows;
 
 namespace TouchMirror.Services;
 
-/// <summary>
-/// Surface offerte aux plugins JS (pont __call -> JSON).
-/// Control-plane uniquement : jamais de tactile, clavier, texte ou
-/// presse-papiers vers le téléphone. Les appels bloquent le thread du
-/// plugin en attendant le dispatcher UI pour rester synchrone.
-/// </summary>
 public sealed class PluginApi
 {
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -19,18 +13,13 @@ public sealed class PluginApi
 
     private readonly LocalApiHost _host;
     private readonly Action<string> _log;
-    /// <summary>Id du plugin servi — scope par défaut des widgets overlay.</summary>
     private readonly string _pluginId;
-    /// <summary>Dossier confiné du plugin — seule zone du disque accessible
-    /// via tm.read / tm.write (chemin absolu normalisé, "" = pas d'accès).</summary>
     private readonly string _dir;
 
-    // Rate-limit : un plugin ne peut pas appeler l'API plus de 30×/s.
     private const int MaxCallsPerSecond = 30;
     private int _windowCalls;
     private DateTime _windowStart = DateTime.UtcNow;
 
-    /// <summary>Widgets (slot, id) affichés par ce plugin — masqués à l'arrêt.</summary>
     private readonly HashSet<(int Slot, string Id)> _overlays = new();
 
     public PluginApi(LocalApiHost host, Action<string> log, string pluginId = "",
@@ -58,7 +47,6 @@ public sealed class PluginApi
         if (!TryAcquireCall())
             return JsonSerializer.Serialize(
                 new LocalApiHost.ApiResult(false, "limite d'appels dépassée"), JsonOpts);
-        // Journal des actions mutantes : l'utilisateur voit ce que fait le plugin.
         if (method is "activate" or "record" or "screenshot" or "disconnect" or "connect" or "mute")
             _log($"[api] {method} {arg}");
         try
@@ -91,7 +79,6 @@ public sealed class PluginApi
         }
     }
 
-    // Le dispatcher UI ne bloque jamais sur le thread plugin → pas de deadlock.
     private static T Wait<T>(Task<T> t) => t.GetAwaiter().GetResult();
 
     private static int Int(string? s) => int.TryParse(s, out var v) ? v : 0;
@@ -109,11 +96,6 @@ public sealed class PluginApi
         }
         catch (JsonException) { return new LocalApiHost.ApiResult(false, "options invalides"); }
     }
-
-    // ── Fichiers confinés au dossier du plugin ─────────────────────
-    // Config / données seulement : extensions whitelistées (pas de .js —
-    // le code d'un plugin ne peut pas se réécrire), pas de « .. » ni de
-    // chemin absolu, 256 Ko max. Jamais exposé sur l'API HTTP.
 
     private static readonly HashSet<string> AllowedExt = new(StringComparer.OrdinalIgnoreCase)
         { ".txt", ".md", ".json", ".csv", ".log" };
@@ -137,7 +119,7 @@ public sealed class PluginApi
         try
         {
             if (!File.Exists(path))
-                return new LocalApiHost.ApiResult(true, Data: null); // absent ≠ erreur
+                return new LocalApiHost.ApiResult(true, Data: null);
             if (new FileInfo(path).Length > MaxFileBytes)
                 return new LocalApiHost.ApiResult(false, "fichier trop gros");
             return new LocalApiHost.ApiResult(true, Data: File.ReadAllText(path));
@@ -170,8 +152,6 @@ public sealed class PluginApi
         return new LocalApiHost.ApiResult(true);
     }
 
-    /// <summary>Un plugin qui ne précise pas d'id overlay reçoit le sien —
-    /// chaque plugin obtient ainsi son propre widget par miroir.</summary>
     private string WithId(string? arg)
     {
         try
@@ -203,13 +183,11 @@ public sealed class PluginApi
         catch (JsonException) { }
     }
 
-    /// <summary>Masque les overlays créés par ce plugin — appelé à l'arrêt.
-    /// Fire-and-forget : Stop() peut tourner sur le thread UI.</summary>
     public void Cleanup()
     {
         foreach (var (slot, id) in _overlays)
-            _ = _host.SetOverlayAsync(
-                $"{{\"slot\":{slot},\"id\":\"{id}\",\"visible\":false}}");
+            AppLogger.Forget(_host.SetOverlayAsync(
+                $"{{\"slot\":{slot},\"id\":\"{id}\",\"visible\":false}}"));
         _overlays.Clear();
     }
 }

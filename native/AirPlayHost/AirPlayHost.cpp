@@ -1,10 +1,3 @@
-// TouchMirror.AirPlayHost — thin native receiver host.
-//
-// Loads airplay2dll.dll, starts the AirPlay/RAOP servers, and forwards
-// decoded video frames plus session events to TouchMirror over named pipes.
-// Display-only: no input path exists here by design.
-//
-// Build: see tools/build-airplay-host.ps1
 
 #include <windows.h>
 #include <cstdio>
@@ -53,11 +46,11 @@ struct Pipe {
 
 Pipe g_videoPipe;
 Pipe g_eventPipe;
+CRITICAL_SECTION g_videoWriteLock;
 volatile bool g_running = true;
 
 void emitEvent(const char* type, const char* name, const char* deviceId) {
     char line[640];
-    // Names/ids come from the network peer; cap them defensively.
     char safeName[160];
     char safeId[160];
     snprintf(safeName, sizeof(safeName), "%.150s", name ? name : "");
@@ -98,9 +91,11 @@ public:
         put16(data->channels);
         put16(data->bitsPerSample);
         put32(data->dataLen);
-        if (!g_videoPipe.write(head, sizeof(head)))
-            return;
-        g_videoPipe.write(data->data, data->dataLen);
+        EnterCriticalSection(&g_videoWriteLock);
+        if (!g_videoPipe.write(head, sizeof(head))
+            || !g_videoPipe.write(data->data, data->dataLen))
+            g_running = false;
+        LeaveCriticalSection(&g_videoWriteLock);
     }
 
     void outputVideo(SFgVideoFrame* data, const char* remoteName,
@@ -128,11 +123,12 @@ public:
         put32(data->dataLen[2]);
         *p++ = data->isKey ? 1 : 0;
         put32(idLen);
-        if (!g_videoPipe.write(head, sizeof(head)))
-            return;
-        if (idLen > 0)
-            g_videoPipe.write(id, idLen);
-        g_videoPipe.write(data->data, data->dataTotalLen);
+        EnterCriticalSection(&g_videoWriteLock);
+        if (!g_videoPipe.write(head, sizeof(head))
+            || (idLen > 0 && !g_videoPipe.write(id, idLen))
+            || !g_videoPipe.write(data->data, data->dataTotalLen))
+            g_running = false;
+        LeaveCriticalSection(&g_videoWriteLock);
     }
 
     void videoPlay(char*, double, double) override {}
@@ -168,7 +164,7 @@ BOOL WINAPI onConsoleSignal(DWORD type) {
     return FALSE;
 }
 
-} // namespace
+}
 
 int main(int argc, char** argv) {
     const char* name = argValue(argc, argv, "--name", "TouchMirror");
@@ -182,6 +178,8 @@ int main(int argc, char** argv) {
                         "[--name N] [--raop-port N] [--airplay-port N]\n");
         return 2;
     }
+
+    InitializeCriticalSection(&g_videoWriteLock);
 
     if (!g_videoPipe.connect(videoPipe, 15000)) {
         fprintf(stderr, "video pipe connect failed\n");

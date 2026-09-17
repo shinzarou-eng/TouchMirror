@@ -33,6 +33,8 @@ Gratuit, open source, sans compte, sans pub.
 
 **[Télécharger la dernière version](https://github.com/shinzarou-eng/TouchMirror/releases/latest)** · [Discord](https://discord.gg/DBJ9kNCdX) · [Documentation](docs/wiki/Home.md) · [Roadmap](ROADMAP.md) · [Signaler un bug](https://github.com/shinzarou-eng/TouchMirror/issues) · [Proposer une idée](https://github.com/shinzarou-eng/TouchMirror/issues/new)
 
+🧪 **[On cherche des testeurs — rejoins le Discord](https://discord.gg/DBJ9kNCdX)** — bugs, idées, tests multi-téléphones : les retours de la communauté façonnent la roadmap.
+
 </div>
 
 ---
@@ -56,7 +58,7 @@ L'alternative open source à scrcpy pensée pour les joueurs : affiche et contr�
 |---|---|---|
 | 🎥 | **Mirroring HD** | Résolution native du téléphone, 60/90/120 fps, codecs H.264, H.265 et AV1 |
 | ⚡ | **Faible latence** | Décodage FFmpeg basse latence, dernière frame prioritaire, audio ~400 ms, sockets optimisés |
-| � | **Pipeline GPU zéro-copie** | Chemin D3D11 maison : les frames NV12 décodées vont du décodeur directement au pixel shader — sans aller-retour CPU, sans copie en trop |
+| � | **Pipeline GPU direct** | Chemin D3D11 maison : les frames NV12 décodées alimentent un pixel shader sur le GPU — sans readback CPU, sans copie côté UI |
 | �🎯 | **Raccourcis plaqués** | Pose un repère sur un sort à l'écran, assigne une touche — 1 frappe = 1 tap à cet endroit. Style (pastille, cercle, minimal), opacité et taille réglables, persisté par appareil. Manuel pur : pas de répétition, pas de macro |
 | 🖥️ | **Affichage virtuel** | Dofus tourne sur un écran virtuel dédié — le téléphone physique reste libre. Presets paysage, portrait et **tablette** (8″/10″ : les apps passent en UI tablette) |
 | 📱 | **Multicompte** | Plusieurs téléphones dans une seule fenêtre — un compte par téléphone |
@@ -65,7 +67,7 @@ L'alternative open source à scrcpy pensée pour les joueurs : affiche et contr�
 | 🎚️ | **Presets qualité** | Performance / Équilibré / Qualité+ / Maximal — résolution, fps et bitrate appliqués en un clic |
 | 🍃 | **Économie de ressources** | Les miroirs inactifs arrêtent de décoder la vidéo (CPU/GPU économisés) — l'enregistrement continue en arrière-plan |
 | 🩺 | **Diagnostics intégrés** | Verdicts USB (câble douteux, autorisation, liaison instable) et diag réseau affichés directement dans l'app |
-| 🛡️ | **Pare-feu automatique** | Règles entrantes vérifiées et créées au premier lancement — une seule invite UAC |
+| 🛡️ | **Pare-feu automatique** | La règle entrante est créée quand tu actives le mirroring AirPlay — une seule invite UAC, seulement si tu utilises iOS |
 | 🎨 | **Personnalisation** | Renomme chaque téléphone (tuiles + hub) et choisis sa couleur d'accent — clic droit sur l'appareil |
 | 📶 | **USB & WiFi** | Bascule en sans-fil en un clic, puis débranche le câble — le flux continue |
 | 🖱️ | **Souris = tactile** | Clic, glisser, molette = scroll, `Ctrl`+molette = pinch-to-zoom (zoom de la map) |
@@ -77,10 +79,10 @@ L'alternative open source à scrcpy pensée pour les joueurs : affiche et contr�
 | 📖 | **Aide intégrée** | Forum, encyclopédie et DofusDB dans un panneau navigateur sans quitter le jeu |
 | ⛶ | **Plein écran** | `F11` ou bouton dédié, barre de contrôle au survol du bord haut |
 | 🎬 | **Mode capture** | Fenêtre propre pour OBS — idéal pour streamer |
-| 🔗 | **API locale** | HTTP + SSE sur localhost avec token — pilotage Stream Deck, OBS, scripts. Aucun endpoint ne peut injecter d'input sur le téléphone |
+| 🔗 | **API locale** | HTTP + SSE sur localhost avec token — pilotage Stream Deck, OBS, scripts. Pilote l'app seulement : connexion, enregistrement, capture — aucun endpoint n'envoie de tactile ou de touches au jeu |
 | 🧩 | **Plugins** | Moteur JavaScript embarqué (sandbox) — manifest `plugin.json`, plugins officiels vérifiés par hash |
 | 🔄 | **Mises à jour** | L'app détecte les nouvelles releases GitHub au démarrage |
-| 🍎 | **iPhone / AirPlay** | *Bientôt disponible* — le mirroring iOS est en cours de finalisation |
+| 🍎 | **iPhone / AirPlay** (*bêta*) | Miroir d’un iPhone/iPad en Wi-Fi — l’app héberge un récepteur AirPlay local. *Pas encore dans le zip GitHub — builds locales uniquement* |
 
 ## Comparatif
 
@@ -92,9 +94,9 @@ Chaque outil a ses forces — voici où TouchMirror se situe :
 | Multi-téléphones dans une fenêtre | ✅ | — | — | ✅ |
 | Raccourcis plaqués (touche → tap à l'écran) | ✅ | — | — | — |
 | Affichage virtuel / mode tablette | ✅ | ✅ (option) | — | ✅ |
-| Multi-compte sur un seul téléphone | *Bientôt* | — | — | ✅ |
-| iPhone / iOS | *Bientôt* | — | ✅ | ✅ |
-| Pipeline GPU zéro-copie | ✅ | — | — | ✅ |
+| Multi-compte sur un seul téléphone | ✅ | — | — | ✅ |
+| iPhone / iOS | ✅ *(bêta)* | — | ✅ | ✅ |
+| Pipeline GPU | ✅ | — | — | ✅ |
 | Presets qualité, diagnostics intégrés | ✅ | — | — | ✅ |
 | Enregistrement MP4 intégré | ✅ | ✅ | — | — |
 | API locale + plugins sandbox | ✅ | — | — | — |
@@ -174,7 +176,7 @@ Réglages → **API locale** : expose `http://127.0.0.1:<port>` protégé par to
 | `POST /api/devices/{serial}/connect` | Connecter un appareil |
 | `GET /api/events` | Flux SSE temps réel (connexions, tuile active, REC…) |
 
-**Conformité :** l'API pilote l'app, jamais le jeu — aucun endpoint ne produit d'input sur le téléphone.
+**Conformité :** l'API pilote l'app, jamais le jeu — aucun endpoint n'envoie de tactile, de touches ou de presse-papiers au téléphone. `connect` peut réveiller l'écran et lancer l'app configurée, comme un branchement manuel.
 
 ### Plugins
 
@@ -217,7 +219,7 @@ tm.write("state.json", "{}");    // et peut y écrire — extensions data seulem
 tm.log("message");               // → journal de l'app
 ```
 
-Aucun accès réseau ou processus depuis le sandbox — et comme l'API locale, **rien ne peut injecter d'input vers le téléphone**. Les fichiers sont confinés au dossier du plugin (`.txt`/`.json`/`.csv`… données seulement, jamais de code). Le moteur est borné (mémoire, récursion, timers, 30 appels/s max) et chaque action d'un plugin est tracée dans le journal.
+Aucun accès réseau ou processus depuis le sandbox — et comme l'API locale, **rien ne peut envoyer de tactile ou de touches au jeu**. Les fichiers sont confinés au dossier du plugin (`.txt`/`.json`/`.csv`… données seulement, jamais de code). Le moteur est borné (mémoire, récursion, timers, 30 appels/s max) et chaque action d'un plugin est tracée dans le journal.
 
 Un plugin est du code : n'installe que ce que tu lis ou qui vient de nous. Les plugins officiels portent un badge bouclier vert (hash SHA-256 vérifié) — tout autre plugin demande une confirmation avant activation, et toute modification d'un plugin déjà approuvé redemande ton accord. Les plugins pilotent l'app — jamais le jeu.
 
@@ -233,17 +235,17 @@ Prérequis : **.NET 10 SDK** uniquement — adb, le moteur TouchMirror (`assets/
 
 ## Stack technique
 
-WPF / .NET 10 · WPF-UI · moteur TouchMirror (fork scrcpy-server) · pipeline D3D11 zéro-copie maison (`GpuPresenter` — slices NV12 → pixel shader → texture partagée) · FFmpeg (décodage + remux MP4) · NAudio · WebView2
+WPF / .NET 10 · WPF-UI · moteur TouchMirror (fork scrcpy-server) · pipeline D3D11 maison (`GpuPresenter` — slices NV12 → pixel shader → texture D3D9 partagée) · FFmpeg (décodage + remux MP4) · NAudio · WebView2
 
 ## Conformité Ankama
 
 TouchMirror affiche et contrôle le **jeu officiel** qui tourne sur ton **vrai téléphone** — pas d'émulateur, pas de client modifié, pas de macro ni d'automatisation. Chaque action correspond à un geste humain : les raccourcis plaqués envoient un tap par frappe, rien de plus. C'est le cas d'usage que le support Ankama a confirmé comme autorisé (voir la [FAQ officielle](https://support.ankama.com/hc/fr/articles/26840828168209)).
 
-**TouchMirror ne proposera jamais de système d'automatisation, de bot ou de macro** — ni aujourd'hui, ni dans une version future. L'API locale et les plugins pilotent l'application (miroir, capture, enregistrement, reconnexion), jamais les actions en jeu : aucune route API n'injecte de tactile, clavier, texte ou presse-papiers vers Android. Voir le [hors périmètre de la roadmap](ROADMAP.md#hors-périmètre).
+**TouchMirror ne proposera jamais de système d'automatisation, de bot ou de macro** — ni aujourd'hui, ni dans une version future. L'API locale et les plugins pilotent l'application (miroir, capture, enregistrement, reconnexion), jamais les actions en jeu : aucune route API n'envoie de tactile, de clavier, de texte ou de presse-papiers vers Android. Une connexion via API/plugin peut lancer l'app configurée ou réveiller l'écran — ce qu'un humain fait en branchant le câble. Voir le [hors périmètre de la roadmap](ROADMAP.md#hors-périmètre).
 
 ## Roadmap
 
-Prochaines étapes : finalisation du mirroring iPhone (AirPlay + contrôle), sortie audio par appareil, et polish continu de l'expérience multi-téléphones.
+Prochaines étapes : support Linux, sortie audio par appareil, et polish continu de l'expérience multi-téléphones.
 
 **[Consulter la roadmap](ROADMAP.md)** — priorités, critères de validation et pistes à l'étude. Les éléments prévus ne sont pas encore des fonctionnalités disponibles.
 

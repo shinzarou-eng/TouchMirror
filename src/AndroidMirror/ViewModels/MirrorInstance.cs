@@ -21,8 +21,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public ScrcpySession? Session { get; private set; }
     public VideoDecoder? Decoder { get; private set; }
     public AudioPlayer? Audio { get; private set; }
+    private GpuPresenter? _presenter;
 
-    /// <summary>Vrai pour les miroirs iOS/AirPlay (affichage seul).</summary>
     public virtual bool IsIos => false;
 
     [ObservableProperty] private string _deviceName = "";
@@ -30,9 +30,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     [ObservableProperty] private bool _isRecording;
     [ObservableProperty] private bool _isActive;
     [ObservableProperty] private int _slot;
-    /// <summary>Couleur d'accent hex de l'appareil (nulle = accent par défaut).</summary>
     [ObservableProperty] private string? _accentHex;
-    /// <summary>Codec vidéo réellement négocié + « · GPU » quand le décodage matériel est actif.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CodecBadgeVisibility))]
     private string? _codecBadge;
@@ -40,30 +38,19 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         string.IsNullOrEmpty(CodecBadge) ? Visibility.Collapsed : Visibility.Visible;
     private bool _codecHwSeen;
 
-    /// <summary>Réglages propres de l'appareil dans l'espace de travail actif (nul = globaux).</summary>
     public WorkspaceDevice? Prefs { get; set; }
 
-    /// <summary>Profil Android secondaire affiché sur écran virtuel (nul = utilisateur principal).</summary>
     public int? AccountUserId { get; set; }
-    /// <summary>Nom du profil secondaire affiché dans la tuile.</summary>
     public string? AccountName { get; set; }
-    /// <summary>Clé d'identité du miroir : DeviceKey, ou DeviceKey#userId pour un profil secondaire.</summary>
     public string IdentityKey => AccountUserId is { } id ? $"{Device.DeviceKey}#{id}" : Device.DeviceKey;
 
-    /// <summary>Vrai quand la déconnexion vient d'un geste utilisateur (pas d'une coupure session).</summary>
     public bool ManualDisconnect { get; set; }
 
-    /// <summary>Raccourcis clavier plaqués sur la vidéo (touche → tap, contrôle manuel).</summary>
     public ObservableCollection<KeybindItem> Keybinds { get; } = new();
-    /// <summary>Mode édition des raccourcis (placement / assignation sur la vidéo).</summary>
     [ObservableProperty] private bool _keybindEditMode;
-    /// <summary>Style des raccourcis : 0 = pastille, 1 = cercle, 2 = minimal.</summary>
     [ObservableProperty] private int _keybindStyle;
-    /// <summary>Opacité des raccourcis (0.3–1).</summary>
     [ObservableProperty] private double _keybindOpacity = 0.92;
-    /// <summary>Taille des raccourcis en px (22–44).</summary>
     [ObservableProperty] private double _keybindSize = 30;
-    /// <summary>Levée quand les raccourcis changent — à persister.</summary>
     public event Action? KeybindsChanged;
 
     private bool _suppressKeybindEvents;
@@ -80,10 +67,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     partial void OnKeybindStyleChanged(int value) { ApplyKeybindAppearance(); RaiseKeybindsChanged(); }
     partial void OnKeybindOpacityChanged(double value) { ApplyKeybindAppearance(); RaiseKeybindsChanged(); }
     partial void OnKeybindSizeChanged(double value) { ApplyKeybindAppearance(); RaiseKeybindsChanged(); }
-    /// <summary>Levée quand la vue demande à quitter le mode édition (Échap).</summary>
     public event Action? EditModeExitRequested;
 
-    /// <summary>Clic sur une ligne d'un widget overlay — (miroir, id widget, index).</summary>
     public event Action<MirrorInstance, string, int>? OverlayLineClicked;
 
     partial void OnKeybindEditModeChanged(bool value) =>
@@ -114,9 +99,11 @@ public partial class MirrorInstance : ObservableObject, IDisposable
 
     private int _gpuNotifyPending;
     private Mp4Recorder? _recorder;
+    private readonly object _recorderLock = new();
     private string? _recordPath;
     public DateTime? RecordingSince { get; private set; }
     private readonly object _decoderLock = new();
+    private readonly object _audioLock = new();
     private bool _screenDimmed;
     private int _savedBrightness = -1;
     private int _savedStayOn = -1;
@@ -180,15 +167,13 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         };
         session.Disconnected += () =>
         {
-            try { Application.Current.Dispatcher.Invoke(() => _ = DisconnectAsync()); }
-            catch (InvalidOperationException) { } // dispatcher arrêté (fermeture de l'app)
+            try { Application.Current.Dispatcher.Invoke(() => AppLogger.Forget(DisconnectAsync())); }
+            catch (InvalidOperationException) { }
         };
 
         session.VideoPacketReceived += packet =>
         {
             TrackStreamMetrics(packet);
-            // Miroir inactif : on saute le décodage (CPU/GPU économisés,
-            // l'enregistrement écrit les paquets bruts et continue).
             if (!_videoHidden)
             {
                 lock (_decoderLock)
@@ -198,9 +183,14 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                         GpuPresenter? presenter = null;
                         if (options.VideoDecoder == "gpu")
                         {
-                            try { presenter = new GpuPresenter(); }
+                            try
+                            {
+                                presenter = new GpuPresenter();
+                                presenter.Sharpness = options.VideoSharpen ? GpuPresenter.DefaultSharpness : 0f;
+                            }
                             catch (Exception ex) { Log?.Invoke($"gpu presenter: {ex.Message}"); }
                         }
+                        _presenter = presenter;
                         Decoder = new VideoDecoder(session.VideoCodecId ?? "h264",
                             preferHardware: options.VideoDecoder != "cpu",
                             gpuPresenter: presenter);
@@ -223,11 +213,16 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                         }
                         Decoder.Error += m => Log?.Invoke($"decoder: {m}");
                         var p = presenter;
-                        View.Dispatcher.Invoke(() => View.AttachDecoder(Decoder, p));
+                        var d = Decoder;
+                        View.Dispatcher.BeginInvoke(() =>
+                        {
+                            if (ReferenceEquals(Decoder, d) && ReferenceEquals(_presenter, p))
+                                View.AttachDecoder(d, p);
+                        });
                         _codecHwSeen = false;
                         CodecBadge = (session.VideoCodecId ?? "h264").ToUpperInvariant();
                     }
-                    Decoder.Feed(packet.Data);
+                    Decoder.Feed(packet.Data, packet.Length);
                     if (!_codecHwSeen && Decoder.HardwareDecoding)
                     {
                         _codecHwSeen = true;
@@ -237,17 +232,20 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             }
             try
             {
-                if (_recorder != null)
+                lock (_recorderLock)
                 {
-                    if (packet.IsConfig) _recorder.WriteConfig(packet.Data);
-                    else _recorder.WritePacket(packet.Data, packet.Pts, packet.IsKeyFrame);
+                    if (_recorder != null)
+                    {
+                        if (packet.IsConfig) _recorder.WriteConfig(packet.Data, packet.Length);
+                        else _recorder.WritePacket(packet.Data, packet.Length, packet.Pts, packet.IsKeyFrame);
+                    }
                 }
             }
             catch { }
         };
         session.AudioPacketReceived += packet =>
         {
-            lock (_decoderLock)
+            lock (_audioLock)
             {
                 if (Audio == null)
                 {
@@ -255,7 +253,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                     Audio.Error += m => Log?.Invoke($"audio: {m}");
                     Audio.Volume = _audioMuted ? 0f : 1f;
                 }
-                Audio.Feed(packet.Data, packet.IsConfig);
+                Audio.Feed(packet.Data, packet.IsConfig, packet.Length);
             }
         };
 
@@ -269,22 +267,27 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         Connected?.Invoke(this);
 
         if (options.TurnScreenOff)
-            _ = SetScreenDimmedAsync(true);
+            AppLogger.Forget(SetScreenDimmedAsync(true));
     }
 
     public async Task SetScreenDimmedAsync(bool dimmed)
     {
         if (Session == null)
-            return; // iOS : pas de session scrcpy, rien à atténuer
+            return;
         try
         {
             if (dimmed && !_screenDimmed)
             {
                 _screenDimmed = true;
-                _savedBrightness = await AdbService.GetBrightnessAsync(Device.Serial);
-                _savedStayOn = await AdbService.GetStayOnWhilePluggedInAsync(Device.Serial);
-                // L'écran doit rester logiquement ON pour que le compositor produise des frames ;
-                // luminosité 0 rend le panneau AMOLED visuellement noir sans couper le flux.
+                var pending = DimmedScreenStore.Pending().FirstOrDefault(s =>
+                    s.DeviceKey == Device.DeviceKey || s.Serial == Device.Serial);
+                _savedBrightness = pending is { Brightness: >= 0 } pb
+                    ? pb.Brightness
+                    : await AdbService.GetBrightnessAsync(Device.Serial);
+                _savedStayOn = pending is { StayOn: >= 0 } ps
+                    ? ps.StayOn
+                    : await AdbService.GetStayOnWhilePluggedInAsync(Device.Serial);
+                DimmedScreenStore.Mark(Device.Serial, Device.DeviceKey, _savedBrightness, _savedStayOn);
                 await AdbService.SetStayOnWhilePluggedInAsync(Device.Serial, 7);
                 try { Session?.Control?.SetDisplayPower(true); } catch { }
                 await AdbService.WakeScreenAsync(Device.Serial);
@@ -300,6 +303,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                     await AdbService.SetBrightnessAsync(Device.Serial, _savedBrightness);
                 _savedBrightness = -1;
                 _savedStayOn = -1;
+                DimmedScreenStore.Clear(Device.DeviceKey);
                 Log?.Invoke(L("log.screen_restored"));
             }
         }
@@ -309,8 +313,6 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>Vrai quand la sortie audio locale est coupée — conservé même
-    /// avant la création du lecteur (mute demandé avant le 1er paquet audio).</summary>
     protected volatile bool _audioMuted;
     public bool AudioMuted => _audioMuted;
 
@@ -323,14 +325,10 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     private volatile bool _videoHidden;
     private int _videoBitRate = 8_000_000;
 
-    /// <summary>Débit courant demandé à l'encodeur (réduit par le mode adaptatif).</summary>
     public int CurrentBitRate => _currentBitRate;
 
-    /// <summary>Retard de lecture vs temps réel, ms (dérive arrivée − pts).</summary>
     public double StreamLagMs => _mLagEma;
-    /// <summary>Gigue des paquets vs cadence encodeur, ms.</summary>
     public double StreamJitterMs => _mJitterEma;
-    /// <summary>Débit adaptatif : réduit à chaud quand le retard de lecture croît.</summary>
     public bool AdaptiveBitrate { get => _adaptiveBitrate; set => _adaptiveBitrate = value; }
 
     private long _mBasePts = -1, _mBaseArrival, _mLastPts, _mLastArrival;
@@ -395,17 +393,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             _adaptGoodStreak = 0;
     }
 
-    /// <summary>Débit plancher d'une tuile en miniature (encodeur quasi au repos).</summary>
     private const int ThrottleBitRate = 500_000;
 
-    /// <summary>
-    /// Met le décodage vidéo en pause tant que le miroir est en miniature, et
-    /// suspend l'encodeur côté téléphone (débit plancher) pour économiser
-    /// batterie, CPU et bande passante. À la reprise : débit restauré +
-    /// dé-suspension + ResetVideo — le codec est recréé, config et keyframe
-    /// renvoyées, l'image repart nette sans artefacts.
-    /// Un enregistrement en cours consomme les paquets bruts : pas de throttle.
-    /// </summary>
     public virtual void SetVideoHidden(bool hidden)
     {
         if (_videoHidden == hidden)
@@ -427,6 +416,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         {
             Decoder?.Dispose();
             Decoder = null;
+            _presenter?.Dispose();
+            _presenter = null;
         }
         try { Session?.Control?.SendSimple(ControlMsgType.ResetVideo); } catch { }
     }
@@ -444,8 +435,10 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         Directory.CreateDirectory(dir);
         var stamp = $"rec_{Device.Model}_{DateTime.Now:yyyyMMdd_HHmmss}_{Math.Abs(IdentityKey.GetHashCode()) % 1000:D3}";
         _recordPath = Path.Combine(dir, stamp + ".mp4");
-        _recorder = new Mp4Recorder(_recordPath, Session?.VideoWidth ?? 0, Session?.VideoHeight ?? 0,
+        var rec = new Mp4Recorder(_recordPath, Session?.VideoWidth ?? 0, Session?.VideoHeight ?? 0,
             videoCodec);
+        lock (_recorderLock)
+            _recorder = rec;
         IsRecording = true;
         RecordingSince = DateTime.Now;
         try { Session?.Control?.SendSimple(ControlMsgType.ResetVideo); } catch { }
@@ -455,10 +448,13 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     private void StopRecordingInternal()
     {
         RecordingSince = null;
-        if (_recorder is { HeaderWritten: false })
-            RaiseLog("enregistrement vide — config codec jamais reçue");
-        try { _recorder?.Dispose(); } catch { }
-        _recorder = null;
+        lock (_recorderLock)
+        {
+            if (_recorder is { HeaderWritten: false })
+                RaiseLog("enregistrement vide — config codec jamais reçue");
+            try { _recorder?.Dispose(); } catch { }
+            _recorder = null;
+        }
     }
 
     public virtual async Task DisconnectAsync()
@@ -469,10 +465,18 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         Session = null;
         if (session != null)
             await session.DisposeAsync();
-        Decoder?.Dispose();
-        Decoder = null;
-        Audio?.Dispose();
-        Audio = null;
+        lock (_decoderLock)
+        {
+            Decoder?.Dispose();
+            Decoder = null;
+            _presenter?.Dispose();
+            _presenter = null;
+        }
+        lock (_audioLock)
+        {
+            Audio?.Dispose();
+            Audio = null;
+        }
         StopRecordingInternal();
         IsRecording = false;
         IsConnected = false;
@@ -481,5 +485,5 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         Disconnected?.Invoke(this);
     }
 
-    public void Dispose() => _ = DisconnectAsync();
+    public void Dispose() => AppLogger.Forget(DisconnectAsync());
 }

@@ -35,7 +35,6 @@ public sealed class NullToCollapsedConverter : IValueConverter
         => Binding.DoNothing;
 }
 
-/// <summary>Hex « #RRGGBB » → brush ; valeur nulle/invalide → accent par défaut.</summary>
 public sealed class HexToBrushConverter : IValueConverter
 {
     private static readonly System.Windows.Media.SolidColorBrush Default =
@@ -90,8 +89,12 @@ public partial class MainWindow : FluentWindow
                 L("dlg.unverified_title"),
                 System.Windows.MessageBoxButton.YesNo,
                 System.Windows.MessageBoxImage.Warning) == System.Windows.MessageBoxResult.Yes);
-        // « Détails » depuis une carte : bascule le dock sur la fiche marketplace.
-        // ShowSettings piloté par le VM (restauration, plein écran) synchronise le dock.
+        _vm.ConfirmInstall = item => Task.FromResult(
+            System.Windows.MessageBox.Show(this,
+                string.Format(L("dlg.install_body"), item.Name, item.Entry.Author, item.Entry.Version),
+                L("dlg.install_title"),
+                System.Windows.MessageBoxButton.YesNo,
+                System.Windows.MessageBoxImage.Question) == System.Windows.MessageBoxResult.Yes);
         _vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MainViewModel.SelectedPlugin)
@@ -112,7 +115,6 @@ public partial class MainWindow : FluentWindow
         VersionText.Text = $"TouchMirror v{GetType().Assembly.GetName().Version?.ToString(3)}";
         Loaded += async (_, _) =>
         {
-            // Le réglage « panneau réglages ouvert » est persisté : rouvre le dock.
             if (_vm.ShowSettings)
                 ShowDock("settings");
             await _vm.InitializeAsync();
@@ -134,7 +136,6 @@ public partial class MainWindow : FluentWindow
 
     private void OnFullscreenClick(object sender, RoutedEventArgs e) => ToggleFullscreen();
 
-    // ═══ Barre de titre custom ═══
     private void OnTitleBarMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ClickCount == 2)
@@ -165,9 +166,7 @@ public partial class MainWindow : FluentWindow
     }
     private void OnRotateDisplayClick(object sender, RoutedEventArgs e)
         => _vm.ActiveMirror?.View.CycleDisplayRotation();
-    // ═══ Rail + panneau docké ═══
 
-    /// <summary>Panneau actuellement docké : "guides" | "plugins" | "market" | "settings" | null.</summary>
     private string? _activeDock;
 
     private void OnSettingsClick(object sender, RoutedEventArgs e)
@@ -187,7 +186,6 @@ public partial class MainWindow : FluentWindow
         SetRailState(RailMarket, RailMarketIndicator, panel == "market");
         SetRailState(RailSettings, RailSettingsIndicator, panel == "settings");
 
-        // Le réglage persisté « panneau réglages ouvert » suit l'état du dock.
         var wantSettings = panel == "settings";
         if (_vm.ShowSettings != wantSettings)
             _vm.ShowSettings = wantSettings;
@@ -391,10 +389,6 @@ public partial class MainWindow : FluentWindow
         HelpBrowser.CoreWebView2.Navigate(url);
     }
 
-    // ═══ Espaces de travail ═══
-
-    /// <summary>Vrai si la source du clic est dans un bouton ou un champ texte
-    /// (évite de déclencher l'action du conteneur parent).</summary>
     private static bool IsInteractiveSource(object? source)
     {
         for (var d = source as DependencyObject; d != null;
@@ -409,7 +403,7 @@ public partial class MainWindow : FluentWindow
     {
         if (sender is FrameworkElement { DataContext: WorkspaceItem { IsEditing: false } item }
             && !IsInteractiveSource(e.OriginalSource))
-            _ = _vm.SelectWorkspaceAsync(item);
+            AppLogger.Forget(_vm.SelectWorkspaceAsync(item));
     }
 
     private void OnWorkspaceEditClick(object sender, RoutedEventArgs e)
@@ -437,7 +431,6 @@ public partial class MainWindow : FluentWindow
 
     private void OnWorkspaceExitClick(object sender, RoutedEventArgs e) => _vm.ExitWorkspace();
 
-    /// <summary>Peuple le sous-menu « Comptes secondaires » : profils existants + création.</summary>
     private void OnDeviceAccountsClick(object sender, RoutedEventArgs e)
     {
         if (sender is not System.Windows.Controls.Button btn || btn.ContextMenu == null)
@@ -479,7 +472,7 @@ public partial class MainWindow : FluentWindow
             _ => true
         };
         if (!stillOpen)
-            return; // l'utilisateur a refermé le menu pendant la requête adb
+            return;
         menu.Items.Clear();
 
         var create = new System.Windows.Controls.MenuItem { Header = L("menu.new_account") };
@@ -702,7 +695,6 @@ public partial class MainWindow : FluentWindow
             && e.Key is >= Key.D1 and <= Key.D9 or >= Key.NumPad1 and <= Key.NumPad9)
         {
             var index = e.Key <= Key.D9 ? e.Key - Key.D1 : e.Key - Key.NumPad1;
-            // Ctrl+Maj+N : espace de travail · Ctrl+N : tuile miroir (inchangé).
             if (mods.HasFlag(ModifierKeys.Shift))
                 _vm.ActivateWorkspaceAt(index);
             else

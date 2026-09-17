@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace TouchMirror.Services;
 
@@ -25,6 +26,10 @@ public static class MarketplaceService
 {
     private const string BaseUrl =
         "https://raw.githubusercontent.com/shinzarou-eng/TouchMirror/main/marketplace/";
+
+    private static readonly Regex IdOk = new(@"^[A-Za-z0-9_\-]{1,64}$", RegexOptions.Compiled);
+
+    public static bool IsValidId(string? id) => id != null && IdOk.IsMatch(id);
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -49,18 +54,22 @@ public static class MarketplaceService
             return new List<MarketplaceEntry>();
         var list = JsonSerializer.Deserialize<List<MarketplaceEntry>>(arr.GetRawText(), JsonOpts)
                    ?? new List<MarketplaceEntry>();
-        list.RemoveAll(e => string.IsNullOrWhiteSpace(e.Id) || string.IsNullOrWhiteSpace(e.Hash));
+        list.RemoveAll(e => !IsValidId(e.Id) || string.IsNullOrWhiteSpace(e.Hash));
         return list;
     }
 
     public static async Task<string> FetchCodeAsync(string id, CancellationToken ct = default)
     {
+        if (!IsValidId(id))
+            throw new InvalidOperationException("id de catalogue invalide");
         using var http = NewHttp();
         return await http.GetStringAsync($"{BaseUrl}{id}/plugin.js", ct);
     }
 
     public static async Task InstallAsync(MarketplaceEntry entry, string pluginsDir, CancellationToken ct = default)
     {
+        if (!IsValidId(entry.Id))
+            throw new InvalidOperationException("id de catalogue invalide");
         using var http = NewHttp();
         var js = await http.GetByteArrayAsync($"{BaseUrl}{entry.Id}/plugin.js", ct);
         var manifest = await http.GetByteArrayAsync($"{BaseUrl}{entry.Id}/plugin.json", ct);

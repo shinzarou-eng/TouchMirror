@@ -2,11 +2,6 @@ using System.Collections.Concurrent;
 
 namespace TouchMirror.Services;
 
-/// <summary>
-/// Diagnostic USB : suit les transitions d'état adb par appareil et produit
-/// un verdict lisible — câble/port douteux quand l'état bat (device ⇄ offline
-/// en rafale), autorisation en attente, ou perte de liaison persistante.
-/// </summary>
 public static class AdbDiagnostics
 {
     private const int FlapWindowSeconds = 60;
@@ -20,7 +15,6 @@ public static class AdbDiagnostics
 
     private static readonly ConcurrentDictionary<string, History> _history = new();
 
-    /// <summary>Enregistre l'état courant d'un serial (appelé à chaque scan).</summary>
     public static void Record(string serial, string state)
     {
         var h = _history.GetOrAdd(serial, _ => new History());
@@ -35,7 +29,6 @@ public static class AdbDiagnostics
         }
     }
 
-    /// <summary>Verdict utilisateur pour un appareil, null si tout va bien.</summary>
     public static string? Verdict(string serial, string state)
     {
         if (!_history.TryGetValue(serial, out var h))
