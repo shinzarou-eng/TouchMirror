@@ -64,7 +64,7 @@ public static class AirPlayDiagnostics
                 new Guid("DCB00C01-570F-4A9B-8D69-199FDBA5723B"));
             if (t == null) return null;
             dynamic nlm = Activator.CreateInstance(t)!;
-            dynamic networks = nlm.GetNetworks(1); // NLM_ENUM_NETWORK_CONNECTED
+            dynamic networks = nlm.GetNetworks(1);
             foreach (var net in networks)
             {
                 int cat = net.GetCategory();
@@ -138,7 +138,7 @@ public static class AirPlayDiagnostics
             for (var i = 0; i < count; i++, row += rowSize)
             {
                 var r = Marshal.PtrToStructure<MibTcpRowOwnerPid>(row);
-                if (r.dwState != 2) continue; // MIB_TCP_STATE_LISTEN
+                if (r.dwState != 2) continue;
                 var port = (int)(((r.dwLocalPort & 0xFF) << 8) | ((r.dwLocalPort >> 8) & 0xFF));
                 yield return (port, (int)r.dwOwningPid);
             }

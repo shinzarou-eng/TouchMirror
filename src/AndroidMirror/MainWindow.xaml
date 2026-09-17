@@ -1218,7 +1218,7 @@
                                                             <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                                                                 <TextBlock Text="{Binding TransportText}" FontSize="12"
                                                                            Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                                                <TextBox Text="{Binding Serial}" IsReadOnly="True"
+                                                                <TextBox Text="{Binding MaskedSerial, Mode=OneWay}" IsReadOnly="True"
                                                                          FontSize="10.5" Margin="8,0,0,0" Padding="0"
                                                                          Background="Transparent" BorderThickness="0"
                                                                          VerticalAlignment="Center"

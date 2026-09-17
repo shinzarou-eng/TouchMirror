@@ -35,7 +35,7 @@ public sealed class VideoPacket
 
 public sealed class ScrcpySession : IAsyncDisposable
 {
-    private const string ServerVersion = "4.1-tm.1"; // protocole hérité scrcpy 4.1, révision TouchMirror 1
+    private const string ServerVersion = "4.1-tm.1";
     private const string RemoteJarPath = "/data/local/tmp/touchmirror-engine.jar";
 
     private readonly AdbDevice _device;
@@ -84,7 +84,7 @@ public sealed class ScrcpySession : IAsyncDisposable
 
         var scid = Random.Shared.Next(0, 0x7fffffff);
         var scidHex = scid.ToString("x8");
-        _socketName = $"touchmirror_{scidHex}"; // doit matcher SOCKET_NAME_PREFIX de l'engine
+        _socketName = $"touchmirror_{scidHex}";
 
         var port = FindFreePort();
         _listener = new TcpListener(IPAddress.Loopback, port);

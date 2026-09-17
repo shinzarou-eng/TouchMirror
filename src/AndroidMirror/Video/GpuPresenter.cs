@@ -87,7 +87,7 @@ cbuffer ColorCB : register(b0) {
     float4 yuvT;
     float4 coefR;
     float4 coefG;
-    float4 coefB;   // coefB.y = intensité de netteté (unsharp mask luminance)
+    float4 coefB;
 };
 Texture2D<float> texY : register(t0);
 Texture2D<float2> texUV : register(t1);
@@ -204,7 +204,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
             {
                 var coefs = ColorTable[colorInfo];
                 Array.Copy(coefs, _cbData, 16);
-                _cbData[13] = _sharpness; // coefB.y : slot inutilisé de la table
+                _cbData[13] = _sharpness;
                 fixed (float* p = _cbData)
                     _ctx.UpdateSubresource(_cb!, 0, null, (IntPtr)p, 0, 0);
                 _lastColorInfo = colorInfo;

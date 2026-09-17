@@ -80,7 +80,7 @@ Think of it as an open-source scrcpy alternative made for players: mirror and co
 | 🔗 | **Local API** | HTTP + SSE on localhost with a token — Stream Deck, OBS, scripts. Drives the app only: connect/disconnect, record, screenshot — no endpoint can send touch or keys into the game |
 | 🧩 | **Plugins** | Embedded JavaScript engine (sandbox) — `plugin.json` manifest, official plugins verified by hash |
 | 🔄 | **Updates** | The app detects new GitHub releases at startup |
-| 🍎 | **iPhone / AirPlay** | Mirror an iPhone/iPad over Wi-Fi — the app hosts a local AirPlay receiver |
+| 🍎 | **iPhone / AirPlay** (*beta*) | Mirror an iPhone/iPad over Wi-Fi — the app hosts a local AirPlay receiver. *Not yet bundled in the GitHub zip — local builds only* |
 
 ## Comparison
 
@@ -93,7 +93,7 @@ Every tool has its strengths — here's where TouchMirror stands:
 | On-screen keybinds (key → tap) | ✅ | — | — | — |
 | Virtual display / tablet mode | ✅ | ✅ (option) | — | ✅ |
 | Multi-account on a single phone | ✅ | — | — | ✅ |
-| iPhone / iOS | ✅ | — | ✅ | ✅ |
+| iPhone / iOS | ✅ *(beta)* | — | ✅ | ✅ |
 | GPU-rendered pipeline | ✅ | — | — | ✅ |
 | Quality presets, built-in diagnostics | ✅ | — | — | ✅ |
 | Built-in MP4 recording | ✅ | ✅ | — | — |

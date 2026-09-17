@@ -1,10 +1,3 @@
-// TouchMirror.AirPlayHost — thin native receiver host.
-//
-// Loads airplay2dll.dll, starts the AirPlay/RAOP servers, and forwards
-// decoded video frames plus session events to TouchMirror over named pipes.
-// Display-only: no input path exists here by design.
-//
-// Build: see tools/build-airplay-host.ps1
 
 #include <windows.h>
 #include <cstdio>
@@ -53,12 +46,11 @@ struct Pipe {
 
 Pipe g_videoPipe;
 Pipe g_eventPipe;
-CRITICAL_SECTION g_videoWriteLock; // un message = en-tête + payload atomiques
+CRITICAL_SECTION g_videoWriteLock;
 volatile bool g_running = true;
 
 void emitEvent(const char* type, const char* name, const char* deviceId) {
     char line[640];
-    // Names/ids come from the network peer; cap them defensively.
     char safeName[160];
     char safeId[160];
     snprintf(safeName, sizeof(safeName), "%.150s", name ? name : "");
@@ -172,7 +164,7 @@ BOOL WINAPI onConsoleSignal(DWORD type) {
     return FALSE;
 }
 
-} // namespace
+}
 
 int main(int argc, char** argv) {
     const char* name = argValue(argc, argv, "--name", "TouchMirror");

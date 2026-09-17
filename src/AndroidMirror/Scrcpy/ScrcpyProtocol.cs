@@ -108,8 +108,6 @@ public sealed class ControlChannel : IDisposable
         Task.Run(SendLoop);
     }
 
-    // Send synchrone sur le socket = risque de figer l'UI si le device stagne.
-    // File FIFO bornée : un sender dédié écrit, l'UI n'attend jamais.
     private void Send(ReadOnlySpan<byte> msg)
     {
         if (_sendQueue.IsAddingCompleted)
@@ -231,7 +229,7 @@ public sealed class ControlChannel : IDisposable
             bytes = bytes[..255];
         var buf = new byte[2 + bytes.Length];
         buf[0] = (byte)ControlMsgType.StartApp;
-        buf[1] = (byte)bytes.Length; // longueur sur 1 octet (parseString(1) côté serveur)
+        buf[1] = (byte)bytes.Length;
         bytes.CopyTo(buf, 2);
         Send(buf);
     }

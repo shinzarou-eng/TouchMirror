@@ -33,8 +33,6 @@ public static class AppLogger
 
     public static void Write(Exception ex) => Write(ex.ToString());
 
-    // Fire-and-forget tracé : l'exception remonte dans le log tout de suite
-    // au lieu d'attendre UnobservedTaskException.
     public static void Forget(Task task)
         => task.ContinueWith(t => Write($"async en arrière-plan : {t.Exception?.GetBaseException()}"),
             TaskContinuationOptions.OnlyOnFaulted);

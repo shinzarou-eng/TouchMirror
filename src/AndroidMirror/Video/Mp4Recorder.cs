@@ -222,7 +222,7 @@ public unsafe sealed class Mp4Recorder : IDisposable
 
         var br = new BitReader(seqHeader, 8);
         var profile = br.Read(3);
-        br.Read(1); // still_picture
+        br.Read(1);
         var reduced = br.Read(1);
         int level = 0, tier = 0;
         if (reduced == 1)
@@ -232,21 +232,21 @@ public unsafe sealed class Mp4Recorder : IDisposable
         }
         else
         {
-            if (br.Read(1) == 1) // timing_info_present_flag
+            if (br.Read(1) == 1)
             {
                 br.Read(32); br.Read(32);
                 if (br.Read(1) == 1) br.ReadUv();
             }
-            if (br.Read(1) == 1) // decoder_model_info_present_flag
+            if (br.Read(1) == 1)
             {
                 br.Read(5); br.Read(32); br.Read(32); br.Read(32);
                 br.Read(1); br.Read(1);
             }
-            br.Read(1); // initial_display_delay_present_flag
+            br.Read(1);
             var opCount = br.Read(5) + 1;
             for (var op = 0; op < opCount; op++)
             {
-                br.Read(12); // operating_point_idc
+                br.Read(12);
                 var lvl = br.Read(5);
                 if (op == 0) level = lvl;
                 if (lvl > 7)
@@ -330,19 +330,19 @@ public unsafe sealed class Mp4Recorder : IDisposable
         var ptl = rbsp[3..15];
 
         var ms = new MemoryStream();
-        ms.WriteByte(1);          // configurationVersion
-        ms.WriteByte(ptl[0]);     // profile_space + tier + profile_idc
-        ms.Write(ptl, 1, 4);      // profile_compatibility_flags
-        ms.Write(ptl, 5, 6);      // constraint_indicator_flags
-        ms.WriteByte(ptl[11]);    // level_idc
-        ms.WriteByte(0xF0); ms.WriteByte(0x00); // min_spatial_segmentation_idc
-        ms.WriteByte(0xFC);       // parallelismType
-        ms.WriteByte(0xFD);       // chromaFormat = 1 (4:2:0)
-        ms.WriteByte(0xF8);       // bitDepthLumaMinus8
-        ms.WriteByte(0xF8);       // bitDepthChromaMinus8
-        ms.WriteByte(0); ms.WriteByte(0);       // avgFrameRate
-        ms.WriteByte(0x0B);       // numTemporalLayers=1, lengthSizeMinusOne=3
-        ms.WriteByte(3);          // numOfArrays
+        ms.WriteByte(1);
+        ms.WriteByte(ptl[0]);
+        ms.Write(ptl, 1, 4);
+        ms.Write(ptl, 5, 6);
+        ms.WriteByte(ptl[11]);
+        ms.WriteByte(0xF0); ms.WriteByte(0x00);
+        ms.WriteByte(0xFC);
+        ms.WriteByte(0xFD);
+        ms.WriteByte(0xF8);
+        ms.WriteByte(0xF8);
+        ms.WriteByte(0); ms.WriteByte(0);
+        ms.WriteByte(0x0B);
+        ms.WriteByte(3);
         foreach (var (type, list) in new (byte, List<byte[]>)[] { ((byte)32, vps), (33, sps), (34, pps) })
         {
             ms.WriteByte((byte)(0x80 | type));

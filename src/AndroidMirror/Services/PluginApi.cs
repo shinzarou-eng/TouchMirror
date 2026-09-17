@@ -119,7 +119,7 @@ public sealed class PluginApi
         try
         {
             if (!File.Exists(path))
-                return new LocalApiHost.ApiResult(true, Data: null); // absent ≠ erreur
+                return new LocalApiHost.ApiResult(true, Data: null);
             if (new FileInfo(path).Length > MaxFileBytes)
                 return new LocalApiHost.ApiResult(false, "fichier trop gros");
             return new LocalApiHost.ApiResult(true, Data: File.ReadAllText(path));

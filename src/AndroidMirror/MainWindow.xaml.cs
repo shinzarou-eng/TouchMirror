@@ -472,7 +472,7 @@ public partial class MainWindow : FluentWindow
             _ => true
         };
         if (!stillOpen)
-            return; // l'utilisateur a refermé le menu pendant la requête adb
+            return;
         menu.Items.Clear();
 
         var create = new System.Windows.Controls.MenuItem { Header = L("menu.new_account") };

@@ -25,7 +25,7 @@ public static class FirewallHelper
                     continue;
                 int dir = 1;
                 try { dir = (int)rule.Direction; } catch { }
-                if (dir != 1) continue; // entrante seulement
+                if (dir != 1) continue;
                 bool enabled = true;
                 try { enabled = (bool)rule.Enabled; } catch { }
                 if (!enabled) continue;
@@ -61,7 +61,7 @@ public static class FirewallHelper
                 FileName = "powershell.exe",
                 Arguments = $"-NoProfile -ExecutionPolicy Bypass -EncodedCommand {encoded}",
                 UseShellExecute = true,
-                Verb = "runas", // UAC une seule fois ; sans effet si déjà admin
+                Verb = "runas",
                 WindowStyle = ProcessWindowStyle.Hidden
             };
             using var p = Process.Start(psi);

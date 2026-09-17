@@ -168,7 +168,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         session.Disconnected += () =>
         {
             try { Application.Current.Dispatcher.Invoke(() => AppLogger.Forget(DisconnectAsync())); }
-            catch (InvalidOperationException) { } // dispatcher arrêté (fermeture de l'app)
+            catch (InvalidOperationException) { }
         };
 
         session.VideoPacketReceived += packet =>
@@ -216,8 +216,6 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                         var d = Decoder;
                         View.Dispatcher.BeginInvoke(() =>
                         {
-                            // La file UI peut exécuter ceci après un Dispose
-                            // (déconnexion rapide) : ne pas attacher un présentateur mort.
                             if (ReferenceEquals(Decoder, d) && ReferenceEquals(_presenter, p))
                                 View.AttachDecoder(d, p);
                         });
@@ -275,14 +273,21 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public async Task SetScreenDimmedAsync(bool dimmed)
     {
         if (Session == null)
-            return; // iOS : pas de session scrcpy, rien à atténuer
+            return;
         try
         {
             if (dimmed && !_screenDimmed)
             {
                 _screenDimmed = true;
-                _savedBrightness = await AdbService.GetBrightnessAsync(Device.Serial);
-                _savedStayOn = await AdbService.GetStayOnWhilePluggedInAsync(Device.Serial);
+                var pending = DimmedScreenStore.Pending().FirstOrDefault(s =>
+                    s.DeviceKey == Device.DeviceKey || s.Serial == Device.Serial);
+                _savedBrightness = pending is { Brightness: >= 0 } pb
+                    ? pb.Brightness
+                    : await AdbService.GetBrightnessAsync(Device.Serial);
+                _savedStayOn = pending is { StayOn: >= 0 } ps
+                    ? ps.StayOn
+                    : await AdbService.GetStayOnWhilePluggedInAsync(Device.Serial);
+                DimmedScreenStore.Mark(Device.Serial, Device.DeviceKey, _savedBrightness, _savedStayOn);
                 await AdbService.SetStayOnWhilePluggedInAsync(Device.Serial, 7);
                 try { Session?.Control?.SetDisplayPower(true); } catch { }
                 await AdbService.WakeScreenAsync(Device.Serial);
@@ -298,6 +303,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                     await AdbService.SetBrightnessAsync(Device.Serial, _savedBrightness);
                 _savedBrightness = -1;
                 _savedStayOn = -1;
+                DimmedScreenStore.Clear(Device.DeviceKey);
                 Log?.Invoke(L("log.screen_restored"));
             }
         }

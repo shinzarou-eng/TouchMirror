@@ -27,7 +27,6 @@ jobs:
       - name: Package + checksum
         run: |
           $out = "src/AndroidMirror/bin/Release/net10.0-windows10.0.19041.0/win-x64/publish"
-          # Licences requises dans le zip : MIT (projet), Apache-2.0 (moteur scrcpy), notices tierces
           Copy-Item "LICENSE" "$out/LICENSE.txt"
           New-Item -ItemType Directory -Force "$out/engine" | Out-Null
           Copy-Item "engine/LICENSE" "$out/engine/LICENSE"

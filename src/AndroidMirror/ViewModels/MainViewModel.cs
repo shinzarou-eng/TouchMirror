@@ -984,8 +984,6 @@ public partial class MainViewModel : ObservableObject
     {
         if (item == null || !item.CanInstall)
             return;
-        // Le hash du catalogue est auto-référentiel (index.json fournit URL et
-        // hash) : l'install exécute du code distant → consentement explicite.
         if (ConfirmInstall != null && !await ConfirmInstall(item))
             return;
         item.CanInstall = false;
@@ -1430,6 +1428,26 @@ public partial class MainViewModel : ObservableObject
         try
         {
             var list = (await AdbService.GetDevicesAsync()).ToList();
+
+            foreach (var st in DimmedScreenStore.Pending())
+            {
+                var dev = list.FirstOrDefault(d =>
+                    d.MatchesSerial(st.Serial)
+                    || d.DeviceKey == st.DeviceKey
+                    || d.DeviceKey == st.Serial);
+                if (dev == null)
+                    continue;
+                try
+                {
+                    if (st.StayOn >= 0)
+                        await AdbService.SetStayOnWhilePluggedInAsync(dev.Serial, st.StayOn);
+                    if (st.Brightness >= 0)
+                        await AdbService.SetBrightnessAsync(dev.Serial, st.Brightness);
+                    DimmedScreenStore.Remove(st);
+                    Log($"écran restauré sur {dev.DisplayName} (état retrouvé d'une session précédente)");
+                }
+                catch { }
+            }
 
             foreach (var d in list)
             {
@@ -1914,7 +1932,7 @@ public partial class MainViewModel : ObservableObject
         {
             Log(ex.ToString());
             _airPlay?.Dispose();
-            _airPlay = null; // retry propre au prochain clic
+            _airPlay = null;
             _hasError = true;
             Status = string.Format(L("st.airplay_fail"), ex.Message);
             OnPropertyChanged(nameof(StatusDotColor));

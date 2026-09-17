@@ -108,7 +108,7 @@ public sealed class AirPlayService : IDisposable
             Dispose();
             throw new InvalidOperationException(why);
         }
-        await connect; // propage une éventuelle annulation
+        await connect;
 
         IsRunning = true;
         _videoTask = Task.Run(PumpVideoAsync);
@@ -174,7 +174,7 @@ public sealed class AirPlayService : IDisposable
 
         var deviceId = idLen > 0 ? Encoding.UTF8.GetString(p, 49, idLen) : "";
         if (!string.IsNullOrEmpty(ConnectedDeviceId) && deviceId != ConnectedDeviceId)
-            return; // un iPhone déjà retenu pour cette tuile
+            return;
 
         var dataLen = (long)len0 + len1 + len2;
         if (dataLen <= 0 || dataOff + dataLen > p.Length)

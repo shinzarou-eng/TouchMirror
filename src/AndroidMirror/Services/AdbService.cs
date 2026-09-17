@@ -10,7 +10,8 @@ public sealed record AdbDevice(string Serial, string Model, string State, int? B
     string? Color = null, string? Diag = null)
 {
     public string DeviceKey => HardwareSerial is { Length: > 0 } h ? h : Serial;
-    public string DisplayName => CustomName ?? (string.IsNullOrWhiteSpace(Model) ? Serial : $"{Model} ({Serial})");
+    public string MaskedSerial => Serial.Length > 7 ? Serial[..4] + "•••" + Serial[^3..] : "•••";
+    public string DisplayName => CustomName ?? (string.IsNullOrWhiteSpace(Model) ? MaskedSerial : $"{Model} ({MaskedSerial})");
     public string ShortName => CustomName ?? (string.IsNullOrWhiteSpace(Model) ? Serial : Model);
     public bool IsReady => State == "device";
     public bool NeedsAuthorization => State == "unauthorized";

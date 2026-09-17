@@ -149,10 +149,10 @@ public partial class MirrorView : UserControl
     private readonly Dictionary<KeybindItem, Border> _keybindEls = new();
     private readonly Dictionary<Key, KeybindItem> _keybindByKey = new();
     private bool _editMode;
-    private int _kbStyle;            // 0 pastille, 1 cercle, 2 minimal
+    private int _kbStyle;
     private double _kbOpacity = 0.92;
     private double _kbSize = 30;
-    private KeybindItem? _pending;   // attend une touche
+    private KeybindItem? _pending;
     private KeybindItem? _dragging;
     private bool _dragMoved;
     private Point _dragStart;
@@ -260,7 +260,7 @@ public partial class MirrorView : UserControl
         var s = _kbSize;
         switch (_kbStyle)
         {
-            case 1: // Cercle accent
+            case 1:
                 el.Width = s; el.Height = s;
                 el.CornerRadius = new CornerRadius(s / 2);
                 el.Background = new SolidColorBrush(Color.FromArgb(0xB3, accent.R, accent.G, accent.B));
@@ -269,13 +269,13 @@ public partial class MirrorView : UserControl
                 label.Foreground = Brushes.White;
                 label.FontSize = Math.Max(9, s * 0.37);
                 break;
-            case 2: // Minimal : juste la lettre, ombre portée
+            case 2:
                 el.Background = Brushes.Transparent;
                 el.Padding = new Thickness(4, 0, 4, 0);
                 label.Foreground = new SolidColorBrush(accent);
                 label.FontSize = Math.Max(11, s * 0.55);
                 break;
-            default: // Pastille : keycap sombre translucide
+            default:
                 el.MinWidth = s; el.Height = s;
                 el.Padding = new Thickness(s * 0.23, 0, s * 0.23, 0);
                 el.CornerRadius = new CornerRadius(s * 0.23);

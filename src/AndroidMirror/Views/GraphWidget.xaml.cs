@@ -7,7 +7,7 @@ namespace TouchMirror.Views;
 
 public partial class GraphWidget : UserControl
 {
-    private const int Cap = 76;                  // ~2 px par point sur 152
+    private const int Cap = 76;
     private const double PlotW = 152, PlotH = 40;
     private readonly List<double> _vals = new();
     private bool _dragging;

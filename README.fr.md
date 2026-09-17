@@ -82,7 +82,7 @@ L'alternative open source à scrcpy pensée pour les joueurs : affiche et contr�
 | 🔗 | **API locale** | HTTP + SSE sur localhost avec token — pilotage Stream Deck, OBS, scripts. Pilote l'app seulement : connexion, enregistrement, capture — aucun endpoint n'envoie de tactile ou de touches au jeu |
 | 🧩 | **Plugins** | Moteur JavaScript embarqué (sandbox) — manifest `plugin.json`, plugins officiels vérifiés par hash |
 | 🔄 | **Mises à jour** | L'app détecte les nouvelles releases GitHub au démarrage |
-| 🍎 | **iPhone / AirPlay** | Miroir d’un iPhone/iPad en Wi-Fi — l’app héberge un récepteur AirPlay local |
+| 🍎 | **iPhone / AirPlay** (*bêta*) | Miroir d’un iPhone/iPad en Wi-Fi — l’app héberge un récepteur AirPlay local. *Pas encore dans le zip GitHub — builds locales uniquement* |
 
 ## Comparatif
 
@@ -95,7 +95,7 @@ Chaque outil a ses forces — voici où TouchMirror se situe :
 | Raccourcis plaqués (touche → tap à l'écran) | ✅ | — | — | — |
 | Affichage virtuel / mode tablette | ✅ | ✅ (option) | — | ✅ |
 | Multi-compte sur un seul téléphone | ✅ | — | — | ✅ |
-| iPhone / iOS | ✅ | — | ✅ | ✅ |
+| iPhone / iOS | ✅ *(bêta)* | — | ✅ | ✅ |
 | Pipeline GPU | ✅ | — | — | ✅ |
 | Presets qualité, diagnostics intégrés | ✅ | — | — | ✅ |
 | Enregistrement MP4 intégré | ✅ | ✅ | — | — |

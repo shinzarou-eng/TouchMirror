@@ -227,9 +227,6 @@ public partial class PluginInstance : ObservableObject
             }));
 
             engine.Execute(Prelude, "tm-prelude.js");
-            // Le code exécuté est celui dont le hash a été vérifié (VerifyNow) —
-            // pas une relecture du disque (un fichier modifié entre les deux
-            // ne passerait pas).
             var code = _verifiedCode ?? File.ReadAllBytes(FilePath);
             engine.Execute(System.Text.Encoding.UTF8.GetString(code), Path.GetFileName(FilePath));
 
