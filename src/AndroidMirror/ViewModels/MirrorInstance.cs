@@ -485,5 +485,35 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         Disconnected?.Invoke(this);
     }
 
+    public async Task HandleFileDropAsync(IReadOnlyList<string> paths)
+    {
+        foreach (var path in paths)
+        {
+            var name = Path.GetFileName(path);
+            try
+            {
+                if (path.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
+                {
+                    RaiseLog($"drop: install {name}…");
+                    var output = await AdbService.InstallApkAsync(Device.Serial, path);
+                    var tail = output.Trim().Split('\n').LastOrDefault()?.Trim();
+                    RaiseLog($"drop: {name} — {(string.IsNullOrEmpty(tail) ? "installé" : tail)}");
+                }
+                else
+                {
+                    var remote = $"/sdcard/Download/{name}";
+                    RaiseLog($"drop: push {name}…");
+                    await AdbService.PushAsync(Device.Serial, path, remote);
+                    try { Session?.Control?.ScanFile(remote); } catch { }
+                    RaiseLog($"drop: {name} → {remote}");
+                }
+            }
+            catch (Exception ex)
+            {
+                RaiseLog($"drop: {name} — {ex.Message}");
+            }
+        }
+    }
+
     public void Dispose() => AppLogger.Forget(DisconnectAsync());
 }

@@ -22,6 +22,7 @@ public sealed class ScrcpyOptions
     public string? NewDisplay { get; init; }
     public string? AutoLaunchPackage { get; init; }
     public bool AdaptiveBitrate { get; init; }
+    public bool ClipboardAutosync { get; init; } = true;
 }
 
 public sealed class VideoPacket
@@ -35,7 +36,7 @@ public sealed class VideoPacket
 
 public sealed class ScrcpySession : IAsyncDisposable
 {
-    private const string ServerVersion = "4.1-tm.1";
+    private const string ServerVersion = "4.1-tm.2";
     private const string RemoteJarPath = "/data/local/tmp/touchmirror-engine.jar";
 
     private readonly AdbDevice _device;
@@ -160,6 +161,9 @@ public sealed class ScrcpySession : IAsyncDisposable
         sb.Append($" video_codec={_options.VideoCodec}");
         sb.Append(" cleanup=true");
         sb.Append(" power_on=true");
+        sb.Append(" downsize_on_error=true");
+        if (_options.ClipboardAutosync)
+            sb.Append(" clipboard_autosync=true");
         if (_options.MaxSize > 0)
             sb.Append($" max_size={_options.MaxSize}");
         if (_options.MaxFps > 0)

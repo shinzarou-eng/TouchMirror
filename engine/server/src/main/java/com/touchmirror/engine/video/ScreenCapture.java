@@ -88,7 +88,6 @@ public class ScreenCapture extends SurfaceCapture {
         displayMonitor.setSessionDisplayProperties(new DisplayProperties(displaySize, displayRotation));
 
         if (captureOrientationLock == Orientation.Lock.LockedInitial) {
-            // The user requested to lock the video orientation to the current orientation
             captureOrientationLock = Orientation.Lock.LockedValue;
             captureOrientation = Orientation.fromRotation(displayRotation);
         }
@@ -121,14 +120,12 @@ public class ScreenCapture extends SurfaceCapture {
 
         Size inputSize;
         if (transform != null) {
-            // If there is a filter, it must receive the full display content
             inputSize = displayInfo.getSize();
             assert glRunner == null;
             OpenGLFilter glFilter = new AffineOpenGLFilter(transform);
             glRunner = new OpenGLRunner(glFilter);
             surface = glRunner.start(inputSize, videoSize, surface);
         } else {
-            // If there is no filter, the display must be rendered at target video size directly
             inputSize = videoSize;
         }
 
@@ -141,7 +138,6 @@ public class ScreenCapture extends SurfaceCapture {
             Ln.d("Display: using DisplayManager API");
         } catch (Exception displayManagerException) {
             if (Build.BRAND.equalsIgnoreCase("oculus") && Build.MODEL.toLowerCase(Locale.ROOT).startsWith("quest")) {
-                // Workaround for buggy createVirtualDisplay on Quest
                 try {
                     virtualDisplay = (VirtualDisplay) VirtualDisplay.class.getDeclaredConstructors()[0].newInstance(null, null, null, surface);
                 } catch (ReflectiveOperationException e) {
@@ -167,12 +163,10 @@ public class ScreenCapture extends SurfaceCapture {
             int virtualDisplayId;
             PositionMapper positionMapper;
             if (virtualDisplay == null || displayId == 0) {
-                // Surface control or main display: send all events to the original display, relative to the device size
                 Size deviceSize = displayInfo.getSize();
                 positionMapper = PositionMapper.create(videoSize, transform, deviceSize);
                 virtualDisplayId = displayId;
             } else {
-                // The positions are relative to the virtual display, not the original display (so use inputSize, not deviceSize!)
                 positionMapper = PositionMapper.create(videoSize, transform, inputSize);
                 virtualDisplayId = virtualDisplay.getDisplay().getDisplayId();
             }
@@ -242,8 +236,6 @@ public class ScreenCapture extends SurfaceCapture {
     }
 
     private static IBinder createDisplay() throws Exception {
-        // Since Android 12 (preview), secure displays could not be created with shell permissions anymore.
-        // On Android 12 preview, SDK_INT is still R (not S), but CODENAME is "S".
         boolean secure = Build.VERSION.SDK_INT < AndroidVersions.API_30_ANDROID_11 || (Build.VERSION.SDK_INT == AndroidVersions.API_30_ANDROID_11
                 && !"S".equals(Build.VERSION.CODENAME));
         return SurfaceControl.createDisplay("touchmirror", secure);

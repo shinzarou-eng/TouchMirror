@@ -6,7 +6,6 @@ import java.util.Scanner;
 
 public final class Command {
     private Command() {
-        // not instantiable
     }
 
     public static void exec(String... cmd) throws IOException, InterruptedException {

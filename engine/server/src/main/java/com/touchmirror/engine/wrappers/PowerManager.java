@@ -54,10 +54,8 @@ public final class PowerManager {
     private Method getUserActivityMethod() throws NoSuchMethodException {
         if (userActivityMethod == null) {
             if (Build.VERSION.SDK_INT >= AndroidVersions.API_31_ANDROID_12) {
-                // userActivity(int displayId, long time, int event, int flags);
                 userActivityMethod = manager.getClass().getMethod("userActivity", int.class, long.class, int.class, int.class);
             } else {
-                // userActivity(long time, int event, int flags);
                 userActivityMethod = manager.getClass().getMethod("userActivity", long.class, int.class, int.class);
             }
         }

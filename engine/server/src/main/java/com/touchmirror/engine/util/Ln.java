@@ -7,10 +7,6 @@ import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
 
-/**
- * Log both to Android logger (so that logs are visible in "adb logcat") and standard output/error (so that they are visible in the terminal
- * directly).
- */
 public final class Ln {
 
     private static final String TAG = "touchmirror";
@@ -26,7 +22,6 @@ public final class Ln {
     private static Level threshold = Level.INFO;
 
     private Ln() {
-        // not instantiable
     }
 
     public static void disableSystemStreams() {
@@ -35,13 +30,6 @@ public final class Ln {
         System.setErr(nullStream);
     }
 
-    /**
-     * Initialize the log level.
-     * <p>
-     * Must be called before starting any new thread.
-     *
-     * @param level the log level
-     */
     public static void initLogLevel(Level level) {
         threshold = level;
     }
@@ -106,17 +94,14 @@ public final class Ln {
     static class NullOutputStream extends OutputStream {
         @Override
         public void write(byte[] b) {
-            // ignore
         }
 
         @Override
         public void write(byte[] b, int off, int len) {
-            // ignore
         }
 
         @Override
         public void write(int b) {
-            // ignore
         }
     }
 }

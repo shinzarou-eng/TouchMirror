@@ -15,7 +15,6 @@ public final class GLUtils {
     private static final boolean DEBUG = BuildConfig.DEBUG;
 
     private GLUtils() {
-        // not instantiable
     }
 
     public static int createProgram(String vertexSource, String fragmentSource) {
@@ -89,9 +88,6 @@ public final class GLUtils {
         }
     }
 
-    /**
-     * Throws a runtime exception if {@link GLES20#glGetError()} returns an error (useful for debugging).
-     */
     public static void checkGlError() {
         if (DEBUG) {
             int error = GLES20.glGetError();

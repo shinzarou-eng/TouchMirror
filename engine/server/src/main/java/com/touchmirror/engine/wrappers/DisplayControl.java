@@ -34,7 +34,6 @@ public final class DisplayControl {
             loadMethod.invoke(Runtime.getRuntime(), displayControlClass, "android_servers");
         } catch (Throwable e) {
             Ln.e("Could not initialize DisplayControl", e);
-            // Do not throw an exception here, the methods will fail when they are called
         }
         CLASS = displayControlClass;
     }
@@ -43,7 +42,6 @@ public final class DisplayControl {
     private static Method getPhysicalDisplayIdsMethod;
 
     private DisplayControl() {
-        // only static methods
     }
 
     private static Method getGetPhysicalDisplayTokenMethod() throws NoSuchMethodException {

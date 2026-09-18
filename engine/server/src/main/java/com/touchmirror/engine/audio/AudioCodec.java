@@ -10,7 +10,7 @@ public enum AudioCodec implements Codec {
     FLAC(0x66_6c_61_63, "flac", MediaFormat.MIMETYPE_AUDIO_FLAC),
     RAW(0x00_72_61_77, "raw", MediaFormat.MIMETYPE_AUDIO_RAW);
 
-    private final int id; // 4-byte ASCII representation of the name
+    private final int id;
     private final String name;
     private final String mimeType;
 

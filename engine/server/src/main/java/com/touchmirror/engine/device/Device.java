@@ -44,12 +44,9 @@ public final class Device {
     public static final int INJECT_MODE_WAIT_FOR_RESULT = InputManager.INJECT_INPUT_EVENT_MODE_WAIT_FOR_RESULT;
     public static final int INJECT_MODE_WAIT_FOR_FINISH = InputManager.INJECT_INPUT_EVENT_MODE_WAIT_FOR_FINISH;
 
-    // The new display power method introduced in Android 15 does not work as expected:
-    // <https://github.com/Genymobile/scrcpy/issues/5530>
     private static final boolean USE_ANDROID_15_DISPLAY_POWER = false;
 
     private Device() {
-        // not instantiable
     }
 
     public static String getDeviceName() {
@@ -57,7 +54,6 @@ public final class Device {
     }
 
     public static boolean supportsInputEvents(int displayId) {
-        // main display or any display on Android >= 10
         return displayId == 0 || Build.VERSION.SDK_INT >= AndroidVersions.API_29_ANDROID_10;
     }
 
@@ -127,10 +123,6 @@ public final class Device {
 
         String currentClipboard = getClipboardText();
         if (currentClipboard != null && currentClipboard.equals(text)) {
-            // The clipboard already contains the requested text.
-            // Since pasting text from the computer involves setting the device clipboard, it could be set twice on a copy-paste. This would cause
-            // the clipboard listeners to be notified twice, and that would flood the Android keyboard clipboard history. To workaround this
-            // problem, do not explicitly set the clipboard text if it already contains the expected content.
             return false;
         }
 
@@ -150,19 +142,14 @@ public final class Device {
                 && Build.VERSION.SDK_INT >= AndroidVersions.API_34_ANDROID_14
                 && Build.BRAND.equalsIgnoreCase("honor")
                 && SurfaceControl.hasGetBuildInDisplayMethod()) {
-            // Workaround for Honor devices with Android 14:
-            //  - <https://github.com/Genymobile/scrcpy/issues/4823>
-            //  - <https://github.com/Genymobile/scrcpy/issues/4943>
             applyToMultiPhysicalDisplays = false;
         }
 
         int mode = on ? POWER_MODE_NORMAL : POWER_MODE_OFF;
         if (applyToMultiPhysicalDisplays) {
-            // On Android 14, these internal methods have been moved to DisplayControl
             boolean useDisplayControl =
                     Build.VERSION.SDK_INT >= AndroidVersions.API_34_ANDROID_14 && !SurfaceControl.hasGetPhysicalDisplayIdsMethod();
 
-            // Change the power mode for all physical displays
             long[] physicalDisplayIds = useDisplayControl ? DisplayControl.getPhysicalDisplayIds() : SurfaceControl.getPhysicalDisplayIds();
             if (physicalDisplayIds == null) {
                 Ln.e("Could not get physical display ids");
@@ -178,7 +165,6 @@ public final class Device {
             return allOk;
         }
 
-        // Older Android versions, only 1 display
         IBinder d = SurfaceControl.getBuiltInDisplay();
         if (d == null) {
             Ln.e("Could not get built-in display");
@@ -196,9 +182,6 @@ public final class Device {
         return pressReleaseKeycode(KeyEvent.KEYCODE_POWER, displayId, Device.INJECT_MODE_ASYNC);
     }
 
-    /**
-     * Disable auto-rotation (if enabled), set the screen rotation and re-enable auto-rotation (if it was enabled).
-     */
     public static void rotateDevice(int displayId) {
         assert displayId != DISPLAY_ID_NONE;
 
@@ -207,13 +190,12 @@ public final class Device {
         boolean accelerometerRotation = !wm.isRotationFrozen(displayId);
 
         int currentRotation = getCurrentRotation(displayId);
-        int newRotation = (currentRotation & 1) ^ 1; // 0->1, 1->0, 2->1, 3->0
+        int newRotation = (currentRotation & 1) ^ 1;
         String newRotationString = newRotation == 0 ? "portrait" : "landscape";
 
         Ln.i("Device rotation requested: " + newRotationString);
         wm.freezeRotation(displayId, newRotation);
 
-        // restore auto-rotate if necessary
         if (accelerometerRotation) {
             wm.thawRotation(displayId);
         }
@@ -270,7 +252,6 @@ public final class Device {
     @SuppressLint("QueryPermissionsNeeded")
     public static DeviceApp findByPackageName(String packageName) {
         PackageManager pm = FakeContext.get().getPackageManager();
-        // No need to filter by "launchable" apps, an error will be reported on start if the app is not launchable
         for (ApplicationInfo appInfo : pm.getInstalledApplications(PackageManager.GET_META_DATA)) {
             if (packageName.equals(appInfo.packageName)) {
                 return toApp(pm, appInfo);
@@ -297,11 +278,6 @@ public final class Device {
         return result;
     }
 
-    /**
-     * Démarre une app à partir d'un spécificateur : « package.name », « +package.name »
-     * (force-stop avant lancement), « ?nom » (recherche par nom affiché), avec suffixe
-     * optionnel « @userId » pour lancer dans un profil Android secondaire (multi-compte).
-     */
     public static void startApp(String spec, int displayId) {
         boolean forceStop = spec.startsWith("+");
         if (forceStop) {
@@ -375,10 +351,6 @@ public final class Device {
         am.startActivity(launchIntent, options);
     }
 
-    /**
-     * Lance une app dans un profil secondaire (ex : Samsung Dual Messenger / profil pro).
-     * Le contexte shell peut agir sur n'importe quel utilisateur — on délègue à « am ».
-     */
     private static void startAppAsUser(String packageName, int displayId, int userId, boolean forceStop) {
         String component = resolveLauncherComponent(packageName, userId);
         if (component == null) {

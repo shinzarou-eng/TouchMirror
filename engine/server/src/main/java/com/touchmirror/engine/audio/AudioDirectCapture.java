@@ -39,14 +39,12 @@ public class AudioDirectCapture implements AudioCapture {
     private static AudioRecord createAudioRecord(int audioSource) {
         AudioRecord.Builder builder = new AudioRecord.Builder();
         if (Build.VERSION.SDK_INT >= AndroidVersions.API_31_ANDROID_12) {
-            // On older APIs, Workarounds.fillAppInfo() must be called beforehand
             builder.setContext(FakeContext.get());
         }
         builder.setAudioSource(audioSource);
         builder.setAudioFormat(AudioConfig.createAudioFormat());
         int minBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, ENCODING);
         if (minBufferSize > 0) {
-            // This buffer size does not impact latency
             builder.setBufferSizeInBytes(8 * minBufferSize);
         }
 
@@ -54,12 +52,6 @@ public class AudioDirectCapture implements AudioCapture {
     }
 
     private static void startWorkaroundAndroid11() {
-        // Android 11 requires Apps to be at foreground to record audio.
-        // Normally, each App has its own user ID, so Android checks whether the requesting App has the user ID that's at the foreground.
-        // But scrcpy server is NOT an App, it's a Java application started from Android shell, so it has the same user ID (2000) with Android
-        // shell ("com.android.shell").
-        // If there is an Activity from Android shell running at foreground, then the permission system will believe scrcpy is also in the
-        // foreground.
         Intent intent = new Intent(Intent.ACTION_MAIN);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         intent.addCategory(Intent.CATEGORY_LAUNCHER);
@@ -73,11 +65,10 @@ public class AudioDirectCapture implements AudioCapture {
 
     private void tryStartRecording(int attempts, int delayMs) throws AudioCaptureException {
         while (attempts-- > 0) {
-            // Wait for activity to start
             SystemClock.sleep(delayMs);
             try {
                 startRecording();
-                return; // it worked
+                return;
             } catch (UnsupportedOperationException e) {
                 if (attempts == 0) {
                     Ln.e("Failed to start audio capture");
@@ -95,9 +86,6 @@ public class AudioDirectCapture implements AudioCapture {
         try {
             recorder = createAudioRecord(audioSource);
         } catch (NullPointerException e) {
-            // Creating an AudioRecord using an AudioRecord.Builder does not work on Vivo phones:
-            // - <https://github.com/Genymobile/scrcpy/issues/3805>
-            // - <https://github.com/Genymobile/scrcpy/pull/3862>
             recorder = Workarounds.createAudioRecord(audioSource, SAMPLE_RATE, CHANNEL_CONFIG, CHANNELS, CHANNEL_MASK, ENCODING);
         }
         recorder.startRecording();
@@ -129,7 +117,6 @@ public class AudioDirectCapture implements AudioCapture {
     @Override
     public void stop() {
         if (recorder != null) {
-            // Will call .stop() if necessary, without throwing an IllegalStateException
             recorder.release();
         }
     }

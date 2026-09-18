@@ -35,6 +35,14 @@ public sealed class NullToCollapsedConverter : IValueConverter
         => Binding.DoNothing;
 }
 
+public sealed class AnyBoolToVisibilityConverter : IMultiValueConverter
+{
+    public object Convert(object[] values, Type t, object p, System.Globalization.CultureInfo c)
+        => values.Any(v => v is true) ? Visibility.Visible : Visibility.Collapsed;
+    public object[] ConvertBack(object v, Type[] t, object p, System.Globalization.CultureInfo c)
+        => throw new NotSupportedException();
+}
+
 public sealed class HexToBrushConverter : IValueConverter
 {
     private static readonly System.Windows.Media.SolidColorBrush Default =
@@ -113,6 +121,18 @@ public partial class MainWindow : FluentWindow
         };
 
         VersionText.Text = $"TouchMirror v{GetType().Assembly.GetName().Version?.ToString(3)}";
+
+        _wmTimer.Tick += (_, _) =>
+        {
+            var phase = _wmClock.Elapsed.TotalSeconds % 5.4;
+            double o = phase < 3.4 ? 1
+                : phase < 4.4 ? 1 - (phase - 3.4) * 0.85
+                : 0.15 + (phase - 4.4) * 0.85;
+            Wordmark.Opacity = o * o * (3 - 2 * o);
+        };
+        _wmClock.Start();
+        _wmTimer.Start();
+
         Loaded += async (_, _) =>
         {
             if (_vm.ShowSettings)
@@ -579,6 +599,10 @@ public partial class MainWindow : FluentWindow
     private readonly System.Windows.Threading.DispatcherTimer _fsHideTimer = new()
         { Interval = TimeSpan.FromSeconds(2.5) };
 
+    private readonly System.Diagnostics.Stopwatch _wmClock = new();
+    private readonly System.Windows.Threading.DispatcherTimer _wmTimer = new()
+        { Interval = TimeSpan.FromMilliseconds(40) };
+
     private string? _fsDockPanel;
     private Rect _fsBounds;
     private bool _fsWasMaximized;
@@ -594,8 +618,8 @@ public partial class MainWindow : FluentWindow
             ShowDock(null);
             ExtendsContentIntoTitleBar = false;
             TitleBarElement.Visibility = Visibility.Collapsed;
-            TitleBarRow.Height = new GridLength(0);
-            ToolbarRow.Height = new GridLength(0);
+            ChromeRow.Height = new GridLength(0);
+            ContextRow.Height = new GridLength(0);
             StatusBarRow.Height = new GridLength(0);
             VideoFrame.Margin = new Thickness(0);
             VideoFrame.CornerRadius = new CornerRadius(0);
@@ -626,11 +650,11 @@ public partial class MainWindow : FluentWindow
                 Width = _fsBounds.Width;
                 Height = _fsBounds.Height;
             }
-            VideoFrame.Margin = new Thickness(12);
-            VideoFrame.CornerRadius = new CornerRadius(6);
+            VideoFrame.Margin = new Thickness(14);
+            VideoFrame.CornerRadius = new CornerRadius(10);
             VideoFrame.BorderThickness = new Thickness(1);
-            TitleBarRow.Height = GridLength.Auto;
-            ToolbarRow.Height = GridLength.Auto;
+            ChromeRow.Height = GridLength.Auto;
+            ContextRow.Height = GridLength.Auto;
             StatusBarRow.Height = GridLength.Auto;
             TitleBarElement.Visibility = Visibility.Visible;
             ExtendsContentIntoTitleBar = true;

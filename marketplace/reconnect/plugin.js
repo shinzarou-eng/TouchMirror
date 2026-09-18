@@ -1,13 +1,13 @@
 const INTERVAL_MS  = 3000;
 const RETRY_MS     = 30000;
-const FREEZE_POLLS = 4;   // ~12 s de flux figé avant action
-const FREEZE_DELAY = 5000; // délai avant de retenter la connexion
+const FREEZE_POLLS = 4;
+const FREEZE_DELAY = 5000;
 const SERIALS      = [];
 
 const pending = {};
 const retryAfter = {};
-const frozen = {};   // serial -> timestamp de la détection
-const zeroFps = {};  // serial -> nb de scans à fps < 1
+const frozen = {};
+const zeroFps = {};
 
 tm.log('reconnect actif — scan ' + (INTERVAL_MS / 1000) + 's + détection flux figé');
 
@@ -47,7 +47,6 @@ tm.setInterval(() => {
   const mirrors = tm.getMirrors().data || [];
   const live = mirrors.map(m => m.serial);
 
-  // ── flux figé : connecté mais 0 fps en continu ──
   for (const m of mirrors) {
     if (!m.connected) { delete zeroFps[m.serial]; continue; }
     if (m.fps < 1) {
@@ -67,7 +66,6 @@ tm.setInterval(() => {
     }
   }
 
-  // ── reconnexion des sessions figées (disconnect manuel → connect explicite) ──
   for (const serial of Object.keys(frozen)) {
     if (live.includes(serial)) { delete frozen[serial]; continue; }
     if (Date.now() - frozen[serial] < FREEZE_DELAY) continue;
@@ -75,7 +73,6 @@ tm.setInterval(() => {
     if (d && d.ready) tryConnect(serial, d);
   }
 
-  // ── reconnexion des sessions tombées ──
   for (const serial of Object.keys(pending)) {
     if (live.includes(serial)) { delete pending[serial]; continue; }
     const d = devices.find(x => x.serial === serial);

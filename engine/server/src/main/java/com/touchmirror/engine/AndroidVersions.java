@@ -2,15 +2,9 @@ package com.touchmirror.engine;
 
 import android.os.Build;
 
-/**
- * Android version code constants, done right.
- * <p/>
- * <a href="https://apilevels.com/">API levels</a>
- */
 public final class AndroidVersions {
 
     private AndroidVersions() {
-        // not instantiable
     }
 
     public static final int API_21_ANDROID_5_0 = Build.VERSION_CODES.LOLLIPOP;

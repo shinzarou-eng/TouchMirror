@@ -2,9 +2,6 @@ package com.touchmirror.engine.control;
 
 import com.touchmirror.engine.model.Position;
 
-/**
- * Union of all supported event types, identified by their {@code type}.
- */
 public final class ControlMessage {
 
     public static final int TYPE_INJECT_KEYCODE = 0;
@@ -19,15 +16,9 @@ public final class ControlMessage {
     public static final int TYPE_SET_CLIPBOARD = 9;
     public static final int TYPE_SET_DISPLAY_POWER = 10;
     public static final int TYPE_ROTATE_DEVICE = 11;
-    public static final int TYPE_UHID_CREATE = 12;
-    public static final int TYPE_UHID_INPUT = 13;
-    public static final int TYPE_UHID_DESTROY = 14;
     public static final int TYPE_OPEN_HARD_KEYBOARD_SETTINGS = 15;
     public static final int TYPE_START_APP = 16;
     public static final int TYPE_RESET_VIDEO = 17;
-    public static final int TYPE_CAMERA_SET_TORCH = 18;
-    public static final int TYPE_CAMERA_ZOOM_IN = 19;
-    public static final int TYPE_CAMERA_ZOOM_OUT = 20;
     public static final int TYPE_RESIZE_DISPLAY = 21;
     public static final int TYPE_SCAN_FILE = 22;
     public static final int TYPE_SET_VIDEO_PARAMS = 23;
@@ -40,11 +31,11 @@ public final class ControlMessage {
 
     private int type;
     private String text;
-    private int metaState; // KeyEvent.META_*
-    private int action; // KeyEvent.ACTION_* or MotionEvent.ACTION_*
-    private int keycode; // KeyEvent.KEYCODE_*
-    private int actionButton; // MotionEvent.BUTTON_*
-    private int buttons; // MotionEvent.BUTTON_*
+    private int metaState;
+    private int action;
+    private int keycode;
+    private int actionButton;
+    private int buttons;
     private long pointerId;
     private float pressure;
     private Position position;
@@ -54,11 +45,7 @@ public final class ControlMessage {
     private boolean paste;
     private int repeat;
     private long sequence;
-    private int id;
-    private byte[] data;
     private boolean on;
-    private int vendorId;
-    private int productId;
     private int width;
     private int height;
     private int bitRate;
@@ -143,43 +130,10 @@ public final class ControlMessage {
         return msg;
     }
 
-    public static ControlMessage createUhidCreate(int id, int vendorId, int productId, String name, byte[] reportDesc) {
-        ControlMessage msg = new ControlMessage();
-        msg.type = TYPE_UHID_CREATE;
-        msg.id = id;
-        msg.vendorId = vendorId;
-        msg.productId = productId;
-        msg.text = name;
-        msg.data = reportDesc;
-        return msg;
-    }
-
-    public static ControlMessage createUhidInput(int id, byte[] data) {
-        ControlMessage msg = new ControlMessage();
-        msg.type = TYPE_UHID_INPUT;
-        msg.id = id;
-        msg.data = data;
-        return msg;
-    }
-
-    public static ControlMessage createUhidDestroy(int id) {
-        ControlMessage msg = new ControlMessage();
-        msg.type = TYPE_UHID_DESTROY;
-        msg.id = id;
-        return msg;
-    }
-
     public static ControlMessage createStartApp(String name) {
         ControlMessage msg = new ControlMessage();
         msg.type = TYPE_START_APP;
         msg.text = name;
-        return msg;
-    }
-
-    public static ControlMessage createCameraSetTorch(boolean on) {
-        ControlMessage msg = new ControlMessage();
-        msg.type = TYPE_CAMERA_SET_TORCH;
-        msg.on = on;
         return msg;
     }
 
@@ -198,7 +152,6 @@ public final class ControlMessage {
         return msg;
     }
 
-    // Réglage à chaud du débit vidéo + suspension de l'entrée de l'encodeur.
     public static ControlMessage createSetVideoParams(int bitRate, boolean suspend) {
         ControlMessage msg = new ControlMessage();
         msg.type = TYPE_SET_VIDEO_PARAMS;
@@ -271,24 +224,8 @@ public final class ControlMessage {
         return sequence;
     }
 
-    public int getId() {
-        return id;
-    }
-
-    public byte[] getData() {
-        return data;
-    }
-
     public boolean getOn() {
         return on;
-    }
-
-    public int getVendorId() {
-        return vendorId;
-    }
-
-    public int getProductId() {
-        return productId;
     }
 
     public int getWidth() {

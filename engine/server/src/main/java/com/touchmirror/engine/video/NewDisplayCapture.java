@@ -27,7 +27,6 @@ import java.io.IOException;
 
 public class NewDisplayCapture extends SurfaceCapture {
 
-    // Internal fields copied from android.hardware.display.DisplayManager
     private static final int VIRTUAL_DISPLAY_FLAG_PUBLIC = android.hardware.display.DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC;
     private static final int VIRTUAL_DISPLAY_FLAG_PRESENTATION = android.hardware.display.DisplayManager.VIRTUAL_DISPLAY_FLAG_PRESENTATION;
     private static final int VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY = android.hardware.display.DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY;
@@ -68,8 +67,8 @@ public class NewDisplayCapture extends SurfaceCapture {
     private Surface boundSurface;
     private volatile boolean captureSuspended;
     private Size videoSize;
-    private Size displaySize; // the logical size of the display (including rotation)
-    private Size physicalSize; // the physical size of the display (without rotation)
+    private Size displaySize;
+    private Size physicalSize;
 
     private DisplayPropertiesTracker tracker;
     private DisplayResizeDebouncer debouncer;
@@ -94,7 +93,7 @@ public class NewDisplayCapture extends SurfaceCapture {
 
     @Override
     protected void init(VideoConstraints videoConstraints) {
-        setVideoConstraints(videoConstraints); // synchronized
+        setVideoConstraints(videoConstraints);
 
         displaySize = newDisplay.getSize();
         dpi = newDisplay.getDpi();
@@ -107,7 +106,6 @@ public class NewDisplayCapture extends SurfaceCapture {
             debouncer = new DisplayResizeDebouncer(this::triggerResize);
             debouncer.start();
 
-            // Hardcode default values if not defined
             if (displaySize == null) {
                 displaySize = new Size(1280, 960);
             }
@@ -119,7 +117,7 @@ public class NewDisplayCapture extends SurfaceCapture {
             if (displayInfo != null) {
                 mainDisplaySize = displayInfo.getSize();
                 if ((displayInfo.getRotation() % 2) != 0) {
-                    mainDisplaySize = mainDisplaySize.rotate(); // Use the natural device orientation (at rotation 0), not the current one
+                    mainDisplaySize = mainDisplaySize.rotate();
                 }
                 mainDisplayDpi = displayInfo.getDpi();
             } else {
@@ -143,7 +141,6 @@ public class NewDisplayCapture extends SurfaceCapture {
                     displaySize = mainDisplaySize;
                 }
 
-                // Align the physical display size to avoid unnecessary mismatches with the output size
                 displaySize = displaySize.align(videoConstraints.getAlignment());
             }
 
@@ -153,7 +150,6 @@ public class NewDisplayCapture extends SurfaceCapture {
             }
 
             displayRotation = 0;
-            // Set the current display properties to avoid an unnecessary capture reset
             displayMonitor.setSessionDisplayProperties(new DisplayProperties(displaySize, displayRotation));
         } else {
             DisplayInfo displayInfo = ServiceManager.getDisplayManager().getDisplayInfo(virtualDisplay.getDisplay().getDisplayId());
@@ -163,7 +159,6 @@ public class NewDisplayCapture extends SurfaceCapture {
             if (flexDisplay) {
                 displaySize = displaySize.constrain(videoConstraints, false);
             } else {
-                // Align the physical display size to avoid unnecessary mismatches with the output size
                 displaySize = displaySize.align(videoConstraints.getAlignment());
             }
         }
@@ -188,12 +183,8 @@ public class NewDisplayCapture extends SurfaceCapture {
 
         eventTransform = filter.getInverseTransform();
 
-        // DisplayInfo gives the oriented size (so videoSize includes the display rotation)
         videoSize = filter.getOutputSize();
 
-        // However, the virtual display video always remains in its original orientation, so it must be rotated manually.
-        // This additional display rotation must not be included in the input events transform (the expected coordinates are already in the
-        // physical display size)
         if ((displayRotation % 2) == 0) {
             physicalSize = displaySize;
         } else {
@@ -203,10 +194,6 @@ public class NewDisplayCapture extends SurfaceCapture {
         displayFilter.addRotation(displayRotation);
         AffineMatrix displayRotationMatrix = displayFilter.getInverseTransform();
 
-        // Take care of multiplication order:
-        //   displayTransform = (FILTER_MATRIX * DISPLAY_FILTER_MATRIX)⁻¹
-        //                    = DISPLAY_FILTER_MATRIX⁻¹ * FILTER_MATRIX⁻¹
-        //                    = displayRotationMatrix * eventTransform
         displayTransform = AffineMatrix.multiplyAll(displayRotationMatrix, eventTransform);
     }
 
@@ -235,7 +222,7 @@ public class NewDisplayCapture extends SurfaceCapture {
             }
             VirtualDisplay vd = ServiceManager.getDisplayManager()
                     .createNewVirtualDisplay("touchmirror", displaySize.getWidth(), displaySize.getHeight(), dpi, surface, flags);
-            setCurrentVirtualDisplay(vd); // used for client resize
+            setCurrentVirtualDisplay(vd);
             int virtualDisplayId = vd.getDisplay().getDisplayId();
             Ln.i("New display: " + displaySize.getWidth() + "x" + displaySize.getHeight() + "/" + dpi + " (id=" + virtualDisplayId + ")");
 
@@ -251,7 +238,6 @@ public class NewDisplayCapture extends SurfaceCapture {
                         reason = CaptureControl.RESET_REASON_CLIENT_RESIZED;
                     } else {
                         reason = CaptureControl.RESET_REASON_DISPLAY_PROPERTIES_CHANGED;
-                        // Display properties have changed, cancel pending client resize requests
                         debouncer.cancelResize();
                     }
                 } else {
@@ -323,7 +309,6 @@ public class NewDisplayCapture extends SurfaceCapture {
         }
 
         if (virtualDisplay != null) {
-            // synchronized with triggerResize()
             synchronized (this) {
                 virtualDisplay.release();
                 setCurrentVirtualDisplay(null);
@@ -338,7 +323,7 @@ public class NewDisplayCapture extends SurfaceCapture {
 
     @Override
     protected boolean applyNewVideoConstraints(VideoConstraints videoConstraints) {
-        setVideoConstraints(videoConstraints); // with synchronization
+        setVideoConstraints(videoConstraints);
         return true;
     }
 
@@ -353,7 +338,7 @@ public class NewDisplayCapture extends SurfaceCapture {
             throw new IllegalStateException("Cannot resize a non-flex display");
         }
 
-        VideoConstraints constraints = getVideoConstraints(); // synchronized
+        VideoConstraints constraints = getVideoConstraints();
         Size newSize = new Size(width, height).constrain(constraints, false);
         if (Ln.isEnabled(Ln.Level.VERBOSE)) {
             Ln.v(getClass().getSimpleName() + ": requestResize(" + width + ", " + height + ")");
@@ -377,10 +362,10 @@ public class NewDisplayCapture extends SurfaceCapture {
 
     private synchronized void triggerResize(Size size) {
         if (virtualDisplay != null) {
-            size = size.constrain(videoConstraints, false); // in case the constraints have changed
+            size = size.constrain(videoConstraints, false);
             int displayId = virtualDisplay.getDisplay().getDisplayId();
             DisplayInfo displayInfo = ServiceManager.getDisplayManager().getDisplayInfo(displayId);
-            @SuppressWarnings("checkstyle:HiddenField") // hides this.dpi on purpose
+            @SuppressWarnings("checkstyle:HiddenField")
             int dpi = displayInfo.getDpi();
             int displayRotation = displayInfo.getRotation();
             if (captureOrientation.isSwap()) {
@@ -388,7 +373,6 @@ public class NewDisplayCapture extends SurfaceCapture {
             }
             tracker.pushClientRequest(new DisplayProperties(size, displayRotation));
 
-            // Although the display size (as detected by the DisplayMonitor) is rotated, the virtual display itself is not
             Size vdSize = (displayRotation % 2) == 0 ? size : size.rotate();
             virtualDisplay.resize(vdSize.getWidth(), vdSize.getHeight(), dpi);
         }

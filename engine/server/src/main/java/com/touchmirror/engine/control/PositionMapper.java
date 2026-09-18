@@ -34,8 +34,6 @@ public final class PositionMapper {
     public Point map(Position position) {
         Size clientVideoSize = position.getScreenSize();
         if (!videoSize.equals(clientVideoSize)) {
-            // The client sends a click relative to a video with wrong dimensions,
-            // the device may have been rotated since the event was generated, so ignore the event
             return null;
         }
 

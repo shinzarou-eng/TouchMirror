@@ -55,14 +55,12 @@ public final class InputManager {
                 if (cause instanceof SecurityException) {
                     String message = e.getCause().getMessage();
                     if (message != null && message.contains("INJECT_EVENTS permission")) {
-                        // Do not flood the console, limit to one permission error log every 3 seconds
                         long now = System.currentTimeMillis();
                         if (lastPermissionLogDate <= now - 3000) {
                             Ln.e(message);
                             Ln.e("Make sure you have enabled \"USB debugging (Security Settings)\" and then rebooted your device.");
                             lastPermissionLogDate = now;
                         }
-                        // Do not print the stack trace
                         return false;
                     }
                 }

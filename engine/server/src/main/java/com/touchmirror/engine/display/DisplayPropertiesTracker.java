@@ -7,7 +7,7 @@ import java.util.List;
 
 public class DisplayPropertiesTracker {
 
-    private static final long PENDING_CACHE_DURATION = 3000; // ms
+    private static final long PENDING_CACHE_DURATION = 3000;
 
     private static class PendingChange {
         private final DisplayProperties props;
@@ -26,12 +26,6 @@ public class DisplayPropertiesTracker {
         pending.add(new PendingChange(props, now));
     }
 
-    /**
-     * Function to be called when the display properties changed.
-     *
-     * @param props the new display properties
-     * @return {@code true} if this change is the result of a client request
-     */
     public synchronized boolean onChanged(DisplayProperties props) {
         cleanExpired();
         int index = getMatchingPendingIndex(props);
@@ -69,15 +63,12 @@ public class DisplayPropertiesTracker {
 
         int firstNonExpiredIndex = getFirstNonExpiredIndex();
         if (firstNonExpiredIndex == 0) {
-            // All items are fresh
             return;
         }
 
         if (firstNonExpiredIndex == -1) {
-            // All items have expired
             pending.clear();
         } else {
-            // Remove all the items up to the first non-expired index
             pending.subList(0, firstNonExpiredIndex).clear();
         }
     }

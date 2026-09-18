@@ -18,15 +18,9 @@ public enum ControlMsgType : byte
     SetClipboard = 9,
     SetDisplayPower = 10,
     RotateDevice = 11,
-    UhidCreate = 12,
-    UhidInput = 13,
-    UhidDestroy = 14,
     OpenHardKeyboardSettings = 15,
     StartApp = 16,
     ResetVideo = 17,
-    CameraSetTorch = 18,
-    CameraZoomIn = 19,
-    CameraZoomOut = 20,
     ResizeDisplay = 21,
     ScanFile = 22,
     SetVideoParams = 23,
@@ -36,7 +30,6 @@ public enum DeviceMsgType : byte
 {
     Clipboard = 0,
     AckClipboard = 1,
-    UhidOutput = 2,
 }
 
 public static class AndroidMotionEvent
@@ -273,6 +266,16 @@ public sealed class ControlChannel : IDisposable
         Send(buf);
     }
 
+    public void ScanFile(string path)
+    {
+        var bytes = Encoding.UTF8.GetBytes(path);
+        var buf = new byte[5 + bytes.Length];
+        buf[0] = (byte)ControlMsgType.ScanFile;
+        BinaryPrimitives.WriteUInt32BigEndian(buf.AsSpan(1, 4), (uint)bytes.Length);
+        bytes.CopyTo(buf, 5);
+        Send(buf);
+    }
+
     private static ushort EncodePressure(float p)
         => (ushort)Math.Clamp((int)MathF.Round(p * 0xFFFF), 0, 0xFFFF);
 
@@ -300,12 +303,6 @@ public sealed class ControlChannel : IDisposable
                         break;
                     case DeviceMsgType.AckClipboard:
                         if (!await ReadExactAsync(header.AsMemory(0, 8))) return;
-                        break;
-                    case DeviceMsgType.UhidOutput:
-                        if (!await ReadExactAsync(header.AsMemory(0, 4))) return;
-                        var size = BinaryPrimitives.ReadUInt16BigEndian(header.AsSpan(2));
-                        var skip = new byte[size];
-                        if (!await ReadExactAsync(skip)) return;
                         break;
                     default:
                         return;

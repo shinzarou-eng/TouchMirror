@@ -29,8 +29,6 @@ public final class ActivityManager {
 
     static ActivityManager create() {
         try {
-            // On old Android versions, the ActivityManager is not exposed via AIDL,
-            // so use ActivityManagerNative.getDefault()
             Class<?> cls = Class.forName("android.app.ActivityManagerNative");
             Method getDefaultMethod = cls.getDeclaredMethod("getDefault");
             IInterface am = (IInterface) getDefaultMethod.invoke(null);
@@ -50,7 +48,6 @@ public final class ActivityManager {
                 getContentProviderExternalMethod = manager.getClass()
                         .getMethod("getContentProviderExternal", String.class, int.class, IBinder.class, String.class);
             } catch (NoSuchMethodException e) {
-                // old version
                 getContentProviderExternalMethod = manager.getClass().getMethod("getContentProviderExternal", String.class, int.class, IBinder.class);
                 getContentProviderExternalMethodNewVersion = false;
             }
@@ -71,22 +68,18 @@ public final class ActivityManager {
             Method method = getGetContentProviderExternalMethod();
             Object[] args;
             if (getContentProviderExternalMethodNewVersion) {
-                // new version
                 args = new Object[]{name, FakeContext.ROOT_UID, token, null};
             } else {
-                // old version
                 args = new Object[]{name, FakeContext.ROOT_UID, token};
             }
-            // ContentProviderHolder providerHolder = getContentProviderExternal(...);
             Object providerHolder = method.invoke(manager, args);
             if (providerHolder == null) {
                 return null;
             }
-            // IContentProvider provider = providerHolder.provider;
             Field providerField = providerHolder.getClass().getDeclaredField("provider");
             providerField.setAccessible(true);
             return (IContentProvider) providerField.get(providerHolder);
-        } catch (ReflectiveOperationException e) {
+        } catch (ReflectiveOperationException | ClassCastException e) {
             Ln.e("Could not invoke method", e);
             return null;
         }
@@ -130,18 +123,18 @@ public final class ActivityManager {
         try {
             Method method = getStartActivityAsUserMethod();
             return (int) method.invoke(
-                    /* this */ manager,
-                    /* caller */ null,
-                    /* callingPackage */ FakeContext.PACKAGE_NAME,
-                    /* intent */ intent,
-                    /* resolvedType */ null,
-                    /* resultTo */ null,
-                    /* resultWho */ null,
-                    /* requestCode */ 0,
-                    /* startFlags */ 0,
-                    /* profilerInfo */ null,
-                    /* bOptions */ options,
-                    /* userId */ /* UserHandle.USER_CURRENT */ -2);
+                     manager,
+                     null,
+                     FakeContext.PACKAGE_NAME,
+                     intent,
+                     null,
+                     null,
+                     null,
+                     0,
+                     0,
+                     null,
+                     options,
+                      -2);
         } catch (Throwable e) {
             Ln.e("Could not invoke method", e);
             return 0;
@@ -158,7 +151,7 @@ public final class ActivityManager {
     public void forceStopPackage(String packageName) {
         try {
             Method method = getForceStopPackageMethod();
-            method.invoke(manager, packageName, /* userId */ /* UserHandle.USER_CURRENT */ -2);
+            method.invoke(manager, packageName,   -2);
         } catch (Throwable e) {
             Ln.e("Could not invoke method", e);
         }
@@ -181,10 +174,8 @@ public final class ActivityManager {
 
     public void sendBroadcast(Intent intent) {
         try {
-            // Equivalent to:
-            //     adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file://<path>
             Method method = getBroadcastIntentMethod();
-            method.invoke(manager, null, intent, null, null, 0, null, null, null, -1, null, true, false, /* userId */ -2);
+            method.invoke(manager, null, intent, null, null, 0, null, null, null, -1, null, true, false,  -2);
         } catch (Throwable e) {
             Ln.e("Could not invoke method", e);
         }

@@ -19,10 +19,6 @@ public class DisplayMonitor {
         void onDisplayPropertiesChanged(DisplayProperties props);
     }
 
-    // On Android 14, DisplayListener may be broken (it never sends events). This is fixed in recent Android 14 upgrades, but we can't really
-    // detect it directly, so register a DisplayWindowListener (introduced in Android 11) to listen to configuration changes instead.
-    // It has been broken again after an Android 15 upgrade: <https://github.com/Genymobile/scrcpy/issues/5908>
-    // So use the default method only before Android 14.
     private static final boolean USE_DEFAULT_METHOD = Build.VERSION.SDK_INT < AndroidVersions.API_34_ANDROID_14;
 
     private DisplayManager.DisplayListenerHandle displayListenerHandle;
@@ -55,7 +51,6 @@ public class DisplayMonitor {
     };
 
     public void start(int displayId, Listener listener) {
-        // Once started, the listener and the displayId must never change
         assert listener != null;
         this.listener = listener;
 
@@ -107,15 +102,8 @@ public class DisplayMonitor {
         pollHandler.postDelayed(pollRunnable, POLL_INTERVAL_MS);
     }
 
-    /**
-     * Stop and release the monitor.
-     * <p/>
-     * It must not be used anymore.
-     * It is ok to call this method even if {@link #start(int, Listener)} was not called.
-     */
     public void stopAndRelease() {
         if (USE_DEFAULT_METHOD) {
-            // displayListenerHandle may be null if registration failed
             if (displayListenerHandle != null) {
                 ServiceManager.getDisplayManager().unregisterDisplayListener(displayListenerHandle);
                 displayListenerHandle = null;
@@ -149,8 +137,7 @@ public class DisplayMonitor {
         DisplayInfo di = ServiceManager.getDisplayManager().getDisplayInfo(displayId);
         if (di == null) {
             Ln.w("DisplayInfo for " + displayId + " cannot be retrieved");
-            // We can't compare with the current properties, so reset unconditionally
-            DisplayProperties oldProps = getAndSetDisplayProperties(null); // exchange with synchronization
+            DisplayProperties oldProps = getAndSetDisplayProperties(null);
             if (Ln.isEnabled(Ln.Level.VERBOSE)) {
                 Ln.v("DisplayMonitor: " + oldProps + " -> (unknown)");
             }
@@ -158,9 +145,8 @@ public class DisplayMonitor {
         } else {
             DisplayProperties newProps = new DisplayProperties(di.getSize(), di.getRotation());
 
-            DisplayProperties oldProps = getAndSetDisplayProperties(newProps); // exchange with synchronization
+            DisplayProperties oldProps = getAndSetDisplayProperties(newProps);
             if (!newProps.equals(oldProps)) {
-                // Reset only if the properties are different
                 if (Ln.isEnabled(Ln.Level.VERBOSE)) {
                     Ln.v("DisplayMonitor: " + oldProps + " -> " + newProps);
                 }

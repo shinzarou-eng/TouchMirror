@@ -653,6 +653,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(HasMissingDevices));
         OnPropertyChanged(nameof(HasStripContent));
         LoadEffectiveSettings();
+        Status = L("st.select_device");
         SaveNow();
     }
 
@@ -1219,6 +1220,7 @@ public partial class MainViewModel : ObservableObject
             ? $"com.ankama.dofustouch@{account.UserId}"
             : AutoLaunchDofus ? "com.ankama.dofustouch" : null,
         AdaptiveBitrate = o?.AdaptiveBitrate ?? _settings.AdaptiveBitrate,
+        ClipboardAutosync = SyncDeviceClipboard,
     };
 
     private WorkspaceDevice? ActivePrefs() => ActiveMirror?.Prefs;
@@ -1945,8 +1947,7 @@ public partial class MainViewModel : ObservableObject
 
     private string AirPlayStatusText(IosMirrorInstance? tile = null)
     {
-        var dir = Path.Combine(AppContext.BaseDirectory, "assets", "airplay", "AirPlayHost.exe");
-        var diag = AirPlayDiagnostics.Run(dir, _airPlay?.HostPid ?? 0,
+        var diag = AirPlayDiagnostics.Run(Environment.ProcessPath ?? "", Environment.ProcessId,
             AirPlayService.RaopPort, AirPlayService.AirPlayPort, 7100);
         if (diag.LocalIPv4 != null)
             Log($"airplay diag: ip={diag.LocalIPv4} profil={diag.ProfileKind ?? "?"}");

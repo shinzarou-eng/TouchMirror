@@ -2,7 +2,6 @@ package com.touchmirror.engine.model;
 
 public enum Orientation {
 
-    // @formatter:off
     Orient0("0"),
     Orient90("90"),
     Orient180("180"),
@@ -34,7 +33,6 @@ public enum Orientation {
 
     public static Orientation fromRotation(int ccwRotation) {
         assert ccwRotation >= 0 && ccwRotation < 4;
-        // Display rotation is expressed counter-clockwise, orientation is expressed clockwise
         int cwRotation = (4 - ccwRotation) % 4;
         return values()[cwRotation];
     }
@@ -48,7 +46,6 @@ public enum Orientation {
     }
 
     public boolean isSwap() {
-        // width and height are swapped on 90-degree rotations
         return (ordinal() & 1) != 0;
     }
 }

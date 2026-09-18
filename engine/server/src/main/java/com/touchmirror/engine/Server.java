@@ -2,11 +2,10 @@ package com.touchmirror.engine;
 
 import com.touchmirror.engine.audio.AudioCapture;
 import com.touchmirror.engine.audio.AudioCodec;
-import com.touchmirror.engine.audio.AudioDirectCapture;
 import com.touchmirror.engine.audio.AudioEncoder;
-import com.touchmirror.engine.audio.AudioPlaybackCapture;
-import com.touchmirror.engine.audio.AudioRawRecorder;
+import com.touchmirror.engine.audio.AudioDirectCapture;
 import com.touchmirror.engine.audio.AudioSource;
+import com.touchmirror.engine.audio.AudioRawRecorder;
 import com.touchmirror.engine.control.ControlChannel;
 import com.touchmirror.engine.control.Controller;
 import com.touchmirror.engine.device.DesktopConnection;
@@ -16,13 +15,10 @@ import com.touchmirror.engine.model.ConfigurationException;
 import com.touchmirror.engine.model.NewDisplay;
 import com.touchmirror.engine.opengl.OpenGLRunner;
 import com.touchmirror.engine.util.Ln;
-import com.touchmirror.engine.util.LogUtils;
-import com.touchmirror.engine.video.CameraCapture;
 import com.touchmirror.engine.video.NewDisplayCapture;
 import com.touchmirror.engine.video.ScreenCapture;
 import com.touchmirror.engine.video.SurfaceCapture;
 import com.touchmirror.engine.video.SurfaceEncoder;
-import com.touchmirror.engine.video.VideoSource;
 
 import android.annotation.SuppressLint;
 import android.os.Build;
@@ -41,7 +37,6 @@ public final class Server {
 
     static {
         String[] classPaths = System.getProperty("java.class.path").split(File.pathSeparator);
-        // By convention, scrcpy is always executed with the absolute path of scrcpy-server.jar as the first item in the classpath
         SERVER_PATH = classPaths[0];
     }
 
@@ -65,15 +60,9 @@ public final class Server {
     }
 
     private Server() {
-        // not instantiable
     }
 
-    private static void scrcpy(Options options) throws IOException, ConfigurationException {
-        if (Build.VERSION.SDK_INT < AndroidVersions.API_31_ANDROID_12 && options.getVideoSource() == VideoSource.CAMERA) {
-            Ln.e("Camera mirroring is not supported before Android 12");
-            throw new ConfigurationException("Camera mirroring is not supported");
-        }
-
+    private static void mirror(Options options) throws IOException, ConfigurationException {
         if (Build.VERSION.SDK_INT < AndroidVersions.API_29_ANDROID_10) {
             if (options.getNewDisplay() != null) {
                 Ln.e("New virtual display is not supported before Android 10");
@@ -100,11 +89,10 @@ public final class Server {
 
         Workarounds.apply();
 
-        // TouchMirror : lance l'app demandée (start_app=...) pendant que la session se connecte
         String startApp = options.getStartApp();
         if (startApp != null) {
             int startAppDisplayId = options.getDisplayId() != Device.DISPLAY_ID_NONE
-                    ? options.getDisplayId() : 0; // écran principal par défaut
+                    ? options.getDisplayId() : 0;
             new Thread(() -> Device.startApp(startApp, startAppDisplayId), "start-app").start();
         }
 
@@ -126,13 +114,7 @@ public final class Server {
 
             if (audio) {
                 AudioCodec audioCodec = options.getAudioCodec();
-                AudioSource audioSource = options.getAudioSource();
-                AudioCapture audioCapture;
-                if (audioSource.isDirect()) {
-                    audioCapture = new AudioDirectCapture(audioSource);
-                } else {
-                    audioCapture = new AudioPlaybackCapture(options.getAudioDup());
-                }
+                AudioCapture audioCapture = new AudioDirectCapture(AudioSource.OUTPUT);
 
                 Streamer audioStreamer = new Streamer(connection.getAudioFd(), audioCodec, options.getSendStreamMeta(), options.getSendFrameMeta());
                 AsyncProcessor audioRecorder;
@@ -148,16 +130,12 @@ public final class Server {
                 Streamer videoStreamer = new Streamer(connection.getVideoFd(), options.getVideoCodec(), options.getSendStreamMeta(),
                         options.getSendFrameMeta());
                 SurfaceCapture surfaceCapture;
-                if (options.getVideoSource() == VideoSource.DISPLAY) {
-                    NewDisplay newDisplay = options.getNewDisplay();
-                    if (newDisplay != null) {
-                        surfaceCapture = new NewDisplayCapture(controller, options);
-                    } else {
-                        assert options.getDisplayId() != Device.DISPLAY_ID_NONE;
-                        surfaceCapture = new ScreenCapture(controller, options);
-                    }
+                NewDisplay newDisplay = options.getNewDisplay();
+                if (newDisplay != null) {
+                    surfaceCapture = new NewDisplayCapture(controller, options);
                 } else {
-                    surfaceCapture = new CameraCapture(options);
+                    assert options.getDisplayId() != Device.DISPLAY_ID_NONE;
+                    surfaceCapture = new ScreenCapture(controller, options);
                 }
                 SurfaceEncoder surfaceEncoder = new SurfaceEncoder(surfaceCapture, videoStreamer, options);
                 asyncProcessors.add(surfaceEncoder);
@@ -174,7 +152,7 @@ public final class Server {
                 });
             }
 
-            Looper.loop(); // interrupted by the Completion implementation
+            Looper.loop();
         } finally {
             if (cleanUp != null) {
                 cleanUp.interrupt();
@@ -195,7 +173,6 @@ public final class Server {
 
                 OpenGLRunner.shutdown();
             } catch (InterruptedException e) {
-                // ignore
             }
 
             connection.close();
@@ -203,7 +180,6 @@ public final class Server {
     }
 
     private static void prepareMainLooper() {
-        // Like Looper.prepareMainLooper(), but with quitAllowed set to true
         Looper.prepare();
         synchronized (Looper.class) {
             try {
@@ -225,9 +201,6 @@ public final class Server {
             Ln.e(t.getMessage(), t);
             status = 1;
         } finally {
-            // By default, the Java process exits when all non-daemon threads are terminated.
-            // The Android SDK might start some non-daemon threads internally, preventing the scrcpy server to exit.
-            // So force the process to exit explicitly.
             System.exit(status);
         }
     }
@@ -252,35 +225,9 @@ public final class Server {
 
         Ln.i("Device: [" + Build.MANUFACTURER + "] " + Build.BRAND + " " + Build.MODEL + " (Android " + Build.VERSION.RELEASE + ")");
 
-        if (options.getList()) {
-            if (options.getCleanup()) {
-                CleanUp.unlinkSelf();
-            }
-
-            if (options.getListEncoders()) {
-                Ln.i(LogUtils.buildVideoEncoderListMessage());
-                Ln.i(LogUtils.buildAudioEncoderListMessage());
-            }
-            if (options.getListDisplays()) {
-                Ln.i(LogUtils.buildDisplayListMessage());
-            }
-            if (options.getListCameras() || options.getListCameraSizes()) {
-                Workarounds.apply();
-                Ln.i(LogUtils.buildCameraListMessage(options.getListCameraSizes()));
-            }
-            if (options.getListApps()) {
-                Workarounds.apply();
-                Ln.i("Processing Android apps... (this may take some time)");
-                Ln.i(LogUtils.buildAppListMessage());
-            }
-            // Just print the requested data, do not mirror
-            return;
-        }
-
         try {
-            scrcpy(options);
+            mirror(options);
         } catch (ConfigurationException e) {
-            // Do not print stack trace, a user-friendly error-message has already been logged
         }
     }
 
@@ -288,8 +235,6 @@ public final class Server {
     private static void dropRootPrivileges() {
         try {
             if (Os.getuid() == 0) {
-                // Copy-paste does not work with root user
-                // <https://github.com/Genymobile/scrcpy/issues/6224>
                 Os.setuid(2000);
             }
         } catch (Exception e) {

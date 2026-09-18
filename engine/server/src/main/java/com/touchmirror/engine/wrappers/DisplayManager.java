@@ -25,16 +25,9 @@ import java.util.regex.Pattern;
 @SuppressLint("PrivateApi,DiscouragedPrivateApi")
 public final class DisplayManager {
 
-    // android.hardware.display.DisplayManager.EVENT_FLAG_DISPLAY_CHANGED
     public static final long EVENT_FLAG_DISPLAY_CHANGED = 1L << 2;
 
     public interface DisplayListener {
-        /**
-         * Called whenever the properties of a logical {@link android.view.Display},
-         * such as size and density, have changed.
-         *
-         * @param displayId The id of the logical display that changed.
-         */
         void onDisplayChanged(int displayId);
     }
 
@@ -45,7 +38,7 @@ public final class DisplayManager {
         }
     }
 
-    private final Object manager; // instance of hidden class android.hardware.display.DisplayManagerGlobal
+    private final Object manager;
     private Method getDisplayInfoMethod;
     private Method createVirtualDisplayMethod;
     private Method requestDisplayPowerMethod;
@@ -65,7 +58,6 @@ public final class DisplayManager {
         this.manager = manager;
     }
 
-    // public to call it from unit tests
     public static DisplayInfo parseDisplayInfo(String dumpsysDisplayOutput, int displayId) {
         Pattern regex = Pattern.compile(
                 "^    mOverrideDisplayInfo=DisplayInfo\\{\".*?, displayId " + displayId + ".*?(, FLAG_.*)?, real ([0-9]+) x ([0-9]+).*?, "
@@ -109,13 +101,11 @@ public final class DisplayManager {
                 Field filed = Display.class.getDeclaredField(flagString);
                 flags |= filed.getInt(null);
             } catch (ReflectiveOperationException e) {
-                // Silently ignore, some flags reported by "dumpsys display" are @TestApi
             }
         }
         return flags;
     }
 
-    // getDisplayInfo() may be used from both the Controller thread and the video (main) thread
     private synchronized Method getGetDisplayInfoMethod() throws NoSuchMethodException {
         if (getDisplayInfoMethod == null) {
             getDisplayInfoMethod = manager.getClass().getMethod("getDisplayInfo", int.class);
@@ -128,11 +118,9 @@ public final class DisplayManager {
             Method method = getGetDisplayInfoMethod();
             Object displayInfo = method.invoke(manager, displayId);
             if (displayInfo == null) {
-                // fallback when displayInfo is null
                 return getDisplayInfoFromDumpsysDisplay(displayId);
             }
             Class<?> cls = displayInfo.getClass();
-            // width and height already take the rotation into account
             int width = cls.getDeclaredField("logicalWidth").getInt(displayInfo);
             int height = cls.getDeclaredField("logicalHeight").getInt(displayInfo);
             int rotation = cls.getDeclaredField("rotation").getInt(displayInfo);
@@ -143,7 +131,6 @@ public final class DisplayManager {
             try {
                 uniqueId = (String) cls.getDeclaredField("uniqueId").get(displayInfo);
             } catch (NoSuchFieldException e) {
-                // This field might not exist: <https://github.com/Genymobile/scrcpy/issues/6461>
                 uniqueId = null;
             }
             return new DisplayInfo(displayId, new Size(width, height), rotation, layerStack, flags, dpi, uniqueId);
@@ -232,7 +219,6 @@ public final class DisplayManager {
 
             return new DisplayListenerHandle(displayListenerProxy);
         } catch (Exception e) {
-            // Rotation and screen size won't be updated, not a fatal error
             Ln.e("Could not register display listener", e);
         }
 

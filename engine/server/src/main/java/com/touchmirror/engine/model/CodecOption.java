@@ -45,10 +45,8 @@ public class CodecOption {
                         buf.append(',');
                         escape = false;
                     } else {
-                        // This comma is a separator between codec options
                         String codecOption = buf.toString();
                         result.add(parseOption(codecOption));
-                        // Clear buf
                         buf.setLength(0);
                     }
                     break;
@@ -85,7 +83,7 @@ public class CodecOption {
             type = keyAndType.substring(colonIndex + 1);
         } else {
             key = keyAndType;
-            type = "int"; // assume int by default
+            type = "int";
         }
 
         Object value;

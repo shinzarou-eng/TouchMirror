@@ -10,6 +10,7 @@ public partial class MarketplaceItem : ObservableObject
     public string Id => Entry.Id;
     public string Name => Entry.Name;
     public string Icon => string.IsNullOrEmpty(Entry.Icon) ? "🧩" : Entry.Icon;
+    public Wpf.Ui.Controls.SymbolRegular Symbol => PluginIcons.For(Id);
     public string Description => Entry.Description;
     public string Meta => $"v{Entry.Version} · {Entry.Author}";
     public bool Official => Entry.Official;
@@ -41,8 +42,10 @@ public partial class MarketplaceItem : ObservableObject
         var p = installed.FirstOrDefault(x => x.Id == Id);
         IsPresent = p != null;
         IsActive = p?.Running == true;
-        IsInstalled = p?.ContentHash != null
-                      && string.Equals(p.ContentHash, Entry.Hash, StringComparison.OrdinalIgnoreCase);
+        var trusted = p?.IsVerified == true
+                      || (p?.ContentHash != null
+                          && string.Equals(p.ContentHash, Entry.Hash, StringComparison.OrdinalIgnoreCase));
+        IsInstalled = trusted && p?.Version == Entry.Version;
         if (IsInstalled)
         {
             ActionLabel = LocalizationService.Get("installe");

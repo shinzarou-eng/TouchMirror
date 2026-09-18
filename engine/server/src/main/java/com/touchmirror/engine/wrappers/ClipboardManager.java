@@ -11,9 +11,6 @@ public final class ClipboardManager {
     static ClipboardManager create() {
         android.content.ClipboardManager manager = (android.content.ClipboardManager) FakeContext.get().getSystemService(Context.CLIPBOARD_SERVICE);
         if (manager == null) {
-            // Some devices have no clipboard manager
-            // <https://github.com/Genymobile/scrcpy/issues/1440>
-            // <https://github.com/Genymobile/scrcpy/issues/1556>
             return null;
         }
         return new ClipboardManager(manager);

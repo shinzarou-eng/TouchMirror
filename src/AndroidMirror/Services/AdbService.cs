@@ -247,6 +247,9 @@ public static class AdbService
     public static async Task PushAsync(string serial, string localPath, string remotePath, CancellationToken ct = default)
         => await RunAsync($"-s {S(serial)} push \"{localPath}\" {remotePath}", ct);
 
+    public static async Task<string> InstallApkAsync(string serial, string localPath, CancellationToken ct = default)
+        => await RunAsync($"-s {S(serial)} install -r \"{localPath}\"", ct);
+
     public static async Task ReverseAsync(string serial, string deviceSocket, int localPort, CancellationToken ct = default)
         => await RunAsync($"-s {S(serial)} reverse localabstract:{deviceSocket} tcp:{localPort}", ct);
 

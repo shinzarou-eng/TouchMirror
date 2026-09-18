@@ -13,7 +13,7 @@ import java.nio.ByteBuffer;
 public class AudioRecordReader {
 
     private static final long ONE_SAMPLE_US =
-            (1000000 + AudioConfig.SAMPLE_RATE - 1) / AudioConfig.SAMPLE_RATE; // 1 sample in microseconds (used for fixing PTS)
+            (1000000 + AudioConfig.SAMPLE_RATE - 1) / AudioConfig.SAMPLE_RATE;
 
     private final AudioRecord recorder;
 
@@ -44,7 +44,6 @@ public class AudioRecordReader {
                 Ln.w("Could not get initial audio timestamp");
                 nextPts = System.nanoTime() / 1000;
             }
-            // compute from previous timestamp and packet size
             pts = nextPts;
         }
 
@@ -52,11 +51,6 @@ public class AudioRecordReader {
         nextPts = pts + durationUs;
 
         if (previousPts != 0 && pts < previousPts + ONE_SAMPLE_US) {
-            // Audio PTS may come from two sources:
-            //  - recorder.getTimestamp() if the call works;
-            //  - an estimation from the previous PTS and the packet size as a fallback.
-            //
-            // Therefore, the property that PTS are monotonically increasing is no guaranteed in corner cases, so enforce it.
             pts = previousPts + ONE_SAMPLE_US;
         }
         previousPts = pts;

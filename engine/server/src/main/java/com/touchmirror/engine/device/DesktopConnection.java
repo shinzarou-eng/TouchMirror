@@ -46,7 +46,6 @@ public final class DesktopConnection implements Closeable {
 
     private static String getSocketName(int scid) {
         if (scid == -1) {
-            // If no SCID is set, use "touchmirror" to simplify using the engine alone
             return SOCKET_NAME_PREFIX;
         }
 
@@ -66,7 +65,6 @@ public final class DesktopConnection implements Closeable {
                     if (video) {
                         videoSocket = localServerSocket.accept();
                         if (sendDummyByte) {
-                            // send one byte so the client may read() to detect a connection error
                             videoSocket.getOutputStream().write(0);
                             sendDummyByte = false;
                         }
@@ -74,7 +72,6 @@ public final class DesktopConnection implements Closeable {
                     if (audio) {
                         audioSocket = localServerSocket.accept();
                         if (sendDummyByte) {
-                            // send one byte so the client may read() to detect a connection error
                             audioSocket.getOutputStream().write(0);
                             sendDummyByte = false;
                         }
@@ -82,7 +79,6 @@ public final class DesktopConnection implements Closeable {
                     if (control) {
                         controlSocket = localServerSocket.accept();
                         if (sendDummyByte) {
-                            // send one byte so the client may read() to detect a connection error
                             controlSocket.getOutputStream().write(0);
                             sendDummyByte = false;
                         }
@@ -158,7 +154,6 @@ public final class DesktopConnection implements Closeable {
         byte[] deviceNameBytes = deviceName.getBytes(StandardCharsets.UTF_8);
         int len = StringUtils.getUtf8TruncationIndex(deviceNameBytes, DEVICE_NAME_FIELD_LENGTH - 1);
         System.arraycopy(deviceNameBytes, 0, buffer, 0, len);
-        // byte[] are always 0-initialized in java, no need to set '\0' explicitly
 
         FileDescriptor fd = getFirstSocket().getFileDescriptor();
         IO.writeFully(fd, buffer, 0, buffer.length);

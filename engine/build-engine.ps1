@@ -1,14 +1,11 @@
-# Build du moteur on-device (fork scrcpy-server) et déploiement dans assets/.
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 
-# local.properties : sdk.dir requis par le plugin Android
 $sdk = $env:ANDROID_HOME
 if (-not $sdk) { $sdk = "$env:LOCALAPPDATA\Android\Sdk" }
 "sdk.dir=$($sdk -replace '\\', '/')" | Out-File -Encoding ascii local.properties
 
-# JAVA_HOME : JBR d'Android Studio par défaut
 if (-not $env:JAVA_HOME) {
     $jbr = 'C:\Program Files\Android\Android Studio\jbr'
     if (Test-Path $jbr) { $env:JAVA_HOME = $jbr }

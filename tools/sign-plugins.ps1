@@ -1,9 +1,4 @@
-﻿# Régénère la liste des hash SHA-256 des plugins officiels.
-# Le hash couvre plugin.js + plugin.json — aligné sur PluginInstance.VerifyNow().
-# À relancer après toute modification d'un plugin dans plugins/.
-#   .\tools\sign-plugins.ps1
-
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 $root   = Split-Path $PSScriptRoot -Parent
 $out    = Join-Path $root "src\AndroidMirror\Services\VerifiedPlugins.cs"
 $files  = @("plugins", "marketplace") | ForEach-Object { Join-Path $root $_ } |
@@ -18,11 +13,10 @@ $entries = foreach ($f in $files) {
     if (Test-Path $manifest) { $bytes += [System.IO.File]::ReadAllBytes($manifest) }
     $h = [BitConverter]::ToString($sha.ComputeHash($bytes)).Replace("-", "").ToLowerInvariant()
     $rel = $f.FullName.Substring($root.Length + 1) -replace '\\', '/'
-    '        "{0}", // {1}' -f $h, $rel
+    '        "{0}",' -f $h
 }
 
 @"
-// Généré par tools/sign-plugins.ps1 — ne pas éditer à la main.
 using System.Collections.Generic;
 
 namespace TouchMirror.Services;

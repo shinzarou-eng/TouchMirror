@@ -10,7 +10,6 @@ public final class Settings {
     public static final String TABLE_GLOBAL = ContentProvider.TABLE_GLOBAL;
 
     private Settings() {
-        /* not instantiable */
     }
 
     public static String getValue(String table, String key) throws SettingsException {
