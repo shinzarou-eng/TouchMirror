@@ -1,10 +1,5 @@
-// uptime — journal de session affiché sur chaque miroir.
-// Ligne 1 : temps de la connexion en cours. Ligne 2 : coupures subies
-// depuis le lancement du plugin (par appareil, via le numéro de série).
-// Local uniquement — rien n'est écrit sur disque ni envoyé ailleurs.
-
 const REFRESH_MS = 15000;
-const S = {}; // serial -> { since, disc }
+const S = {};
 
 tm.log('uptime actif — durée de session et coupures par miroir');
 
@@ -44,13 +39,11 @@ tm.on('mirror.disconnected', d => {
 tm.setInterval(() => {
   for (const m of tm.getMirrors().data || []) {
     if (!m.connected) continue;
-    // miroir déjà là au démarrage du plugin (event raté) → session = maintenant
     if (!S[m.serial]) S[m.serial] = { since: Date.now(), disc: 0 };
     render(m);
   }
 }, REFRESH_MS);
 
-// premier passage immédiat
 for (const m of tm.getMirrors().data || []) {
   if (!m.connected) continue;
   if (!S[m.serial]) S[m.serial] = { since: Date.now(), disc: 0 };

@@ -5,7 +5,6 @@ public final class NewDisplay {
     private int dpi;
 
     public NewDisplay() {
-        // Auto size and dpi
     }
 
     public NewDisplay(Size size, int dpi) {

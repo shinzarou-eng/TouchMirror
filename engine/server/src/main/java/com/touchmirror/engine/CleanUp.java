@@ -15,14 +15,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 
-/**
- * Handle the cleanup of scrcpy, even if the main process is killed.
- * <p>
- * This is useful to restore some state when scrcpy is closed, even on device disconnection (which kills the scrcpy process).
- */
 public final class CleanUp {
 
-    // Dynamic options
     private static final int PENDING_CHANGE_DISPLAY_POWER = 1 << 0;
     private int pendingChanges;
     private boolean pendingRestoreDisplayPower;
@@ -40,7 +34,6 @@ public final class CleanUp {
     }
 
     public synchronized void interrupt() {
-        // Do not use thread.interrupt() because only the wait() call must be interrupted, not Command.exec()
         interrupted = true;
         notify();
     }
@@ -54,7 +47,6 @@ public final class CleanUp {
         if (options.getShowTouches()) {
             try {
                 String oldValue = Settings.getAndPutValue(Settings.TABLE_SYSTEM, "show_touches", "1");
-                // If "show touches" was disabled, it must be disabled back on clean up
                 disableShowTouches = !"1".equals(oldValue);
             } catch (SettingsException e) {
                 Ln.e("Could not change \"show_touches\"", e);
@@ -68,12 +60,10 @@ public final class CleanUp {
                 String oldValue = Settings.getAndPutValue(Settings.TABLE_GLOBAL, "stay_on_while_plugged_in", String.valueOf(stayOn));
                 try {
                     int currentStayOn = Integer.parseInt(oldValue);
-                    // Restore only if the current value is different
                     if (currentStayOn != stayOn) {
                         restoreStayOn = currentStayOn;
                     }
                 } catch (NumberFormatException e) {
-                    // ignore
                 }
             } catch (SettingsException e) {
                 Ln.e("Could not change \"stay_on_while_plugged_in\"", e);
@@ -87,12 +77,10 @@ public final class CleanUp {
                 String oldValue = Settings.getAndPutValue(Settings.TABLE_SYSTEM, "screen_off_timeout", String.valueOf(screenOffTimeout));
                 try {
                     int currentScreenOffTimeout = Integer.parseInt(oldValue);
-                    // Restore only if the current value is different
                     if (currentScreenOffTimeout != screenOffTimeout) {
                         restoreScreenOffTimeout = currentScreenOffTimeout;
                     }
                 } catch (NumberFormatException e) {
-                    // ignore
                 }
             } catch (SettingsException e) {
                 Ln.e("Could not change \"screen_off_timeout\"", e);
@@ -187,14 +175,12 @@ public final class CleanUp {
 
     public static void main(String... args) {
         try {
-            // Start a new session to avoid being terminated along with the server process on some devices
             Os.setsid();
         } catch (ErrnoException e) {
             Ln.e("setsid() failed", e);
         }
         unlinkSelf();
 
-        // Needed for workarounds
         prepareMainLooper();
         Workarounds.apply();
 
@@ -205,19 +191,15 @@ public final class CleanUp {
         int restoreScreenOffTimeout = Integer.parseInt(args[4]);
         int restoreDisplayImePolicy = Integer.parseInt(args[5]);
 
-        // Dynamic option
         boolean restoreDisplayPower = false;
 
         try {
-            // Wait for the server to die
             int msg;
             while ((msg = System.in.read()) != -1) {
-                // Only restore display power
                 assert msg == 0 || msg == 1;
                 restoreDisplayPower = msg != 0;
             }
         } catch (IOException e) {
-            // Expected when the server is dead
         }
 
         Ln.i("Cleaning up");
@@ -254,7 +236,6 @@ public final class CleanUp {
             ServiceManager.getWindowManager().setDisplayImePolicy(displayId, restoreDisplayImePolicy);
         }
 
-        // Change the power of the main display when mirroring a virtual display
         int targetDisplayId = displayId != Device.DISPLAY_ID_NONE ? displayId : 0;
         if (Device.isScreenOn(targetDisplayId)) {
             if (powerOffScreen) {

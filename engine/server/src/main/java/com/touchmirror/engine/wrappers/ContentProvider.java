@@ -20,7 +20,6 @@ public final class ContentProvider implements Closeable {
     public static final String TABLE_SECURE = "secure";
     public static final String TABLE_GLOBAL = "global";
 
-    // See android/providerHolder/Settings.java
     private static final String CALL_METHOD_GET_SYSTEM = "GET_system";
     private static final String CALL_METHOD_GET_SECURE = "GET_secure";
     private static final String CALL_METHOD_GET_GLOBAL = "GET_global";
@@ -34,7 +33,6 @@ public final class ContentProvider implements Closeable {
     private static final String NAME_VALUE_TABLE_VALUE = "value";
 
     private final ActivityManager manager;
-    // android.content.IContentProvider
     private final Object provider;
     private final String name;
     private final IBinder token;
@@ -56,7 +54,6 @@ public final class ContentProvider implements Closeable {
                 callMethod = provider.getClass().getMethod("call", AttributionSource.class, String.class, String.class, String.class, Bundle.class);
                 callMethodVersion = 0;
             } else {
-                // old versions
                 try {
                     callMethod = provider.getClass()
                             .getMethod("call", String.class, String.class, String.class, String.class, String.class, Bundle.class);

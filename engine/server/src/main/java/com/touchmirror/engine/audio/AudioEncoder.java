@@ -58,8 +58,6 @@ public final class AudioEncoder implements AsyncProcessor {
     private boolean recreatePts;
     private long previousPts;
 
-    // Capacity of 64 is in practice "infinite" (it is limited by the number of available MediaCodec buffers, typically 4).
-    // So many pending tasks would lead to an unacceptable delay anyway.
     private final BlockingQueue<InputTask> inputTasks = new ArrayBlockingQueue<>(64);
     private final BlockingQueue<OutputTask> outputTasks = new ArrayBlockingQueue<>(64);
 
@@ -135,14 +133,12 @@ public final class AudioEncoder implements AsyncProcessor {
         assert recreatePts;
 
         if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
-            // Config packet, nothing to fix
             return;
         }
 
         long pts = bufferInfo.presentationTimeUs;
         if (previousPts != 0) {
             long now = System.nanoTime() / 1000;
-            // This specific encoder produces PTS matching the exact number of samples
             long duration = pts - previousPts;
             bufferInfo.presentationTimeUs = now - duration;
         }
@@ -157,10 +153,8 @@ public final class AudioEncoder implements AsyncProcessor {
             try {
                 encode();
             } catch (ConfigurationException e) {
-                // Do not print stack trace, a user-friendly error-message has already been logged
                 fatalError = true;
             } catch (AudioCaptureException e) {
-                // Do not print stack trace, a user-friendly error-message has already been logged
             } catch (IOException e) {
                 Ln.e("Audio encoding error", e);
                 fatalError = true;
@@ -175,7 +169,6 @@ public final class AudioEncoder implements AsyncProcessor {
     @Override
     public void stop() {
         if (thread != null) {
-            // Just wake up the blocking wait from the thread, so that it properly releases all its resources and terminates
             end();
         }
     }
@@ -198,7 +191,6 @@ public final class AudioEncoder implements AsyncProcessor {
                 wait();
             }
         } catch (InterruptedException e) {
-            // ignore
         }
     }
 
@@ -214,14 +206,11 @@ public final class AudioEncoder implements AsyncProcessor {
 
         boolean mediaCodecStarted = false;
         try {
-            capture.checkCompatibility(); // throws an AudioCaptureException on error
+            capture.checkCompatibility();
 
             Codec codec = streamer.getCodec();
             mediaCodec = createMediaCodec(codec, encoderName);
 
-            // The default OPUS and FLAC encoders overwrite the input PTS with a value that matches the number of samples. This is not the behavior
-            // we want: it ignores any audio clock drift and hard silences (packets not produced on silence). To work around this behavior,
-            // regenerate PTS based on the current time and the packet duration.
             String codecName = mediaCodec.getCanonicalName();
             recreatePts = "c2.android.opus.encoder".equals(codecName) || "c2.android.flac.encoder".equals(codecName);
 
@@ -249,9 +238,7 @@ public final class AudioEncoder implements AsyncProcessor {
                 try {
                     outputThread(mediaCodecRef);
                 } catch (InterruptedException e) {
-                    // this is expected on close
                 } catch (IOException e) {
-                    // Broken pipe is expected on close, because the socket is closed by the client
                     if (!IO.isBrokenPipe(e)) {
                         Ln.e("Audio encoding error", e);
                     }
@@ -267,15 +254,12 @@ public final class AudioEncoder implements AsyncProcessor {
 
             waitEnded();
         } catch (AudioCaptureException e) {
-            // Notify the client that the audio could not be captured
             streamer.writeDisableStream(false);
             throw e;
         } catch (Throwable e) {
-            // Notify the error to make scrcpy exit
             streamer.writeDisableStream(true);
             throw e;
         } finally {
-            // Cleanup everything (either at the end or on error at any step of the initialization)
             if (mediaCodecThread != null) {
                 Looper looper = mediaCodecThread.getLooper();
                 if (looper != null) {
@@ -300,7 +284,6 @@ public final class AudioEncoder implements AsyncProcessor {
                     outputThread.join();
                 }
             } catch (InterruptedException e) {
-                // Should never happen
                 throw new AssertionError(e);
             }
 
@@ -374,7 +357,6 @@ public final class AudioEncoder implements AsyncProcessor {
 
         @Override
         public void onOutputFormatChanged(MediaCodec codec, MediaFormat format) {
-            // ignore
         }
     }
 }

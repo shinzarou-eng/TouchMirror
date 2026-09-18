@@ -7,11 +7,9 @@ import java.util.concurrent.Semaphore;
 
 public final class Threads {
     private Threads() {
-        // not instantiable
     }
 
     public static <T> T executeSynchronouslyOn(Handler handler, Callable<T> callable) throws Throwable {
-        // Simulate CompletableFuture, but working for all Android versions
         final Semaphore sem = new Semaphore(0);
         @SuppressWarnings("unchecked")
         T[] resultRef = (T[]) new Object[1];
@@ -30,7 +28,6 @@ public final class Threads {
         try {
             sem.acquire();
         } catch (InterruptedException e) {
-            // Behave as if this method call was synchronous
             Thread.currentThread().interrupt();
         }
 

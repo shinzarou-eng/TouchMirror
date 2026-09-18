@@ -9,7 +9,6 @@
                 <ui:ThemesDictionary Theme="Dark" />
                 <ui:ControlsDictionary />
             </ResourceDictionary.MergedDictionaries>
-            <!-- Accent unique -->
             <SolidColorBrush x:Key="DofusAccentBrush" Color="#3ECF8E" />
             <SolidColorBrush x:Key="DofusAccentDimBrush" Color="#2F8F66" />
             <SolidColorBrush x:Key="SystemAccentColorPrimaryBrush" Color="#3ECF8E" />
@@ -29,7 +28,6 @@
             <SolidColorBrush x:Key="AccentTextFillColorTertiaryBrush" Color="#3ECF8E" />
             <SolidColorBrush x:Key="AccentSubtleBrush" Color="#1F3ECF8E" />
             <SolidColorBrush x:Key="AccentBorderBrush" Color="#403ECF8E" />
-            <!-- Surfaces — sombre industriel -->
             <SolidColorBrush x:Key="AppWindowBrush" Color="#0C0E11" />
             <SolidColorBrush x:Key="AppSurfaceBrush" Color="#111419" />
             <SolidColorBrush x:Key="AppSurfaceAltBrush" Color="#171A20" />
@@ -40,7 +38,6 @@
             <SolidColorBrush x:Key="AppBorderStrongBrush" Color="#26FFFFFF" />
             <SolidColorBrush x:Key="SurfaceFaintBrush" Color="#08FFFFFF" />
             <SolidColorBrush x:Key="CodeBackgroundBrush" Color="#0D000000" />
-            <!-- Sémantique -->
             <SolidColorBrush x:Key="WarnBrush" Color="#E0A24C" />
             <SolidColorBrush x:Key="WarnBorderBrush" Color="#40E0A24C" />
             <SolidColorBrush x:Key="DangerBrush" Color="#E05B4C" />

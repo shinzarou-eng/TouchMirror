@@ -5,8 +5,6 @@ import android.os.Handler;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 
-// Inspired from hidden android.os.HandlerExecutor
-
 public class HandlerExecutor implements Executor {
     private final Handler handler;
 

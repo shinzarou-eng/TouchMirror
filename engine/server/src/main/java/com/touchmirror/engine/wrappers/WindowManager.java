@@ -13,7 +13,6 @@ import java.lang.reflect.Method;
 public final class WindowManager {
 
     @SuppressWarnings("checkstyle:LineLength")
-    // <https://android.googlesource.com/platform/frameworks/base.git/+/2103ff441c66772c80c8560e322dcd9a45be7dcd/core/java/android/view/WindowManager.java#692>
     public static final int DISPLAY_IME_POLICY_LOCAL = 0;
     public static final int DISPLAY_IME_POLICY_FALLBACK_DISPLAY = 1;
     public static final int DISPLAY_IME_POLICY_HIDE = 2;
@@ -46,11 +45,8 @@ public final class WindowManager {
         if (getRotationMethod == null) {
             Class<?> cls = manager.getClass();
             try {
-                // method changed since this commit:
-                // https://android.googlesource.com/platform/frameworks/base/+/8ee7285128c3843401d4c4d0412cd66e86ba49e3%5E%21/#F2
                 getRotationMethod = cls.getMethod("getDefaultDisplayRotation");
             } catch (NoSuchMethodException e) {
-                // old version
                 getRotationMethod = cls.getMethod("getRotation");
             }
         }
@@ -60,14 +56,10 @@ public final class WindowManager {
     private Method getFreezeDisplayRotationMethod() throws NoSuchMethodException {
         if (freezeDisplayRotationMethod == null) {
             try {
-                // Android 15 preview and 14 QPR3 Beta added a String caller parameter for debugging:
-                // <https://android.googlesource.com/platform/frameworks/base/+/670fb7f5c0d23cf51ead25538bcb017e03ed73ac%5E%21/>
                 freezeDisplayRotationMethod = manager.getClass().getMethod("freezeDisplayRotation", int.class, int.class, String.class);
                 freezeDisplayRotationMethodVersion = 0;
             } catch (NoSuchMethodException e) {
                 try {
-                    // New method added by this commit:
-                    // <https://android.googlesource.com/platform/frameworks/base/+/90c9005e687aa0f63f1ac391adc1e8878ab31759%5E%21/>
                     freezeDisplayRotationMethod = manager.getClass().getMethod("freezeDisplayRotation", int.class, int.class);
                     freezeDisplayRotationMethodVersion = 1;
                 } catch (NoSuchMethodException e1) {
@@ -82,8 +74,6 @@ public final class WindowManager {
     private Method getIsDisplayRotationFrozenMethod() throws NoSuchMethodException {
         if (isDisplayRotationFrozenMethod == null) {
             try {
-                // New method added by this commit:
-                // <https://android.googlesource.com/platform/frameworks/base/+/90c9005e687aa0f63f1ac391adc1e8878ab31759%5E%21/>
                 isDisplayRotationFrozenMethod = manager.getClass().getMethod("isDisplayRotationFrozen", int.class);
                 isDisplayRotationFrozenMethodVersion = 0;
             } catch (NoSuchMethodException e) {
@@ -97,14 +87,10 @@ public final class WindowManager {
     private Method getThawDisplayRotationMethod() throws NoSuchMethodException {
         if (thawDisplayRotationMethod == null) {
             try {
-                // Android 15 preview and 14 QPR3 Beta added a String caller parameter for debugging:
-                // <https://android.googlesource.com/platform/frameworks/base/+/670fb7f5c0d23cf51ead25538bcb017e03ed73ac%5E%21/>
                 thawDisplayRotationMethod = manager.getClass().getMethod("thawDisplayRotation", int.class, String.class);
                 thawDisplayRotationMethodVersion = 0;
             } catch (NoSuchMethodException e) {
                 try {
-                    // New method added by this commit:
-                    // <https://android.googlesource.com/platform/frameworks/base/+/90c9005e687aa0f63f1ac391adc1e8878ab31759%5E%21/>
                     thawDisplayRotationMethod = manager.getClass().getMethod("thawDisplayRotation", int.class);
                     thawDisplayRotationMethodVersion = 1;
                 } catch (NoSuchMethodException e1) {

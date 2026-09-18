@@ -27,7 +27,6 @@ public class AffineOpenGLFilter implements OpenGLFilter {
 
     @Override
     public void init() throws OpenGLException {
-        // @formatter:off
         String vertexShaderCode = "#version 100\n"
                 + "attribute vec4 vertex_pos;\n"
                 + "attribute vec4 tex_coords_in;\n"
@@ -39,7 +38,6 @@ public class AffineOpenGLFilter implements OpenGLFilter {
                 + "    tex_coords = (tex_matrix * user_matrix * tex_coords_in).xy;\n"
                 + "}";
 
-        // @formatter:off
         String fragmentShaderCode = "#version 100\n"
                 + "#extension GL_OES_EGL_image_external : require\n"
                 + "precision highp float;\n"
@@ -60,20 +58,19 @@ public class AffineOpenGLFilter implements OpenGLFilter {
         }
 
         float[] vertices = {
-                -1, -1, // Bottom-left
-                1, -1, // Bottom-right
-                -1, 1, // Top-left
-                1, 1, // Top-right
+                -1, -1,
+                1, -1,
+                -1, 1,
+                1, 1,
         };
 
         float[] texCoords = {
-                0, 0, // Bottom-left
-                1, 0, // Bottom-right
-                0, 1, // Top-left
-                1, 1, // Top-right
+                0, 0,
+                1, 0,
+                0, 1,
+                1, 1,
         };
 
-        // OpenGL will fill the 3rd and 4th coordinates of the vec4 automatically with 0.0 and 1.0 respectively
         vertexBuffer = GLUtils.createFloatBuffer(vertices);
         texCoordsBuffer = GLUtils.createFloatBuffer(texCoords);
 

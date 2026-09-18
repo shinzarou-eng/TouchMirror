@@ -1,17 +1,13 @@
 package com.touchmirror.engine;
 
 import com.touchmirror.engine.audio.AudioCodec;
-import com.touchmirror.engine.audio.AudioSource;
 import com.touchmirror.engine.device.Device;
 import com.touchmirror.engine.model.CodecOption;
 import com.touchmirror.engine.model.NewDisplay;
 import com.touchmirror.engine.model.Orientation;
 import com.touchmirror.engine.model.Size;
 import com.touchmirror.engine.util.Ln;
-import com.touchmirror.engine.video.CameraAspectRatio;
-import com.touchmirror.engine.video.CameraFacing;
 import com.touchmirror.engine.video.VideoCodec;
-import com.touchmirror.engine.video.VideoSource;
 import com.touchmirror.engine.wrappers.WindowManager;
 
 import android.graphics.Rect;
@@ -23,16 +19,13 @@ import java.util.Locale;
 public class Options {
 
     private Ln.Level logLevel = Ln.Level.DEBUG;
-    private int scid = -1; // 31-bit non-negative value, or -1
+    private int scid = -1;
     private boolean video = true;
     private boolean audio = true;
     private int maxSize;
     private int minSizeAlignment = 1;
     private VideoCodec videoCodec = VideoCodec.H264;
     private AudioCodec audioCodec = AudioCodec.OPUS;
-    private VideoSource videoSource = VideoSource.DISPLAY;
-    private AudioSource audioSource = AudioSource.OUTPUT;
-    private boolean audioDup;
     private int videoBitRate = 8000000;
     private int audioBitRate = 128000;
     private float maxFps;
@@ -41,14 +34,6 @@ public class Options {
     private Rect crop;
     private boolean control = true;
     private int displayId;
-    private String cameraId;
-    private Size cameraSize;
-    private CameraFacing cameraFacing;
-    private CameraAspectRatio cameraAspectRatio;
-    private float cameraZoom = 1;
-    private int cameraFps;
-    private boolean cameraHighSpeed;
-    private boolean cameraTorch;
     private boolean showTouches;
     private boolean stayAwake;
     private int screenOffTimeout = -1;
@@ -75,18 +60,12 @@ public class Options {
     private Orientation.Lock captureOrientationLock = Orientation.Lock.Unlocked;
     private Orientation captureOrientation = Orientation.Orient0;
 
-    private boolean listEncoders;
-    private boolean listDisplays;
-    private boolean listCameras;
-    private boolean listCameraSizes;
-    private boolean listApps;
     private String startApp;
 
-    // Options not used by the scrcpy client, but useful to use scrcpy-server directly
-    private boolean sendDeviceMeta = true; // send device name and size
-    private boolean sendFrameMeta = true; // send PTS so that the client may record properly
-    private boolean sendDummyByte = true; // write a byte on start to detect connection issues
-    private boolean sendStreamMeta = true; // write the stream metadata (codec and session)
+    private boolean sendDeviceMeta = true;
+    private boolean sendFrameMeta = true;
+    private boolean sendDummyByte = true;
+    private boolean sendStreamMeta = true;
 
     public Ln.Level getLogLevel() {
         return logLevel;
@@ -120,18 +99,6 @@ public class Options {
         return audioCodec;
     }
 
-    public VideoSource getVideoSource() {
-        return videoSource;
-    }
-
-    public AudioSource getAudioSource() {
-        return audioSource;
-    }
-
-    public boolean getAudioDup() {
-        return audioDup;
-    }
-
     public int getVideoBitRate() {
         return videoBitRate;
     }
@@ -162,38 +129,6 @@ public class Options {
 
     public int getDisplayId() {
         return displayId;
-    }
-
-    public String getCameraId() {
-        return cameraId;
-    }
-
-    public Size getCameraSize() {
-        return cameraSize;
-    }
-
-    public CameraFacing getCameraFacing() {
-        return cameraFacing;
-    }
-
-    public CameraAspectRatio getCameraAspectRatio() {
-        return cameraAspectRatio;
-    }
-
-    public float getCameraZoom() {
-        return cameraZoom;
-    }
-
-    public int getCameraFps() {
-        return cameraFps;
-    }
-
-    public boolean getCameraHighSpeed() {
-        return cameraHighSpeed;
-    }
-
-    public boolean getCameraTorch() {
-        return cameraTorch;
     }
 
     public boolean getShowTouches() {
@@ -280,30 +215,6 @@ public class Options {
         return ignoreVideoEncoderConstraints;
     }
 
-    public boolean getList() {
-        return listEncoders || listDisplays || listCameras || listCameraSizes || listApps;
-    }
-
-    public boolean getListEncoders() {
-        return listEncoders;
-    }
-
-    public boolean getListDisplays() {
-        return listDisplays;
-    }
-
-    public boolean getListCameras() {
-        return listCameras;
-    }
-
-    public boolean getListCameraSizes() {
-        return listCameraSizes;
-    }
-
-    public boolean getListApps() {
-        return listApps;
-    }
-
     public String getStartApp() {
         return startApp;
     }
@@ -382,23 +293,6 @@ public class Options {
                         throw new IllegalArgumentException("Audio codec " + value + " not supported");
                     }
                     options.audioCodec = audioCodec;
-                    break;
-                case "video_source":
-                    VideoSource videoSource = VideoSource.findByName(value);
-                    if (videoSource == null) {
-                        throw new IllegalArgumentException("Video source " + value + " not supported");
-                    }
-                    options.videoSource = videoSource;
-                    break;
-                case "audio_source":
-                    AudioSource audioSource = AudioSource.findByName(value);
-                    if (audioSource == null) {
-                        throw new IllegalArgumentException("Audio source " + value + " not supported");
-                    }
-                    options.audioSource = audioSource;
-                    break;
-                case "audio_dup":
-                    options.audioDup = Boolean.parseBoolean(value);
                     break;
                 case "max_size":
                     options.maxSize = Integer.parseInt(value);
@@ -479,64 +373,11 @@ public class Options {
                 case "power_on":
                     options.powerOn = Boolean.parseBoolean(value);
                     break;
-                case "list_encoders":
-                    options.listEncoders = Boolean.parseBoolean(value);
-                    break;
-                case "list_displays":
-                    options.listDisplays = Boolean.parseBoolean(value);
-                    break;
-                case "list_cameras":
-                    options.listCameras = Boolean.parseBoolean(value);
-                    break;
-                case "list_camera_sizes":
-                    options.listCameraSizes = Boolean.parseBoolean(value);
-                    break;
-                case "list_apps":
-                    options.listApps = Boolean.parseBoolean(value);
-                    break;
                 case "start_app":
                     if (value.isEmpty()) {
                         throw new IllegalArgumentException("Missing app name for start_app");
                     }
                     options.startApp = value;
-                    break;
-                case "camera_id":
-                    if (!value.isEmpty()) {
-                        options.cameraId = value;
-                    }
-                    break;
-                case "camera_size":
-                    if (!value.isEmpty()) {
-                        options.cameraSize = parseSize(value);
-                    }
-                    break;
-                case "camera_facing":
-                    if (!value.isEmpty()) {
-                        CameraFacing facing = CameraFacing.findByName(value);
-                        if (facing == null) {
-                            throw new IllegalArgumentException("Camera facing " + value + " not supported");
-                        }
-                        options.cameraFacing = facing;
-                    }
-                    break;
-                case "camera_ar":
-                    if (!value.isEmpty()) {
-                        options.cameraAspectRatio = parseCameraAspectRatio(value);
-                    }
-                    break;
-                case "camera_zoom":
-                    if (!value.isEmpty()) {
-                        options.cameraZoom = Float.parseFloat(value);
-                    }
-                    break;
-                case "camera_fps":
-                    options.cameraFps = Integer.parseInt(value);
-                    break;
-                case "camera_high_speed":
-                    options.cameraHighSpeed = Boolean.parseBoolean(value);
-                    break;
-                case "camera_torch":
-                    options.cameraTorch = Boolean.parseBoolean(value);
                     break;
                 case "new_display":
                     options.newDisplay = parseNewDisplay(value);
@@ -600,7 +441,6 @@ public class Options {
     }
 
     private static Rect parseCrop(String crop) {
-        // input format: "width:height:x:y"
         String[] tokens = crop.split(":");
         if (tokens.length != 4) {
             throw new IllegalArgumentException("Crop must contains 4 values separated by colons: \"" + crop + "\"");
@@ -619,7 +459,6 @@ public class Options {
     }
 
     private static Size parseSize(String size) {
-        // input format: "<width>x<height>"
         String[] tokens = size.split("x");
         if (tokens.length != 2) {
             throw new IllegalArgumentException("Invalid size format (expected <width>x<height>): \"" + size + "\"");
@@ -632,22 +471,6 @@ public class Options {
         return new Size(width, height);
     }
 
-    private static CameraAspectRatio parseCameraAspectRatio(String ar) {
-        if ("sensor".equals(ar)) {
-            return CameraAspectRatio.sensorAspectRatio();
-        }
-
-        String[] tokens = ar.split(":");
-        if (tokens.length == 2) {
-            int w = Integer.parseInt(tokens[0]);
-            int h = Integer.parseInt(tokens[1]);
-            return CameraAspectRatio.fromFraction(w, h);
-        }
-
-        float floatAr = Float.parseFloat(tokens[0]);
-        return CameraAspectRatio.fromFloat(floatAr);
-    }
-
     private static float parseFloat(String key, String value) {
         try {
             return Float.parseFloat(value);
@@ -657,11 +480,6 @@ public class Options {
     }
 
     private static NewDisplay parseNewDisplay(String newDisplay) {
-        // Possible inputs:
-        //  - "" (empty string)
-        //  - "<width>x<height>/<dpi>"
-        //  - "<width>x<height>"
-        //  - "/<dpi>"
         if (newDisplay.isEmpty()) {
             return new NewDisplay();
         }
@@ -695,10 +513,8 @@ public class Options {
 
         Orientation.Lock lock;
         if (value.charAt(0) == '@') {
-            // Consume '@'
             value = value.substring(1);
             if (value.isEmpty()) {
-                // Only '@': lock to the initial orientation (orientation is unused)
                 return Pair.create(Orientation.Lock.LockedInitial, Orientation.Orient0);
             }
             lock = Orientation.Lock.LockedValue;

@@ -7,9 +7,8 @@ android {
         applicationId = "com.touchmirror.engine"
         minSdkVersion 21
         targetSdkVersion 36
-        versionCode 40100
-        versionName "4.1-tm.1"
-        testInstrumentationRunner = "android.support.test.runner.AndroidJUnitRunner"
+        versionCode 40101
+        versionName "4.1-tm.2"
     }
     buildTypes {
         release {
@@ -23,10 +22,6 @@ android {
     lint {
         disable 'UseRequiresApi'
     }
-}
-
-dependencies {
-    testImplementation 'junit:junit:4.13.2'
 }
 
 apply from: "$project.rootDir/config/android-checkstyle.gradle"

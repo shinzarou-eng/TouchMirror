@@ -1,9 +1,3 @@
-// bridge — affiche le contenu de data.txt sur les miroirs.
-// N'importe quel outil externe peut écrire dans plugins/bridge/data.txt :
-// le fichier est relu en continu et affiché tel quel. Un pont simple
-// entre tes scripts et les miroirs — alertes stream, données maison,
-// ce que tu veux — sans donner le réseau aux plugins.
-
 const FILE       = 'data.txt';
 const RELOAD_MS  = 1500;
 const MAX_LIGNES = 12;

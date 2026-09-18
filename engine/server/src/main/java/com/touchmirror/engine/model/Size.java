@@ -64,7 +64,6 @@ public final class Size {
                     h = Math.min(height, maxSize);
                 }
             } else {
-                // No constraints
                 w = width;
                 h = height;
             }
@@ -83,7 +82,6 @@ public final class Size {
         int minMajor = majorRange.getLower();
         int maxMajor = majorRange.getUpper();
         if (maxMajor > major) {
-            // Never increase the size
             maxMajor = major;
         }
         if (maxSize > 0 && maxMajor > maxSize) {
@@ -112,7 +110,6 @@ public final class Size {
         if (preserveAspectRatio) {
             bestMinor = align(minor * bestMajor / major, alignment);
         } else {
-            // The minor dimension can potentially be extended
             int maxMinor = landscape ? caps.getSupportedHeightsFor(bestMajor).getUpper() : caps.getSupportedWidthsFor(bestMajor).getUpper();
             if (maxMinor > minor) {
                 maxMinor = minor;
@@ -122,7 +119,6 @@ public final class Size {
             }
             bestMinor = align(maxMinor, alignment);
 
-            // The major dimension can potentially be extended
             maxMajor = landscape ? caps.getSupportedWidthsFor(bestMinor).getUpper() : caps.getSupportedHeightsFor(bestMinor).getUpper();
             if (maxMajor > major) {
                 maxMajor = major;

@@ -29,7 +29,6 @@ public final class StatusBarManager {
             try {
                 expandNotificationsPanelMethod = manager.getClass().getMethod("expandNotificationsPanel");
             } catch (NoSuchMethodException e) {
-                // Custom version for custom vendor ROM: <https://github.com/Genymobile/scrcpy/issues/2551>
                 expandNotificationsPanelMethod = manager.getClass().getMethod("expandNotificationsPanel", int.class);
                 expandNotificationPanelMethodCustomVersion = true;
             }
@@ -40,10 +39,8 @@ public final class StatusBarManager {
     private Method getExpandSettingsPanel() throws NoSuchMethodException {
         if (expandSettingsPanelMethod == null) {
             try {
-                // Since Android 7: https://android.googlesource.com/platform/frameworks/base.git/+/a9927325eda025504d59bb6594fee8e240d95b01%5E%21/
                 expandSettingsPanelMethod = manager.getClass().getMethod("expandSettingsPanel", String.class);
             } catch (NoSuchMethodException e) {
-                // old version
                 expandSettingsPanelMethod = manager.getClass().getMethod("expandSettingsPanel");
                 expandSettingsPanelMethodNewVersion = false;
             }
@@ -75,10 +72,8 @@ public final class StatusBarManager {
         try {
             Method method = getExpandSettingsPanel();
             if (expandSettingsPanelMethodNewVersion) {
-                // new version
                 method.invoke(manager, (Object) null);
             } else {
-                // old version
                 method.invoke(manager);
             }
         } catch (ReflectiveOperationException e) {

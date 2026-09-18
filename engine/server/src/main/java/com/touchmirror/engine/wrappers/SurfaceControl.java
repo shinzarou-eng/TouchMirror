@@ -16,7 +16,6 @@ public final class SurfaceControl {
 
     private static final Class<?> CLASS;
 
-    // see <https://android.googlesource.com/platform/frameworks/base.git/+/pie-release-2/core/java/android/view/SurfaceControl.java#305>
     public static final int POWER_MODE_OFF = 0;
     public static final int POWER_MODE_NORMAL = 2;
 
@@ -34,7 +33,6 @@ public final class SurfaceControl {
     private static Method getPhysicalDisplayIdsMethod;
 
     private SurfaceControl() {
-        // only static methods
     }
 
     public static void openTransaction() {
@@ -84,8 +82,6 @@ public final class SurfaceControl {
 
     private static Method getGetBuiltInDisplayMethod() throws NoSuchMethodException {
         if (getBuiltInDisplayMethod == null) {
-            // the method signature has changed in Android 10
-            // <https://github.com/Genymobile/scrcpy/issues/586>
             if (Build.VERSION.SDK_INT < AndroidVersions.API_29_ANDROID_10) {
                 getBuiltInDisplayMethod = CLASS.getMethod("getBuiltInDisplay", int.class);
             } else {
@@ -108,11 +104,9 @@ public final class SurfaceControl {
         try {
             Method method = getGetBuiltInDisplayMethod();
             if (Build.VERSION.SDK_INT < AndroidVersions.API_29_ANDROID_10) {
-                // call getBuiltInDisplay(0)
                 return (IBinder) method.invoke(null, 0);
             }
 
-            // call getInternalDisplayToken()
             return (IBinder) method.invoke(null);
         } catch (ReflectiveOperationException e) {
             Ln.e("Could not invoke method", e);

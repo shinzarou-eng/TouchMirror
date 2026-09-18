@@ -23,19 +23,6 @@ public class VideoFilter {
         return transform;
     }
 
-    /**
-     * Return the inverse transform.
-     * <p/>
-     * The direct affine transform describes how the input image is transformed.
-     * <p/>
-     * It is often useful to retrieve the inverse transform instead:
-     * <ul>
-     *     <li>The OpenGL filter expects the matrix to transform the image <em>coordinates</em>, which is the inverse transform;</li>
-     *     <li>The click positions must be transformed back to the device positions, using the inverse transform too.</li>
-     * </ul>
-     *
-     * @return the inverse transform
-     */
     public AffineMatrix getInverseTransform() {
         if (transform == null) {
             return null;
@@ -60,7 +47,7 @@ public class VideoFilter {
         }
 
         double x = crop.left / inputWidth;
-        double y = 1 - (crop.bottom / inputHeight); // OpenGL origin is bottom-left
+        double y = 1 - (crop.bottom / inputHeight);
         double w = crop.width() / inputWidth;
         double h = crop.height() / inputHeight;
 
@@ -89,7 +76,6 @@ public class VideoFilter {
 
     public void addOrientation(int displayRotation, boolean locked, Orientation captureOrientation) {
         if (locked) {
-            // flip/rotate the current display from the natural device orientation (i.e. where display rotation is 0)
             int reverseDisplayRotation = (4 - displayRotation) % 4;
             addRotation(reverseDisplayRotation);
         }
@@ -110,8 +96,6 @@ public class VideoFilter {
         }
 
         if (transform == null) {
-            // The requested scaling is performed by the viewport (by changing the output size), but the OpenGL filter must still run, even if
-            // resizing is not performed by the shader. So transform MUST NOT be null.
             transform = AffineMatrix.IDENTITY;
         }
         size = targetSize;

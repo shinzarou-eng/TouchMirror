@@ -62,7 +62,6 @@ public final class DisplayResizeDebouncer {
                 callback.trigger(newSize);
             }
         } catch (InterruptedException e) {
-            // ignore
         } finally {
             Ln.d("Debouncer thread stopped");
         }

@@ -18,10 +18,8 @@
               MouseWheel="OnMouseWheel"
               LostMouseCapture="OnLostCapture" />
 
-        <!-- Raccourcis plaqués sur la vidéo (touche clavier → tap) -->
         <Canvas x:Name="KeybindLayer" IsHitTestVisible="False" />
 
-        <!-- Widgets graphe pilotés par les plugins (déplaçables à la souris) -->
         <Canvas x:Name="OverlayLayer" />
 
         <Border x:Name="KeybindHint"

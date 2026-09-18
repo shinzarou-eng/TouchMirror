@@ -14,7 +14,6 @@ public class CaptureControl {
 
     private int reset = 0;
 
-    // Current instance of MediaCodec to "interrupt" on reset
     private MediaCodec runningMediaCodec;
 
     public synchronized boolean isResetRequested() {
@@ -34,7 +33,6 @@ public class CaptureControl {
             try {
                 runningMediaCodec.signalEndOfInputStream();
             } catch (IllegalStateException e) {
-                // ignore
             }
         }
     }
@@ -43,12 +41,6 @@ public class CaptureControl {
         this.runningMediaCodec = runningMediaCodec;
     }
 
-    /**
-     * Réglage à chaud : débit (PARAMETER_KEY_VIDEO_BITRATE) et suspension de
-     * l'entrée surface (PARAMETER_KEY_SUSPEND). Utilisé pour économiser
-     * l'encodeur des tuiles réduites en miniature. setParameters() est
-     * documenté appelable depuis n'importe quel thread.
-     */
     public synchronized void setVideoParams(int bitRate, boolean suspend) {
         MediaCodec codec = runningMediaCodec;
         if (codec == null) {
@@ -61,7 +53,6 @@ public class CaptureControl {
             codec.setParameters(params);
             Ln.i("Video params: bitrate=" + bitRate + " suspend=" + suspend);
         } catch (IllegalStateException e) {
-            // codec pas encore démarré ou déjà stoppé — sans gravité
         }
     }
 }

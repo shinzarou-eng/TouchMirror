@@ -68,8 +68,6 @@ public final class OpenGLRunner {
     public Surface start(Size inputSize, Size outputSize, Surface outputSurface) throws OpenGLException {
         initOnce();
 
-        // The whole OpenGL execution must be performed on a Handler, so that SurfaceTexture.setOnFrameAvailableListener() works correctly.
-        // See <https://github.com/Genymobile/scrcpy/issues/5444>
         try {
             Threads.executeSynchronouslyOn(handler, new Callable<Void>() {
                 @Override
@@ -85,7 +83,6 @@ public final class OpenGLRunner {
             throw new OpenGLException("Asynchronous OpenGL runner init failed", throwable);
         }
 
-        // Synchronization is ok: inputSurface is written before sem.release() and read after sem.acquire()
         return inputSurface;
     }
 
@@ -100,7 +97,6 @@ public final class OpenGLRunner {
             throw new OpenGLException("Unable to initialize EGL14");
         }
 
-        // @formatter:off
         int[] attribList = {
                 EGL14.EGL_RED_SIZE, 8,
                 EGL14.EGL_GREEN_SIZE, 8,
@@ -119,7 +115,6 @@ public final class OpenGLRunner {
         }
         EGLConfig eglConfig = configs[0];
 
-        // @formatter:off
         int[] contextAttribList = {
                 EGL14.EGL_CONTEXT_CLIENT_VERSION, 2,
                 EGL14.EGL_NONE
@@ -169,7 +164,6 @@ public final class OpenGLRunner {
 
         surfaceTexture.setOnFrameAvailableListener(surfaceTexture -> {
             if (stopped) {
-                // Make sure to never render after resources have been released
                 return;
             }
 
@@ -225,7 +219,6 @@ public final class OpenGLRunner {
         try {
             sem.acquire();
         } catch (InterruptedException e) {
-            // Behave as if this method call was synchronous
             Thread.currentThread().interrupt();
         }
     }

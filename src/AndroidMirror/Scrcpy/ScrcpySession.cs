@@ -35,7 +35,7 @@ public sealed class VideoPacket
 
 public sealed class ScrcpySession : IAsyncDisposable
 {
-    private const string ServerVersion = "4.1-tm.1";
+    private const string ServerVersion = "4.1-tm.2";
     private const string RemoteJarPath = "/data/local/tmp/touchmirror-engine.jar";
 
     private readonly AdbDevice _device;

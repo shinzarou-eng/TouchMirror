@@ -1,14 +1,8 @@
-// splits — chrono de run affiché sur chaque miroir.
-// Clic sur la ligne du chrono = poser un split (temps intermédiaire).
-// Dernière ligne = reset du run : si le temps total bat ton record,
-// il devient le nouveau PB (sauvegardé dans splits.json, par téléphone).
-// Idéal pour les runs de donjons répétés — local uniquement.
-
 const REFRESH_MS = 1000;
 const FILE = 'splits.json';
 
-const runs = {};  // slot -> { t0, splits: [ms] }
-let pb = {};      // serial -> meilleur temps total (ms)
+const runs = {};
+let pb = {};
 
 function fmt(ms) {
   const t = Math.max(0, Math.floor(ms / 1000));

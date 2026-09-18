@@ -16,7 +16,6 @@ import java.util.Scanner;
 
 public final class IO {
     private IO() {
-        // not instantiable
     }
 
     private static int write(FileDescriptor fd, ByteBuffer from) throws IOException {
@@ -37,15 +36,11 @@ public final class IO {
                 write(fd, from);
             }
         } else {
-            // ByteBuffer position is not updated as expected by Os.write() on old Android versions, so
-            // handle the position and the remaining bytes manually.
-            // See <https://github.com/Genymobile/scrcpy/issues/291>.
             int position = from.position();
             int remaining = from.remaining();
             while (remaining > 0) {
                 int w = write(fd, from);
                 if (BuildConfig.DEBUG && w < 0) {
-                    // w should not be negative, since an exception is thrown on error
                     throw new AssertionError("Os.write() returned a negative value (" + w + ")");
                 }
                 remaining -= w;

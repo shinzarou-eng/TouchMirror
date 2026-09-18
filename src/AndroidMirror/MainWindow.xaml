@@ -272,7 +272,6 @@
             <RowDefinition x:Name="StatusBarRow" Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- ══ Barre de titre custom (fine) ══ -->
         <Border x:Name="TitleBarElement" Grid.Row="0" Height="32"
                 MouseLeftButtonDown="OnTitleBarMouseDown">
             <Grid>
@@ -306,7 +305,6 @@
             </Grid>
         </Border>
 
-                <!-- ══ Toolbar ══ -->
         <Border Grid.Row="1" x:Name="Toolbar"
                 Background="{DynamicResource AppSurfaceBrush}"
                 BorderThickness="0,0,0,1"
@@ -557,7 +555,7 @@
                                     <MenuItem.Icon><ui:SymbolIcon Symbol="Phone24" FontSize="14" /></MenuItem.Icon>
                                 </MenuItem>
                                 <Separator />
-                                <MenuItem IsEnabled="False"
+                                <MenuItem Command="{Binding AddIosMirrorCommand}"
                                           ToolTip="{loc:Loc mirroring_ios_par_airplay_en_cours_de_developpem}">
                                     <MenuItem.Header>
                                         <StackPanel Orientation="Horizontal">
@@ -599,7 +597,6 @@
             </Grid>
         </Border>
 
-        <!-- ══ Onglets espaces de travail ══ -->
         <Border Grid.Row="2"
                 Background="{DynamicResource AppSurfaceBrush}"
                 BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="0,0,0,1"
@@ -708,7 +705,6 @@
             </Grid>
         </Border>
 
-<!-- ══ Bandeau mise à jour ══ -->
         <Border Grid.Row="3" Padding="16,8"
                 Background="{DynamicResource AppSurfaceAltBrush}"
                 BorderThickness="0,0,0,1"
@@ -734,7 +730,6 @@
             </StackPanel>
         </Border>
 
-        <!-- ══ Contenu ══ -->
         <Grid Grid.Row="4" Background="{DynamicResource AppWindowBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="46" />
@@ -742,7 +737,6 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- ══ Rail d'activité ══ -->
             <Border Grid.Column="0"
                     Background="{DynamicResource AppSurfaceBrush}"
                     BorderThickness="0,0,1,0"
@@ -813,7 +807,6 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <!-- Miroir actif -->
                     <Border CornerRadius="4" Margin="4" Background="Black"
                             BorderBrush="{Binding ActiveMirror.AccentHex, Converter={StaticResource HexToBrush}}"
                             BorderThickness="1" ClipToBounds="True">
@@ -900,7 +893,6 @@
                                 </Grid>
                             </Border>
 
-                            <!-- État déconnecté du miroir actif (Android uniquement — iOS a sa propre attente) -->
                             <Border Background="#E6101216">
                                 <Border.Style>
                                     <Style TargetType="Border">
@@ -932,7 +924,6 @@
                         </Grid>
                     </Border>
 
-                    <!-- Miniatures des autres appareils + tuiles absentes de l'espace -->
                     <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled"
                                   Visibility="{Binding HasStripContent, Converter={StaticResource BoolToVis}}">
@@ -1075,7 +1066,6 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- ══ Hub appareils (déconnecté) ══ -->
                     <Grid x:Name="DisconnectedOverlay" Background="{DynamicResource AppModalBrush}"
                           Visibility="{Binding Mirrors.Count, Converter={StaticResource EmptyToVis}}">
                         <Grid.Triggers>
@@ -1317,7 +1307,6 @@
                                 </ItemsControl>
                             </ui:Card>
 
-                            <!-- Assistant de configuration : guide débogage USB ou offre 2e compte -->
                             <Border Margin="2,10,2,0" Padding="16,12" CornerRadius="4"
                                     Background="{DynamicResource AccentSubtleBrush}"
                                     BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1"
@@ -1332,7 +1321,6 @@
                                         </TextBlock>
                                     </StackPanel>
 
-                                    <!-- Tel non autorisé : étapes guidées (détection automatique) -->
                                     <StackPanel Margin="23,8,0,0"
                                                 Visibility="{Binding SetupIsAuth, Converter={StaticResource BoolToVis}}">
                                         <TextBlock Text="{loc:Loc setup.auth1}" FontSize="12" TextWrapping="Wrap" />
@@ -1353,7 +1341,6 @@
                                         </StackPanel>
                                     </StackPanel>
 
-                                    <!-- Tel prêt sans profil : offre de config auto -->
                                     <StackPanel Margin="23,8,0,0"
                                                 Visibility="{Binding SetupIsOffer, Converter={StaticResource BoolToVis}}">
                                         <TextBlock Text="{loc:Loc setup.offer}" FontSize="12" TextWrapping="Wrap"
@@ -1392,7 +1379,6 @@
                                         </StackPanel>
                                     </StackPanel>
 
-                                    <!-- Vérification des profils en cours -->
                                     <StackPanel Margin="23,8,0,0" Orientation="Horizontal"
                                                 Visibility="{Binding SetupIsBusy, Converter={StaticResource BoolToVis}}">
                                         <ui:ProgressRing IsIndeterminate="True" Width="14" Height="14" />
@@ -1403,7 +1389,6 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- iPhone : pas encore utilisable -->
                             <Border Margin="2,10,2,0" Padding="16,12" CornerRadius="4" Opacity="0.62"
                                     Background="{DynamicResource AppSurfaceBrush}"
                                     BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1">
@@ -1546,7 +1531,6 @@
                 </Grid>
             </Border>
 
-            <!-- ══ Panneau latéral docké ══ -->
             <Border x:Name="DockPanel" Grid.Column="1"
                     Background="{DynamicResource AppSurfaceBrush}"
                     BorderThickness="0,0,1,0"
@@ -1554,7 +1538,6 @@
                     Visibility="Collapsed">
                 <Grid>
 
-            <!-- Réglages -->
             <Border x:Name="SettingsDock"
                     Width="340" Visibility="Collapsed">
                 <Border.RenderTransform>
@@ -1820,7 +1803,6 @@
                 </Grid>
             </Border>
 
-            <!-- Guides Dofus Touch -->
             <Border x:Name="HelpPanel"
                     Width="560" Visibility="Collapsed" ClipToBounds="True"
                     Background="{DynamicResource AppModalBrush}">
@@ -1987,8 +1969,6 @@
                 </Grid>
             </Border>
 
-
-            <!-- Plugins installés -->
             <Border x:Name="PluginsPanel"
                     Width="360" Visibility="Collapsed"
                     Background="{DynamicResource AppModalBrush}">
@@ -2071,7 +2051,6 @@
                     </Grid>
             </Border>
 
-            <!-- Marketplace — catalogue d'extensions -->
             <Border x:Name="MarketPanel"
                     Width="440" Visibility="Collapsed"
                     Background="{DynamicResource AppModalBrush}">
@@ -2304,7 +2283,6 @@
             </Border>
         </Grid>
 
-        <!-- ══ Statusbar ══ -->
         <Border Grid.Row="5"
                 Background="{DynamicResource AppSurfaceBrush}"
                 BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="0,1,0,0"

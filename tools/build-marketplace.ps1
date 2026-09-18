@@ -1,7 +1,3 @@
-# Régénère marketplace/index.json — hash SHA-256 de plugin.js + plugin.json,
-# aligné sur PluginInstance.VerifyNow() et tools/sign-plugins.ps1.
-#   .\tools\build-marketplace.ps1
-
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
 $sha  = [System.Security.Cryptography.SHA256]::Create()

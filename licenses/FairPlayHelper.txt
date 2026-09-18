@@ -1,0 +1,15 @@
+FairPlayHelper
+==============
+
+`assets/FairPlayHelper.exe` — optional helper used only by the native AirPlay
+receiver, to extract the AES stream key from the FairPlay-encrypted `ekey`
+parameter sent by AirPlay clients.
+
+- License: GNU GPL v3 (see native/FairPlayHelper/LICENSE.md)
+- Source: native/FairPlayHelper/ (main.c is ours; the playfair implementation
+  comes from the UxPlay project, GPL-3.0: https://github.com/FDH2/UxPlay)
+- Boundary: standalone process, invoked with 236 bytes on stdin
+  (keymsg[164] || ekey[72]) and returning 16 bytes on stdout (aeskey).
+  It is not linked into TouchMirror; the application remains MIT-licensed.
+- If the executable is absent, AirPlay sessions still negotiate but the video
+  stream cannot be decrypted.

@@ -10,8 +10,8 @@ import java.nio.charset.StandardCharsets;
 
 public class DeviceMessageWriter {
 
-    private static final int MESSAGE_MAX_SIZE = 1 << 18; // 256k
-    public static final int CLIPBOARD_TEXT_MAX_LENGTH = MESSAGE_MAX_SIZE - 5; // type: 1 byte; length: 4 bytes
+    private static final int MESSAGE_MAX_SIZE = 1 << 18;
+    public static final int CLIPBOARD_TEXT_MAX_LENGTH = MESSAGE_MAX_SIZE - 5;
 
     private final DataOutputStream dos;
 
@@ -32,12 +32,6 @@ public class DeviceMessageWriter {
                 break;
             case DeviceMessage.TYPE_ACK_CLIPBOARD:
                 dos.writeLong(msg.getSequence());
-                break;
-            case DeviceMessage.TYPE_UHID_OUTPUT:
-                dos.writeShort(msg.getId());
-                byte[] data = msg.getData();
-                dos.writeShort(data.length);
-                dos.write(data);
                 break;
             default:
                 throw new ControlProtocolException("Unknown event type: " + type);

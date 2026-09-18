@@ -11,7 +11,6 @@ import java.util.List;
 public final class CodecUtils {
 
     private CodecUtils() {
-        // not instantiable
     }
 
     public static void setCodecOption(MediaFormat format, String key, Object value) {

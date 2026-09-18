@@ -11,9 +11,9 @@ import java.nio.charset.StandardCharsets;
 
 public class ControlMessageReader {
 
-    private static final int MESSAGE_MAX_SIZE = 1 << 18; // 256k
+    private static final int MESSAGE_MAX_SIZE = 1 << 18;
 
-    public static final int CLIPBOARD_TEXT_MAX_LENGTH = MESSAGE_MAX_SIZE - 14; // type: 1 byte; sequence: 8 bytes; paste flag: 1 byte; length: 4 bytes
+    public static final int CLIPBOARD_TEXT_MAX_LENGTH = MESSAGE_MAX_SIZE - 14;
     public static final int INJECT_TEXT_MAX_LENGTH = 300;
 
     private final DataInputStream dis;
@@ -47,19 +47,9 @@ public class ControlMessageReader {
             case ControlMessage.TYPE_ROTATE_DEVICE:
             case ControlMessage.TYPE_OPEN_HARD_KEYBOARD_SETTINGS:
             case ControlMessage.TYPE_RESET_VIDEO:
-            case ControlMessage.TYPE_CAMERA_ZOOM_IN:
-            case ControlMessage.TYPE_CAMERA_ZOOM_OUT:
                 return ControlMessage.createEmpty(type);
-            case ControlMessage.TYPE_UHID_CREATE:
-                return parseUhidCreate();
-            case ControlMessage.TYPE_UHID_INPUT:
-                return parseUhidInput();
-            case ControlMessage.TYPE_UHID_DESTROY:
-                return parseUhidDestroy();
             case ControlMessage.TYPE_START_APP:
                 return parseStartApp();
-            case ControlMessage.TYPE_CAMERA_SET_TORCH:
-                return parseCameraSetTorch();
             case ControlMessage.TYPE_RESIZE_DISPLAY:
                 return parseResizeDisplay();
             case ControlMessage.TYPE_SCAN_FILE:
@@ -122,7 +112,6 @@ public class ControlMessageReader {
 
     private ControlMessage parseInjectScrollEvent() throws IOException {
         Position position = parsePosition();
-        // Binary.i16FixedPointToFloat() decodes values assuming the full range is [-1, 1], but the actual range is [-16, 16].
         float hScroll = Binary.i16FixedPointToFloat(dis.readShort()) * 16;
         float vScroll = Binary.i16FixedPointToFloat(dis.readShort()) * 16;
         int buttons = dis.readInt();
@@ -151,34 +140,9 @@ public class ControlMessageReader {
         return ControlMessage.createSetDisplayPower(on);
     }
 
-    private ControlMessage parseUhidCreate() throws IOException {
-        int id = dis.readUnsignedShort();
-        int vendorId = dis.readUnsignedShort();
-        int productId = dis.readUnsignedShort();
-        String name = parseString(1);
-        byte[] data = parseByteArray(2);
-        return ControlMessage.createUhidCreate(id, vendorId, productId, name, data);
-    }
-
-    private ControlMessage parseUhidInput() throws IOException {
-        int id = dis.readUnsignedShort();
-        byte[] data = parseByteArray(2);
-        return ControlMessage.createUhidInput(id, data);
-    }
-
-    private ControlMessage parseUhidDestroy() throws IOException {
-        int id = dis.readUnsignedShort();
-        return ControlMessage.createUhidDestroy(id);
-    }
-
     private ControlMessage parseStartApp() throws IOException {
         String name = parseString(1);
         return ControlMessage.createStartApp(name);
-    }
-
-    private ControlMessage parseCameraSetTorch() throws IOException {
-        boolean on = dis.readBoolean();
-        return ControlMessage.createCameraSetTorch(on);
     }
 
     private ControlMessage parseSetVideoParams() throws IOException {

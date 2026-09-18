@@ -1,14 +1,9 @@
 package com.touchmirror.engine.wrappers;
 
-import com.touchmirror.engine.FakeContext;
-
 import android.annotation.SuppressLint;
-import android.content.Context;
-import android.hardware.camera2.CameraManager;
 import android.os.IBinder;
 import android.os.IInterface;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 
 @SuppressLint("PrivateApi,DiscouragedPrivateApi")
@@ -31,10 +26,8 @@ public final class ServiceManager {
     private static StatusBarManager statusBarManager;
     private static ClipboardManager clipboardManager;
     private static ActivityManager activityManager;
-    private static CameraManager cameraManager;
 
     private ServiceManager() {
-        /* not instantiable */
     }
 
     static IInterface getService(String service, String type) {
@@ -54,7 +47,6 @@ public final class ServiceManager {
         return windowManager;
     }
 
-    // The DisplayManager may be used from both the Controller thread and the video (main) thread
     public static synchronized DisplayManager getDisplayManager() {
         if (displayManager == null) {
             displayManager = DisplayManager.create();
@@ -85,7 +77,6 @@ public final class ServiceManager {
 
     public static ClipboardManager getClipboardManager() {
         if (clipboardManager == null) {
-            // May be null, some devices have no clipboard manager
             clipboardManager = ClipboardManager.create();
         }
         return clipboardManager;
@@ -96,17 +87,5 @@ public final class ServiceManager {
             activityManager = ActivityManager.create();
         }
         return activityManager;
-    }
-
-    public static CameraManager getCameraManager() {
-        if (cameraManager == null) {
-            try {
-                Constructor<CameraManager> ctor = CameraManager.class.getDeclaredConstructor(Context.class);
-                cameraManager = ctor.newInstance(FakeContext.get());
-            } catch (Exception e) {
-                throw new AssertionError(e);
-            }
-        }
-        return cameraManager;
     }
 }
