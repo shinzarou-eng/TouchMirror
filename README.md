@@ -80,7 +80,7 @@ Think of it as an open-source scrcpy alternative made for players: mirror and co
 | 🔗 | **Local API** | HTTP + SSE on localhost with a token — Stream Deck, OBS, scripts. Drives the app only: connect/disconnect, record, screenshot — no endpoint can send touch or keys into the game |
 | 🧩 | **Plugins** | Embedded JavaScript engine (sandbox) — `plugin.json` manifest, official plugins verified by hash |
 | 🔄 | **Updates** | The app detects new GitHub releases at startup |
-| 🍎 | **iPhone / AirPlay** (*beta*) | Mirror an iPhone/iPad over Wi-Fi — the app hosts a local AirPlay receiver. *Not yet bundled in the GitHub zip — local builds only* |
+| 🍎 | **iPhone / AirPlay** (*beta*) | Mirror an iPhone/iPad over Wi-Fi — the app hosts a local AirPlay receiver. *Not yet bundled in the GitHub zip — local builds only* · [progress notes](docs/airplay.md) |
 
 ## Comparison
 
