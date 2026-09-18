@@ -51,16 +51,28 @@ jobs:
         run: |
           if (-not $env:DISCORD_WEBHOOK) { Write-Output "webhook non configuré — skip"; exit 0 }
           $tag = "${{ github.ref_name }}"
+          $notes = ""
+          $notesFile = ".relnotes/$tag.md"
+          if (Test-Path $notesFile) {
+            $notes = (Get-Content $notesFile -Raw -Encoding utf8).Trim()
+            $notes = ($notes -split '\*\*Full Changelog\*\*')[0].Trim()
+            if ($notes.Length -gt 3800) { $notes = $notes.Substring(0, 3800) + "…" }
+          }
           $body = @{
-            content = "<@&1550260812650651759> **TouchMirror $tag est disponible !**"
+            content = "<@&1550260812650651759>"
             allowed_mentions = @{ roles = @("1550260812650651759") }
             embeds = @(@{
-              title = "Télécharger TouchMirror $tag"
-              url = "https://github.com/shinzarou-eng/TouchMirror/releases/download/$tag/TouchMirror-win-x64.zip"
-              description = "ZIP Windows — décompresse et lance. Notes de version complètes sur la page release."
+              title = "🚀 TouchMirror $tag"
+              url = "https://github.com/shinzarou-eng/TouchMirror/releases/tag/$tag"
+              description = $notes
               color = 5167502
-              footer = @{ text = "SHA256 joint dans les assets de la release" }
+              fields = @(@{
+                name = "⬇️ Télécharger"
+                value = "[TouchMirror-win-x64.zip](https://github.com/shinzarou-eng/TouchMirror/releases/download/$tag/TouchMirror-win-x64.zip) — décompresse et lance"
+                inline = $false
+              })
+              footer = @{ text = "SHA256 joint dans les assets • Full changelog sur GitHub" }
             })
           } | ConvertTo-Json -Depth 6
           Invoke-RestMethod -Uri "${env:DISCORD_WEBHOOK}?wait=true" -Method Post `
-            -Body $body -ContentType 'application/json; charset=utf-8'
+            -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) -ContentType 'application/json; charset=utf-8'
