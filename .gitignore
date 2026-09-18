@@ -26,7 +26,7 @@ engine/.gradle/
 engine/local.properties
 engine/bin/
 
-.relnotes/
+.relnotes/*.draft.md
 
 AGENTS.local.md
 MEMORY.md
