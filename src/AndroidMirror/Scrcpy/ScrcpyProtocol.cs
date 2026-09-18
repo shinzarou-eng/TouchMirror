@@ -266,6 +266,16 @@ public sealed class ControlChannel : IDisposable
         Send(buf);
     }
 
+    public void ScanFile(string path)
+    {
+        var bytes = Encoding.UTF8.GetBytes(path);
+        var buf = new byte[5 + bytes.Length];
+        buf[0] = (byte)ControlMsgType.ScanFile;
+        BinaryPrimitives.WriteUInt32BigEndian(buf.AsSpan(1, 4), (uint)bytes.Length);
+        bytes.CopyTo(buf, 5);
+        Send(buf);
+    }
+
     private static ushort EncodePressure(float p)
         => (ushort)Math.Clamp((int)MathF.Round(p * 0xFFFF), 0, 0xFFFF);
 

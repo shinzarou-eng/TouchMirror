@@ -3,7 +3,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:loc="clr-namespace:TouchMirror.Services"
-             Focusable="True">
+             Focusable="True"
+             AllowDrop="True"
+             DragOver="OnDragOver"
+             Drop="OnDrop">
     <Grid x:Name="Container" Background="Black">
         <Image x:Name="VideoImage"
                Stretch="Uniform"
@@ -28,22 +31,22 @@
                 Background="#F214181F" BorderBrush="#3ECF8E" BorderThickness="1"
                 Visibility="Collapsed" IsHitTestVisible="False">
             <StackPanel>
-                <TextBlock FontSize="10.5" Foreground="#9AA6B5" HorizontalAlignment="Center"
+                <TextBlock FontSize="11.5" Foreground="#9AA6B5" HorizontalAlignment="Center"
                            Text="{loc:Loc clic_placer_touche_assigner_glisser_deplacer_cli}" />
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
-                    <TextBlock Text="{loc:Loc style}" FontSize="10.5" Foreground="#9AA6B5" VerticalAlignment="Center" />
+                    <TextBlock Text="{loc:Loc style}" FontSize="11.5" Foreground="#9AA6B5" VerticalAlignment="Center" />
                     <ComboBox SelectedIndex="{Binding KeybindStyle}" Width="92" Height="24"
-                              FontSize="11" Margin="6,0,14,0" VerticalContentAlignment="Center"
+                              FontSize="12" Margin="6,0,14,0" VerticalContentAlignment="Center"
                               Focusable="False">
                         <ComboBoxItem Content="{loc:Loc pastille}" />
                         <ComboBoxItem Content="{loc:Loc cercle}" />
                         <ComboBoxItem Content="{loc:Loc minimal}" />
                     </ComboBox>
-                    <TextBlock Text="{loc:Loc opacite}" FontSize="10.5" Foreground="#9AA6B5" VerticalAlignment="Center" />
+                    <TextBlock Text="{loc:Loc opacite}" FontSize="11.5" Foreground="#9AA6B5" VerticalAlignment="Center" />
                     <Slider Value="{Binding KeybindOpacity}" Minimum="0.3" Maximum="1"
                             Width="72" Margin="6,0,14,0" VerticalAlignment="Center"
                             Focusable="False" />
-                    <TextBlock Text="{loc:Loc taille}" FontSize="10.5" Foreground="#9AA6B5" VerticalAlignment="Center" />
+                    <TextBlock Text="{loc:Loc taille}" FontSize="11.5" Foreground="#9AA6B5" VerticalAlignment="Center" />
                     <Slider Value="{Binding KeybindSize}" Minimum="22" Maximum="44"
                             Width="72" Margin="6,0,0,0" VerticalAlignment="Center"
                             Focusable="False" />
@@ -66,7 +69,7 @@
                                Foreground="#8AB4E8" Margin="0,0,7,0" />
                 <TextBlock Text="{loc:Loc ios_affichage_seul}"
                            Foreground="#8AB4E8"
-                           FontSize="10.5"
+                           FontSize="11.5"
                            FontWeight="SemiBold" />
             </StackPanel>
         </Border>
@@ -88,18 +91,18 @@
                            Foreground="#9FB2C8"
                            HorizontalAlignment="Center" />
                 <TextBlock Text="{loc:Loc meme_reseau_wi_fi_affichage_seul_sans_le_control}"
-                           FontSize="11"
+                           FontSize="12"
                            Foreground="#6E7E92"
                            HorizontalAlignment="Center"
                            Margin="0,8,0,0" />
                 <TextBlock Text="{loc:Loc controle_tactile_bouton_iphone_dans_la_barre_d_o}"
-                           FontSize="10.5"
+                           FontSize="11.5"
                            Foreground="#5E7A95"
                            HorizontalAlignment="Center"
                            TextWrapping="Wrap" MaxWidth="420" TextAlignment="Center"
                            Margin="0,6,0,0" />
                 <TextBlock x:Name="WaitingHint"
-                           FontSize="11.5"
+                           FontSize="12.5"
                            Foreground="#D8A04C"
                            HorizontalAlignment="Center"
                            TextWrapping="Wrap" MaxWidth="420" TextAlignment="Center"

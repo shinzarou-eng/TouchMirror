@@ -653,6 +653,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(HasMissingDevices));
         OnPropertyChanged(nameof(HasStripContent));
         LoadEffectiveSettings();
+        Status = L("st.select_device");
         SaveNow();
     }
 
@@ -1219,6 +1220,7 @@ public partial class MainViewModel : ObservableObject
             ? $"com.ankama.dofustouch@{account.UserId}"
             : AutoLaunchDofus ? "com.ankama.dofustouch" : null,
         AdaptiveBitrate = o?.AdaptiveBitrate ?? _settings.AdaptiveBitrate,
+        ClipboardAutosync = SyncDeviceClipboard,
     };
 
     private WorkspaceDevice? ActivePrefs() => ActiveMirror?.Prefs;

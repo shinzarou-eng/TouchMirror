@@ -11,6 +11,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using TouchMirror.Scrcpy;
+using TouchMirror.Services;
 using TouchMirror.Video;
 using TouchMirror.ViewModels;
 
@@ -879,6 +880,21 @@ public partial class MirrorView : UserControl
     public void InjectText(string text) => _control?.InjectText(text);
 
     public void PasteToDevice(string text) => _control?.SetClipboard(text, true);
+
+    private void OnDragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void OnDrop(object sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        if (DataContext is not MirrorInstance mi || _control == null)
+            return;
+        if (e.Data.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } paths)
+            AppLogger.Forget(mi.HandleFileDropAsync(paths));
+    }
 
     private static int MapKey(Key key) => key switch
     {

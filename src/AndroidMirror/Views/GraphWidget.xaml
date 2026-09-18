@@ -7,9 +7,9 @@
         <StackPanel>
             <DockPanel MinWidth="60">
                 <TextBlock x:Name="TitleText" Text="graph" DockPanel.Dock="Left"
-                           Foreground="#9AA6B5" FontSize="10.5" FontWeight="SemiBold"
+                           Foreground="#9AA6B5" FontSize="11.5" FontWeight="SemiBold"
                            VerticalAlignment="Center" />
-                <TextBlock x:Name="ValueText" Foreground="#EAEAEA" FontSize="10.5"
+                <TextBlock x:Name="ValueText" Foreground="#EAEAEA" FontSize="11.5"
                            FontFamily="Consolas" HorizontalAlignment="Right"
                            VerticalAlignment="Center" Margin="10,0,0,0" />
             </DockPanel>

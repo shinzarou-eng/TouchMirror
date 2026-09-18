@@ -27,6 +27,7 @@ public partial class PluginInstance : ObservableObject
     public string? Version { get; }
     public string? Author { get; }
     public string Icon { get; }
+    public Wpf.Ui.Controls.SymbolRegular Symbol => PluginIcons.For(Id);
     [ObservableProperty] private bool _isVerified;
     public string? ContentHash { get; private set; }
     [ObservableProperty] private bool _running;
