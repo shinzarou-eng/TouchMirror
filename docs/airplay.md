@@ -4,7 +4,7 @@ Notes techniques pour celles et ceux qui veulent comprendre, tester ou contribue
 
 ## Vue d'ensemble
 
-TouchMirror embarque un récepteur AirPlay **entièrement maison** (`src/AndroidMirror/AirPlay/`, ~2 700 lignes de C#). L'iPhone voit « TouchMirror » dans le Centre de contrôle → Recopie de l'écran, exactement comme une Apple TV. Aucun service tiers à installer, aucun binaire externe en tâche de fond.
+TouchMirror embarque un récepteur AirPlay **entièrement maison** (`src/AndroidMirror/AirPlay/`,. L'iPhone voit « TouchMirror » dans le Centre de contrôle → Recopie de l'écran, exactement comme une Apple TV. Aucun service tiers à installer, aucun binaire externe en tâche de fond.
 
 Une seule exception assumée : `assets/FairPlayHelper.exe` (GPL-3.0 — source dans `native/FairPlayHelper/`, l'implémentation playfair est reprise du projet [UxPlay](https://github.com/FDH2/UxPlay)). C'est un processus standalone invoqué via stdin/stdout pour extraire la clé AES du flux vidéo — jamais lié à l'application, qui reste sous licence MIT. S'il est absent, la session négocie mais la vidéo reste chiffrée.
 
