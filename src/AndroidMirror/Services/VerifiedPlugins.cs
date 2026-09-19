@@ -6,7 +6,7 @@ public static class VerifiedPlugins
 {
     public static readonly HashSet<string> Hashes = new(System.StringComparer.OrdinalIgnoreCase)
     {
-        "6d9679ef4a407f58a04415bf6b4f0ecaf10e58ba4e02ca019a82935a2eeaffcb",
+        "ba56990660c38a82bd1d872378bfbd09b6e48969fac27f0aa9d17392bbc7febb",
         "c548614863aa531086df3d4fc0d77eeffe7ac7c979a3eda67a3a6db490c3912b",
         "6bb87a11593b9b3f6da92a22a973ddad67db5640c9b57e3d3517c6568b625f73",
         "9f07f6c4ee753f994f002e75a169c1eb6ed161a63498d0f1630eb4f3463216cb",
