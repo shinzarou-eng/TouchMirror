@@ -16,8 +16,10 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-border/60 bg-background/75 backdrop-blur-lg backdrop-saturate-150">
       <div className="mx-auto flex h-14 max-w-5xl items-center gap-2 px-6">
-        <Link href="#top" className="flex items-center gap-2.5">
-          <Image src="/images/mascot.png" alt="" width={24} height={24} className="rounded-md" priority />
+        <Link href="#top" className="flex items-center gap-2.5" aria-label="TouchMirror, accueil">
+          <span className="flex size-8 items-center justify-center rounded-lg border border-border bg-card p-1">
+            <Image src="/images/mascot.png" alt="Mascotte TouchMirror" width={24} height={24} className="size-full rounded-md object-cover" priority />
+          </span>
           <span className="text-sm font-semibold tracking-tight">
             Touch<span className="text-primary">Mirror</span>
           </span>

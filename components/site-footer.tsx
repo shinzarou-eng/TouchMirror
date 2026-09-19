@@ -38,7 +38,9 @@ export function SiteFooter() {
         <div className="grid gap-10 sm:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div>
             <div className="flex items-center gap-2">
-              <Image src="/images/mascot.png" alt="" width={22} height={22} className="rounded-md" />
+              <span className="flex size-7 items-center justify-center rounded-md border border-border bg-card p-1">
+                <Image src="/images/mascot.png" alt="Mascotte TouchMirror" width={22} height={22} className="size-full rounded object-cover" />
+              </span>
               <span className="text-sm font-semibold tracking-tight">
                 Touch<span className="text-primary">Mirror</span>
               </span>
