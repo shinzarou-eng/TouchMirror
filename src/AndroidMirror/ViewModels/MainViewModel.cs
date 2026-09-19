@@ -1574,7 +1574,20 @@ public partial class MainViewModel : ObservableObject
                         "remembered", CustomName: prefs.CustomName, Color: prefs.Color));
             }
 
-            Devices = new ObservableCollection<AdbDevice>(list);
+            for (var i = 0; i < list.Count; i++)
+            {
+                if (i < Devices.Count)
+                {
+                    if (!Equals(Devices[i], list[i]))
+                        Devices[i] = list[i];
+                }
+                else
+                {
+                    Devices.Add(list[i]);
+                }
+            }
+            while (Devices.Count > list.Count)
+                Devices.RemoveAt(Devices.Count - 1);
             UpdateSetupOffer(list);
             var current = SelectedDevice != null
                 ? list.FirstOrDefault(d => d.SharesIdentity(SelectedDevice) || d.DeviceKey == SelectedDevice.DeviceKey)

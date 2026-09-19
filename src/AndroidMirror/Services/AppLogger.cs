@@ -8,6 +8,7 @@ public static class AppLogger
         System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "TouchMirror", "app.log");
     private static readonly object _lock = new();
+    private static StreamWriter? _writer;
 
     public static string LogFilePath => _path;
 
@@ -21,12 +22,19 @@ public static class AppLogger
         catch { }
     }
 
+    private static StreamWriter CreateWriter()
+        => new(new FileStream(_path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite))
+        { AutoFlush = true };
+
     public static void Write(string message)
     {
         try
         {
             lock (_lock)
-                File.AppendAllText(_path, $"[{DateTime.Now:HH:mm:ss.fff}] {message}\n");
+            {
+                _writer ??= CreateWriter();
+                _writer.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] {message}");
+            }
         }
         catch { }
     }
