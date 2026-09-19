@@ -11,7 +11,7 @@ const fontMono = Geist_Mono({
   variable: "--font-mono",
 })
 
-const siteUrl = "https://touchmirror.xyz"
+const siteUrl = "https://www.touchmirror.xyz"
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -30,6 +30,17 @@ export const metadata: Metadata = {
     "dofus touch multicompte",
   ],
   authors: [{ name: "TouchMirror" }],
+  alternates: { canonical: siteUrl },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
   openGraph: {
     type: "website",
     url: siteUrl,
