@@ -1,33 +1,36 @@
-bin/
-obj/
-dist/
-.vs/
-*.dmp
-*.user
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 
-/screenshot.png
-/*.ps1
-/*.py
-/*.png
-!/assets/**/*.png
-!/docs/**/*.png
+# testing
+/coverage
 
-assets/ffmpeg/
+# next.js
+/.next/
+/out/
 
-mockups/
-wiki/
-*_wpftmp.csproj
-assets/airplay/
-native/**/*.exe
-native/**/*.obj
+# production
+/build
 
-engine/**/build/
-engine/.gradle/
-engine/local.properties
-engine/bin/
+# misc
+.DS_Store
+*.pem
 
-.relnotes/*.draft.md
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-AGENTS.local.md
-MEMORY.md
-GRAPHISME.md
+# env files (can opt-in for committing if needed)
+.env*
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
