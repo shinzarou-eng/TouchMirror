@@ -1,4 +1,6 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { SectionHeading } from "@/components/section-heading"
+import { Reveal } from "@/components/reveal"
 
 const extras: { label: string; detail: React.ReactNode }[] = [
   { label: "Souris & clavier", detail: "Clic = tactile, Ctrl+molette = pinch-to-zoom, texte tapé comme clavier Bluetooth" },
@@ -30,26 +32,28 @@ export function ExtrasTable() {
   return (
     <section className="px-6 py-16">
       <div className="mx-auto max-w-4xl">
-        <h2 className="text-2xl font-semibold tracking-tight">Le reste</h2>
+        <SectionHeading kicker="Détails" title="Le reste" />
 
-        <div className="mt-6 overflow-x-auto rounded-xl border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-muted-foreground">Fonction</TableHead>
-                <TableHead className="text-muted-foreground">Détail</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {extras.map((row) => (
-                <TableRow key={row.label}>
-                  <TableCell className="whitespace-nowrap text-sm font-medium">{row.label}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{row.detail}</TableCell>
+        <Reveal className="mt-6">
+          <div className="overflow-x-auto rounded-xl border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-muted-foreground">Fonction</TableHead>
+                  <TableHead className="text-muted-foreground">Détail</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {extras.map((row) => (
+                  <TableRow key={row.label}>
+                    <TableCell className="whitespace-nowrap text-sm font-medium">{row.label}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{row.detail}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </Reveal>
       </div>
     </section>
   )

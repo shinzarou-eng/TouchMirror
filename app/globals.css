@@ -122,8 +122,41 @@
     }
   body {
     @apply bg-background text-foreground;
+    position: relative;
     }
   html {
     @apply font-sans;
     }
+}
+
+@layer utilities {
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, oklch(1 0 0 / 5%) 1px, transparent 1px),
+      linear-gradient(to bottom, oklch(1 0 0 / 5%) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+
+  .bg-noise::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0.035;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .text-glow {
+    text-shadow: 0 0 32px oklch(0.75 0.15 155 / 45%);
+  }
+
+  .shadow-glow {
+    box-shadow: 0 0 0 1px oklch(1 0 0 / 6%), 0 20px 60px -20px oklch(0.75 0.15 155 / 25%);
+  }
+
+  .shadow-glow-lg {
+    box-shadow: 0 30px 90px -20px oklch(0 0 0 / 65%), 0 0 0 1px oklch(1 0 0 / 6%), 0 0 80px -10px oklch(0.75 0.15 155 / 12%);
+  }
 }

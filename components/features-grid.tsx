@@ -2,6 +2,8 @@ import type { LucideIcon } from "lucide-react"
 import { Zap, Grid2x2, Layers, Wifi, Disc, Puzzle, Smartphone, MoonStar, LifeBuoy } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { SectionHeading } from "@/components/section-heading"
+import { RevealGroup, RevealItem } from "@/components/reveal"
 
 type Feature = {
   icon: LucideIcon
@@ -63,34 +65,32 @@ export function FeaturesGrid() {
   return (
     <section id="fonctionnalites" className="px-6 py-16">
       <div className="mx-auto max-w-4xl">
-        <h2 className="text-2xl font-semibold tracking-tight">Pensé pour Dofus Touch</h2>
-        <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-          Branche, clique, joue. Le jeu officiel tourne sur ton téléphone — TouchMirror l&apos;affiche et le
-          contrôle depuis le PC via un pipeline GPU zéro-copie. L&apos;alternative open source à scrcpy,
-          pensée pour les joueurs.
-        </p>
+        <SectionHeading
+          kicker="Fonctionnalités"
+          title="Pensé pour Dofus Touch"
+          description="Branche, clique, joue. Le jeu officiel tourne sur ton téléphone — TouchMirror l'affiche et le contrôle depuis le PC via un pipeline GPU zéro-copie. L'alternative open source à scrcpy, pensée pour les joueurs."
+        />
 
-        <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <RevealGroup className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((feature) => (
-            <div
-              key={feature.title}
-              className="rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/35"
-            >
-              <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10">
-                <feature.icon className="size-4 text-primary" />
+            <RevealItem key={feature.title}>
+              <div className="group h-full rounded-xl border border-border bg-card p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-glow">
+                <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 transition-colors group-hover:bg-primary/20">
+                  <feature.icon className="size-4 text-primary" />
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  <h3 className="text-sm font-semibold">{feature.title}</h3>
+                  {feature.beta && (
+                    <Badge variant="outline" className="border-primary/40 text-primary">
+                      bêta
+                    </Badge>
+                  )}
+                </div>
+                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{feature.description}</p>
               </div>
-              <div className="mt-3 flex items-center gap-2">
-                <h3 className="text-sm font-semibold">{feature.title}</h3>
-                {feature.beta && (
-                  <Badge variant="outline" className="border-primary/40 text-primary">
-                    bêta
-                  </Badge>
-                )}
-              </div>
-              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{feature.description}</p>
-            </div>
+            </RevealItem>
           ))}
-        </div>
+        </RevealGroup>
       </div>
     </section>
   )

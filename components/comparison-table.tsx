@@ -1,6 +1,8 @@
 import { Check, Minus } from "lucide-react"
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { SectionHeading } from "@/components/section-heading"
+import { Reveal } from "@/components/reveal"
 
 type Cell = boolean | "beta"
 
@@ -31,51 +33,56 @@ export function ComparisonTable() {
   return (
     <section id="comparatif" className="px-6 py-16">
       <div className="mx-auto max-w-4xl">
-        <h2 className="text-2xl font-semibold tracking-tight">Comparatif</h2>
-        <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-          Chaque outil a ses forces — voici où se situe TouchMirror.
-        </p>
+        <SectionHeading
+          kicker="Comparatif"
+          title="Chaque outil a ses forces"
+          description="Voici où se situe TouchMirror face aux alternatives les plus connues."
+        />
 
-        <div className="mt-6 overflow-x-auto rounded-xl border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-muted-foreground">Fonctionnalité</TableHead>
-                <TableHead className="text-center font-semibold text-primary">TouchMirror</TableHead>
-                <TableHead className="text-center text-muted-foreground">scrcpy</TableHead>
-                <TableHead className="text-center text-muted-foreground">Vysor</TableHead>
-                <TableHead className="text-center text-muted-foreground">Walky</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((row) => (
-                <TableRow key={row.feature}>
-                  <TableCell className="text-sm">{row.feature}</TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex justify-center">
-                      <CellIcon value={row.touchmirror} />
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex justify-center">
-                      <CellIcon value={row.scrcpy} />
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex justify-center">
-                      <CellIcon value={row.vysor} />
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex justify-center">
-                      <CellIcon value={row.walky} />
-                    </div>
-                  </TableCell>
+        <Reveal>
+          <div className="mt-6 overflow-x-auto rounded-xl border border-border shadow-glow">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-muted-foreground">Fonctionnalité</TableHead>
+                  <TableHead className="bg-primary/[0.06] text-center font-semibold text-primary">
+                    TouchMirror
+                  </TableHead>
+                  <TableHead className="text-center text-muted-foreground">scrcpy</TableHead>
+                  <TableHead className="text-center text-muted-foreground">Vysor</TableHead>
+                  <TableHead className="text-center text-muted-foreground">Walky</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {rows.map((row) => (
+                  <TableRow key={row.feature}>
+                    <TableCell className="text-sm">{row.feature}</TableCell>
+                    <TableCell className="bg-primary/[0.06] text-center">
+                      <div className="flex justify-center">
+                        <CellIcon value={row.touchmirror} />
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex justify-center">
+                        <CellIcon value={row.scrcpy} />
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex justify-center">
+                        <CellIcon value={row.vysor} />
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex justify-center">
+                        <CellIcon value={row.walky} />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </Reveal>
         <p className="mt-3 text-xs text-muted-foreground/60">
           Situation au 16/09/2026 — ouvre une issue si quelque chose a changé.
         </p>
