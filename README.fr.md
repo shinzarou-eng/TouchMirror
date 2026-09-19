@@ -31,7 +31,7 @@ Gratuit, open source, sans compte, sans pub.
 
 <img src="docs/screenshot.png" width="780" alt="TouchMirror — Dofus Touch en cours de jeu">
 
-**[Télécharger la dernière version](https://github.com/shinzarou-eng/TouchMirror/releases/latest)** · [Discord](https://discord.gg/DBJ9kNCdX) · [Documentation](docs/wiki/Home.md) · [Roadmap](ROADMAP.md) · [Signaler un bug](https://github.com/shinzarou-eng/TouchMirror/issues) · [Proposer une idée](https://github.com/shinzarou-eng/TouchMirror/issues/new)
+**[Télécharger la dernière version](https://github.com/shinzarou-eng/TouchMirror/releases/latest)** · **[Site — touchmirror.xyz](https://www.touchmirror.xyz/)** · [Discord](https://discord.gg/DBJ9kNCdX) · [Documentation](docs/wiki/Home.md) · [Roadmap](ROADMAP.md) · [Signaler un bug](https://github.com/shinzarou-eng/TouchMirror/issues) · [Proposer une idée](https://github.com/shinzarou-eng/TouchMirror/issues/new)
 
 🧪 **[On cherche des testeurs — rejoins le Discord](https://discord.gg/DBJ9kNCdX)** — bugs, idées, tests multi-téléphones : les retours de la communauté façonnent la roadmap.
 
