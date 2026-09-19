@@ -11,7 +11,7 @@ namespace TouchMirror.AirPlay;
 
 public sealed class AirPlaySession
 {
-    private const string ServerHeader = "AirTunes/220.68";
+    private const string ServerHeader = "AirTunes/377.40.00";
 
     private readonly TcpClient _client;
     private readonly NetworkStream _stream;
@@ -356,16 +356,20 @@ public sealed class AirPlaySession
     private Dictionary<string, object?> BuildInfoPlist() => new()
     {
         ["deviceID"] = AirPlayAdvertiser.DeviceIdPublic,
-        ["features"] = 0x527FFEE6L,
+        ["features"] = 0x038BC946007F8AD0L,
         ["macAddress"] = AirPlayAdvertiser.DeviceIdPublic,
-        ["model"] = "AppleTV3,2",
+        ["model"] = "TouchMirror",
+        ["manufacturer"] = "TouchMirror",
+        ["integrator"] = "TouchMirror",
         ["name"] = _receiverName,
+        ["nameIsFactoryDefault"] = false,
         ["pi"] = PairingIdentity.PairingId,
         ["pk"] = PairingIdentity.PublicKey,
-        ["sourceVersion"] = "220.68",
-        ["statusFlags"] = 68,
-        ["vv"] = 2,
-        ["keepAliveLowPower"] = 1,
+        ["protocolVersion"] = "1.1",
+        ["sourceVersion"] = "377.40.00",
+        ["statusFlags"] = 580,
+        ["vv"] = 1,
+        ["keepAliveLowPower"] = true,
         ["keepAliveSendStatsAsBody"] = true,
         ["audioFormats"] = new List<object?>
         {
@@ -374,20 +378,18 @@ public sealed class AirPlaySession
         },
         ["audioLatencies"] = new List<object?>
         {
-            new Dictionary<string, object?> { ["type"] = 100, ["inputLatencyMicros"] = 0L, ["outputLatencyMicros"] = false, ["audioType"] = "default" },
-            new Dictionary<string, object?> { ["type"] = 101, ["inputLatencyMicros"] = 0L, ["outputLatencyMicros"] = false, ["audioType"] = "default" },
+            new Dictionary<string, object?> { ["type"] = 100, ["inputLatencyMicros"] = 0L, ["outputLatencyMicros"] = 0L, ["audioType"] = "default" },
+            new Dictionary<string, object?> { ["type"] = 101, ["inputLatencyMicros"] = 0L, ["outputLatencyMicros"] = 0L, ["audioType"] = "default" },
         },
         ["displays"] = new List<object?>
         {
             new Dictionary<string, object?>
             {
                 ["uuid"] = "e0ff8a27-6738-3d56-8a16-cc53aacee925",
-                ["widthPhysical"] = 0, ["heightPhysical"] = 0,
-                ["width"] = 1920, ["height"] = 1080,
                 ["widthPixels"] = 1920, ["heightPixels"] = 1080,
-                ["refreshRate"] = 0.016666666666666666,
-                ["maxFPS"] = 30, ["overscanned"] = false,
-                ["features"] = 14, ["rotation"] = false,
+                ["widthPixelsMax"] = 1920, ["heightPixelsMax"] = 1080,
+                ["maxFPS"] = 60,
+                ["features"] = 14,
             },
         },
     };

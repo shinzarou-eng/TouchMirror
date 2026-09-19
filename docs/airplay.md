@@ -26,7 +26,7 @@ iPhone ──TCP───▶ MirrorStreamServer  (canal data, type 110)
 
 ## Ce qui fonctionne
 
-- **Annonce mDNS** des deux services avec l'empreinte `AppleTV3,2`, règles firewall créées automatiquement, diagnostics intégrés (conflits de ports, profil réseau public, règle bloquante).
+- **Annonce mDNS** des deux services avec un profil de récepteur tiers mesuré sur du vrai matériel (features 64-bit, `srcvers 377.40.00`, `flags 0x244`, `protovers 1.1`), règles firewall créées automatiquement, diagnostics intégrés (conflits de ports, profil réseau public, règle bloquante).
 - **Machine d'état RTSP complète** : `OPTIONS`, `GET /info`, `POST /pair-setup`, `/pair-verify`, `/fp-setup`, `/reverse`, `ANNOUNCE`, `SETUP`, `RECORD`, `GET/SET_PARAMETER`, `PAUSE`, `FLUSH`, `TEARDOWN`. Plist binaire lu/écrit par un codec maison.
 - **Pairing HAP** : SRP-6a, Curve25519, TLV8, canal chiffré après vérification.
 - **FairPlay** : `fp-setup` + extraction de la clé AES de l'`ekey` via le helper.
@@ -36,11 +36,25 @@ iPhone ──TCP───▶ MirrorStreamServer  (canal data, type 110)
 - **Contrôle iOS via BLE HID** : le PC s'annonce en périphérique Bluetooth clavier/pointeur — AirPlay étant display-only, le contrôle passe par ce canal séparé.
 - **Testable sans iPhone** : `tools/FakeAirPlayHost` rejoue la poignée de main de bout en bout.
 
+## Références mesurées
+
+Annonces relevées sur le réseau local de deux récepteurs fonctionnels (sept. 2026) :
+
+| TXT `_airplay._tcp` | Récepteur TV tiers (intégrateur TV) | Apple TV 4K (`AppleTV14,1`) | TouchMirror |
+|---|---|---|---|
+| `features` | `0x7F8AD0,0x38BCF46` | `0x4A7FDFD5,0x3C177FDE` | `0x7F8AD0,0x38BC946` |
+| `srcvers` | `377.40.00` | `980.77.2` | `377.40.00` |
+| `flags` | `0x244` | `0x644` | `0x244` |
+| `protovers` | `1.1` | `1.1` | `1.1` |
+| port | `7000` | `7000` | `7001` |
+
+Le masque TouchMirror reprend celui du récepteur tiers — profil éprouvé par les iPhones récents — en retirant deux bits : **PTP** (bit 41) et **ScreenMultiCodec** (bit 42), pour forcer iOS sur le chemin implémenté (timing NTP + flux H.264). Les deux récepteurs réels exposent aussi `PTPInfo`, `featuresEx` et `supportedFormats` dans `/info`, et l'Apple TV annonce `hasUDPMirroringSupport` — voie UDP encore non implémentée ici.
+
 ## Ce qui manque
 
 | Manquant | Détail |
 |---|---|
-| **Timing PTP** | iOS moderne négocie `timingProtocol: "PTP"` dans SETUP ; seul NTP est implémenté. Suspect n°1 de l'affichage réel. |
+| **Timing PTP** | iOS moderne négocie `timingProtocol: "PTP"` dans SETUP ; seul NTP est implémenté. Le bit PTP n'est volontairement pas annoncé — à implémenter si un vrai appareil l'exige malgré tout. |
 | **Audio RAOP (type 96)** | Les ports sont ouverts et annoncés, aucun paquet n'est encore décodé. |
 | **Canal data HAP** | La détection repose sur une heuristique (sonde `len16` + essai de plusieurs secrets) — fragile face aux flux d'un vrai appareil. |
 | **`/reverse` (PTTH)** | Réponse `101` stub — pas de canal d'événements. |
