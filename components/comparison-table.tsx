@@ -31,7 +31,7 @@ function CellIcon({ value }: { value: Cell }) {
 
 export function ComparisonTable() {
   return (
-    <section id="comparatif" className="px-6 py-16">
+    <section id="comparatif" className="border-b border-border px-6 py-16">
       <div className="mx-auto max-w-4xl">
         <SectionHeading
           kicker="Comparatif"
@@ -40,7 +40,7 @@ export function ComparisonTable() {
         />
 
         <Reveal>
-          <div className="mt-6 overflow-x-auto rounded-xl border border-border shadow-glow">
+          <div className="mt-6 overflow-x-auto rounded-lg border border-border">
             <Table>
               <TableHeader>
                 <TableRow>

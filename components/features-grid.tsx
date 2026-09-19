@@ -63,7 +63,7 @@ const features: Feature[] = [
 
 export function FeaturesGrid() {
   return (
-    <section id="fonctionnalites" className="px-6 py-16">
+    <section id="fonctionnalites" className="border-b border-border px-6 py-16">
       <div className="mx-auto max-w-4xl">
         <SectionHeading
           kicker="Fonctionnalités"
@@ -71,13 +71,11 @@ export function FeaturesGrid() {
           description="Branche, clique, joue. Le jeu officiel tourne sur ton téléphone — TouchMirror l'affiche et le contrôle depuis le PC via un pipeline GPU zéro-copie. L'alternative open source à scrcpy, pensée pour les joueurs."
         />
 
-        <RevealGroup className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <RevealGroup className="mt-8 grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
           {features.map((feature) => (
             <RevealItem key={feature.title}>
-              <div className="group h-full rounded-xl border border-border bg-card p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-glow">
-                <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 transition-colors group-hover:bg-primary/20">
-                  <feature.icon className="size-4 text-primary" />
-                </div>
+              <div className="h-full bg-card p-5">
+                <feature.icon className="size-4 text-muted-foreground" aria-hidden="true" />
                 <div className="mt-3 flex items-center gap-2">
                   <h3 className="text-sm font-semibold">{feature.title}</h3>
                   {feature.beta && (

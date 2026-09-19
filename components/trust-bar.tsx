@@ -27,7 +27,7 @@ export async function TrustBar() {
       {items.map((item, index) => {
         const content = (
           <span className="flex items-center gap-1.5">
-            <item.icon className="size-3.5 text-primary/80" />
+            <item.icon className="size-3.5 text-muted-foreground/70" />
             {item.label}
           </span>
         )

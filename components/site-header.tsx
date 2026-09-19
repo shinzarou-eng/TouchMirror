@@ -17,14 +17,7 @@ export function SiteHeader() {
     <header className="sticky top-0 z-50 border-b border-border/60 bg-background/75 backdrop-blur-lg backdrop-saturate-150">
       <div className="mx-auto flex h-14 max-w-5xl items-center gap-2 px-6">
         <Link href="#top" className="flex items-center gap-2.5">
-          <Image
-            src="/images/mascot.png"
-            alt=""
-            width={24}
-            height={24}
-            className="rounded-md drop-shadow-[0_0_10px_rgba(78,201,142,0.35)]"
-            priority
-          />
+          <Image src="/images/mascot.png" alt="" width={24} height={24} className="rounded-md" priority />
           <span className="text-sm font-semibold tracking-tight">
             Touch<span className="text-primary">Mirror</span>
           </span>

@@ -7,17 +7,17 @@ import { site } from "@/lib/site"
 
 const steps = [
   {
-    n: "1",
+    n: "01",
     title: "Branche en USB",
     description: "Un câble data classique. adb est embarqué — rien à installer sur le PC.",
   },
   {
-    n: "2",
+    n: "02",
     title: "Débogage USB",
     description: "Options développeur → Débogage USB, puis autorise le PC sur le téléphone.",
   },
   {
-    n: "3",
+    n: "03",
     title: "Connecter → Dofus",
     description: "Le miroir s'affiche, le bouton Dofus lance le jeu. C'est tout.",
   },
@@ -25,22 +25,16 @@ const steps = [
 
 export function HowItWorks() {
   return (
-    <section id="installation" className="px-6 py-16">
+    <section id="installation" className="border-b border-border px-6 py-16">
       <div className="mx-auto max-w-4xl">
         <SectionHeading kicker="Installation" title="Prêt en 3 étapes" />
 
-        <RevealGroup className="relative mt-8 grid gap-3 sm:grid-cols-3">
-          <div
-            className="absolute top-[27px] right-[16.5%] left-[16.5%] hidden h-px bg-gradient-to-r from-primary/40 via-primary/15 to-primary/40 sm:block"
-            aria-hidden="true"
-          />
+        <RevealGroup className="mt-8 grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-3">
           {steps.map((step) => (
             <RevealItem key={step.n}>
-              <div className="relative h-full rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/35">
-                <div className="flex size-6 items-center justify-center rounded-full bg-primary/15 font-mono text-xs font-bold text-primary ring-4 ring-background">
-                  {step.n}
-                </div>
-                <h3 className="mt-3.5 text-sm font-semibold">{step.title}</h3>
+              <div className="h-full bg-card p-5">
+                <span className="font-mono text-xs text-muted-foreground/60">{step.n}</span>
+                <h3 className="mt-2 text-sm font-semibold">{step.title}</h3>
                 <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{step.description}</p>
               </div>
             </RevealItem>

@@ -15,16 +15,10 @@ export function SectionHeading({
 }) {
   return (
     <div className={cn(align === "center" && "text-center", className)}>
-      <div
-        className={cn(
-          "flex items-center gap-2 font-mono text-xs font-medium tracking-[0.18em] text-primary uppercase",
-          align === "center" && "justify-center",
-        )}
-      >
-        <span className="h-px w-4 bg-primary/50" aria-hidden="true" />
+      <p className="font-mono text-xs font-medium tracking-[0.14em] text-muted-foreground uppercase">
         {kicker}
-      </div>
-      <h2 className="mt-3 text-2xl font-semibold tracking-tight text-balance sm:text-3xl">{title}</h2>
+      </p>
+      <h2 className="mt-2 text-2xl font-semibold tracking-tight text-balance sm:text-3xl">{title}</h2>
       {description && (
         <p
           className={cn(

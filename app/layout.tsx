@@ -67,7 +67,7 @@ export default function RootLayout({
       lang="fr"
       className={cn("dark antialiased bg-background", fontMono.variable, "font-sans", geist.variable)}
     >
-      <body className="bg-background text-foreground bg-noise">{children}</body>
+      <body className="bg-background text-foreground">{children}</body>
     </html>
   )
 }
