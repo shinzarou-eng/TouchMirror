@@ -680,7 +680,7 @@ public partial class MirrorView : UserControl
             return;
         }
 
-        if (_control == null || !TryMapPoint(e.GetPosition(InputSurface), out var x, out var y, strict: true))
+        if (!TryMapPoint(e.GetPosition(InputSurface), out var x, out var y, strict: true))
             return;
 
         var flag = ButtonFlag(e.ChangedButton);

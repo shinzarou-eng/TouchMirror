@@ -14,18 +14,15 @@ public static class AirPlayDiagnostics
         bool FirewallRuleMissing,
         bool FirewallRuleBlocking);
 
-    public static bool HasProblem(Result r) =>
-        r.PortConflicts.Count > 0 || r.FirewallRuleBlocking || r.FirewallRuleMissing;
-
     public static Result Run(string hostExePath, int ownHostPid, params int[] ports)
     {
-        var fw = FirewallRuleState(hostExePath);
+        var fw = FirewallHelper.InboundState(hostExePath);
         return new Result(
             LocalIPv4: PrimaryIPv4(),
             ProfileKind: ActiveProfileKind(),
             PortConflicts: PortOwners(ports, ownHostPid),
-            FirewallRuleMissing: fw == RuleState.None,
-            FirewallRuleBlocking: fw == RuleState.Block);
+            FirewallRuleMissing: fw == FirewallHelper.State.None,
+            FirewallRuleBlocking: fw == FirewallHelper.State.Block);
     }
 
     public static string? Summarize(Result r)
@@ -73,38 +70,6 @@ public static class AirPlayDiagnostics
         }
         catch { }
         return null;
-    }
-
-    private enum RuleState { None, Allow, Block }
-
-    private static RuleState FirewallRuleState(string exePath)
-    {
-        try
-        {
-            var t = Type.GetTypeFromProgID("HNetCfg.FwPolicy2");
-            if (t == null) return RuleState.None;
-            dynamic policy = Activator.CreateInstance(t)!;
-            var state = RuleState.None;
-            foreach (dynamic rule in policy.Rules)
-            {
-                string? app = null;
-                try { app = rule.ApplicationName as string; } catch { }
-                if (app == null ||
-                    !app.EndsWith("airplayhost.exe", StringComparison.OrdinalIgnoreCase))
-                    continue;
-                int dir = 1;
-                try { dir = (int)rule.Direction; } catch { }
-                if (dir != 1) continue;
-                bool enabled = true;
-                try { enabled = (bool)rule.Enabled; } catch { }
-                if (!enabled) continue;
-                int action = 1;
-                try { action = (int)rule.Action; } catch { }
-                state = action == 0 ? RuleState.Block : RuleState.Allow;
-            }
-            return state;
-        }
-        catch { return RuleState.None; }
     }
 
     private static IReadOnlyList<string> PortOwners(int[] ports, int ownHostPid)

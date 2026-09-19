@@ -30,7 +30,6 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
     private readonly object _sync = new();
     private bool _disposed;
 
-    public event Action? FrameAvailable;
     public event Action<string>? Error;
 
     public event Action<IntPtr, int, int, int, int>? GpuFrame;
@@ -43,12 +42,7 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
 
     private IntPtr ExternalD3D11Device => GpuPresenter != null ? GpuPresenter.SharedDevicePtr : IntPtr.Zero;
 
-    public int Width => _frameW;
-    public int Height => _frameH;
-
     public bool HardwareDecoding { get; private set; }
-
-    public int HardwareFallbacks => _hwFailCount;
 
     public static void InitializeFFmpeg()
     {
@@ -374,8 +368,6 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
         var previous = Interlocked.Exchange(ref _latest, buffer);
         if (previous != null)
             _pool.Enqueue(previous);
-
-        FrameAvailable?.Invoke();
     }
 
     public bool TryTakeLatest(out byte[]? buffer, out int width, out int height)

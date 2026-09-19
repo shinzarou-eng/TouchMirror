@@ -22,7 +22,6 @@ internal sealed class CMClock
     }
 
     public static CMClock WithHostTime(ulong id) => new(id, NanoSecondScale);
-    public static CMClock WithHostTimeAndScale(ulong id, uint timeScale) => new(id, timeScale);
 
     public CMTime GetTime()
     {

@@ -1,5 +1,4 @@
 using System.IO;
-using System.Text;
 
 namespace TouchMirror.AirPlay;
 
@@ -55,6 +54,4 @@ public static class Tlv8
         }
         return ms.ToArray();
     }
-
-    public static string Str(byte[] v) => Encoding.UTF8.GetString(v);
 }

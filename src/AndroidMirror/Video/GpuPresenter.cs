@@ -27,7 +27,7 @@ public sealed class GpuPresenter : IDisposable
                         null, DriverType.Hardware,
                         DeviceCreationFlags.BgraSupport | DeviceCreationFlags.VideoSupport,
                         new[] { FeatureLevel.Level_11_1, FeatureLevel.Level_11_0 },
-                        out ID3D11Device dev);
+                        out ID3D11Device? dev);
                     _device = r.Success ? dev : null;
                 }
                 return _device;
@@ -209,7 +209,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
 
     private void Draw(ID3D11ShaderResourceView srvY, ID3D11ShaderResourceView srvUV, int w, int h)
     {
-        _ctx.OMSetRenderTargets(_rtv);
+        _ctx.OMSetRenderTargets(_rtv!);
         _ctx.RSSetViewport(0, 0, w, h);
         _ctx.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         _ctx.VSSetShader(_vs!);

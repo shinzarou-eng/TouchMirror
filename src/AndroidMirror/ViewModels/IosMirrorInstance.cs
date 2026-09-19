@@ -6,8 +6,6 @@ namespace TouchMirror.ViewModels;
 
 public sealed partial class IosMirrorInstance : MirrorInstance
 {
-    private AirPlayService? _service;
-    private Video.AirPlayAudioPlayer? _audio;
     private BleHidHost? _ble;
     private BlePointerAdapter? _pointer;
 
@@ -31,8 +29,6 @@ public sealed partial class IosMirrorInstance : MirrorInstance
 
     public Task StartAsync(AirPlayService service)
     {
-        _service = service;
-
         service.DeviceConnected += (name, id) =>
             View.Dispatcher.Invoke(() =>
             {
@@ -46,25 +42,6 @@ public sealed partial class IosMirrorInstance : MirrorInstance
             {
                 IsConnected = false;
                 DeviceName = "iPhone (AirPlay)";
-                _audio?.Dispose();
-                _audio = null;
-                View.SetWaitingOverlay(true);
-            });
-        service.AudioFrame += (rate, ch, bits, data, len) =>
-        {
-            if (_audio == null)
-            {
-                _audio = CreateAudio();
-                if (_audio != null && _audioMuted)
-                    try { _audio.Volume = 0f; } catch { }
-            }
-            _audio?.Feed(rate, ch, bits, data, len);
-        };
-        service.Exited += () =>
-            View.Dispatcher.Invoke(() =>
-            {
-                RaiseLog("airplay: récepteur arrêté");
-                IsConnected = false;
                 View.SetWaitingOverlay(true);
             });
         service.Log += m => RaiseLog(m);
@@ -81,13 +58,6 @@ public sealed partial class IosMirrorInstance : MirrorInstance
             }
             View.SetWaitingOverlay(already == null);
         }).Task;
-    }
-
-    private Video.AirPlayAudioPlayer CreateAudio()
-    {
-        var a = new Video.AirPlayAudioPlayer();
-        a.Error += m => RaiseLog($"audio: {m}");
-        return a;
     }
 
     public async Task<bool> EnableBleControlAsync()
@@ -152,23 +122,14 @@ public sealed partial class IosMirrorInstance : MirrorInstance
             _host.Wheel(C(rx), C(ry), (sbyte)Math.Clamp(steps, -127, 127));
     }
 
-    public override void SetAudioMuted(bool muted)
-    {
-        _audioMuted = muted;
-        try { if (_audio != null) _audio.Volume = muted ? 0f : 1f; } catch { }
-    }
-
     public override string ToggleRecording(string videoCodec)
         => L("ios.no_record");
 
     public override async Task DisconnectAsync()
     {
-        _service = null;
         _ble?.Dispose();
         _ble = null;
         _pointer = null;
-        _audio?.Dispose();
-        _audio = null;
         await base.DisconnectAsync();
     }
 }

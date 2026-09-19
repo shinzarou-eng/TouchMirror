@@ -17,7 +17,6 @@ internal readonly struct NSNumber
         => (TypeSpecifier, IntValue, LongValue, FloatValue) = (type, i, l, f);
 
     public static NSNumber FromUInt32(uint v) => new(3, v, 0, 0);
-    public static NSNumber FromUInt64(ulong v) => new(4, 0, v, 0);
     public static NSNumber FromFloat64(double v) => new(6, 0, 0, v);
 
     public static NSNumber Parse(ReadOnlySpan<byte> data)

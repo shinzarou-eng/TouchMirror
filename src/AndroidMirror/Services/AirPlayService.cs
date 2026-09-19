@@ -15,13 +15,7 @@ public sealed class AirPlayService : IDisposable
     private RtspServer? _airplayServer;
     private RtspServer? _raopServer;
 
-    private readonly AirPlayFrameSource _frames = new();
-    private readonly SwitchableFrameSource _switchable;
-
-    public AirPlayService()
-    {
-        _switchable = new SwitchableFrameSource(_frames);
-    }
+    private readonly SwitchableFrameSource _switchable = new();
 
     public IFrameSource Frames => _switchable;
     public bool IsRunning { get; private set; }
@@ -32,8 +26,6 @@ public sealed class AirPlayService : IDisposable
     public event Action<string, string>? DeviceConnected;
     public event Action<string, string>? DeviceDisconnected;
     public event Action<string>? Log;
-    public event Action? Exited;
-    public event Action<int, int, int, byte[], int>? AudioFrame;
 
     public Task StartAsync(CancellationToken ct = default)
     {
@@ -68,7 +60,7 @@ public sealed class AirPlayService : IDisposable
                 _switchable.Current = src;
                 Log?.Invoke("airplay: flux vidéo natif décodé par TouchMirror");
             };
-            srv.StreamStopped += () => _switchable.Current = _frames;
+            srv.StreamStopped += () => _switchable.Current = null;
             srv.Start(_cts.Token);
         }
 
@@ -94,7 +86,6 @@ public sealed class AirPlayService : IDisposable
         try { _advertiser?.Dispose(); } catch { }
         try { _airplayServer?.Dispose(); } catch { }
         try { _raopServer?.Dispose(); } catch { }
-        _frames.Dispose();
         _cts?.Dispose();
     }
 }
@@ -154,23 +145,20 @@ public sealed class AirPlayAdvertiser : IDisposable
 
 internal sealed class SwitchableFrameSource : IFrameSource
 {
-    private readonly IFrameSource _fallback;
-    private volatile IFrameSource _current;
+    private volatile IFrameSource? _current;
 
-    public SwitchableFrameSource(IFrameSource fallback)
-    {
-        _fallback = fallback;
-        _current = fallback;
-    }
-
-    public IFrameSource Current
+    public IFrameSource? Current
     {
         get => _current;
-        set => _current = value ?? _fallback;
+        set => _current = value;
     }
 
     public bool TryTakeLatest(out byte[]? buffer, out int width, out int height)
-        => _current.TryTakeLatest(out buffer, out width, out height);
+    {
+        buffer = null;
+        width = height = 0;
+        return _current?.TryTakeLatest(out buffer, out width, out height) ?? false;
+    }
 
-    public void Release(byte[] buffer) => _current.Release(buffer);
+    public void Release(byte[] buffer) => _current?.Release(buffer);
 }

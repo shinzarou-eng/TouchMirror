@@ -168,7 +168,7 @@ public sealed class AirPlaySession
             case "ANNOUNCE":
                 HandleAnnounce(req);
                 _sessionId = req.Header("Session");
-                DeviceConnected?.Invoke(remoteName(), remoteName());
+                DeviceConnected?.Invoke(RemoteName(), RemoteName());
                 await Respond(req, 200, ct: ct);
                 break;
 
@@ -202,7 +202,7 @@ public sealed class AirPlaySession
                 _streaming = false;
                 StopStreams();
                 await Respond(req, 200, ct: ct);
-                DeviceDisconnected?.Invoke(remoteName(), remoteName());
+                DeviceDisconnected?.Invoke(RemoteName(), RemoteName());
                 return;
 
             default:
@@ -227,7 +227,7 @@ public sealed class AirPlaySession
         _audioHolders.Clear();
     }
 
-    private string remoteName() => _client.Client.RemoteEndPoint?.ToString() ?? "inconnu";
+    private string RemoteName() => _client.Client.RemoteEndPoint?.ToString() ?? "inconnu";
 
     private void HandleAnnounce(RtspRequest req)
     {

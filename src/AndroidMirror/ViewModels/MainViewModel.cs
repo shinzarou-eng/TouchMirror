@@ -1820,30 +1820,7 @@ public partial class MainViewModel : ObservableObject
             instance.DeviceName = $"{device.ShortName} · {account.Name}";
         try
         {
-            instance.Log += Log;
-            instance.Connected += m =>
-            {
-                SetActive(m);
-                AnyConnected?.Invoke();
-                _apiHost.Publish("mirror.connected",
-                    new { slot = m.Slot, name = m.DeviceName, serial = m.Device.Serial });
-            };
-            instance.Disconnected += m =>
-            {
-                _apiHost.Publish("mirror.disconnected",
-                    new { name = m.DeviceName, serial = m.Device.Serial, manual = m.ManualDisconnect });
-                Mirrors.Remove(m);
-                PromoteNextActive(m);
-            };
-            instance.OverlayLineClicked += (m, id, idx) =>
-                _apiHost.Publish("overlay.line",
-                    new { slot = m.Slot, id, index = idx });
-
-            Mirrors.Add(instance);
-            ApplyMirrorOrder();
-            RefreshInactiveMirrors();
-            SetActive(instance);
-            MirrorAdded?.Invoke(instance);
+            WireMirror(instance);
             Services.AppLogger.Write("startasync begin");
             var options = BuildOptions(prefs, account);
             if (account != null)
@@ -1996,36 +1973,12 @@ public partial class MainViewModel : ObservableObject
             {
                 ShouldSyncClipboard = () => false
             };
-            instance.Log += Log;
             instance.BleStatusChanged += s =>
             {
                 Status = s;
                 OnPropertyChanged(nameof(IosBleActive));
             };
-            instance.Connected += m =>
-            {
-                SetActive(m);
-                AnyConnected?.Invoke();
-                _apiHost.Publish("mirror.connected",
-                    new { slot = m.Slot, name = m.DeviceName, serial = m.Device.Serial });
-            };
-            instance.Disconnected += m =>
-            {
-                _apiHost.Publish("mirror.disconnected",
-                    new { name = m.DeviceName, serial = m.Device.Serial, manual = m.ManualDisconnect });
-                Mirrors.Remove(m);
-                PromoteNextActive(m);
-                StopAirPlayIfUnused();
-            };
-            instance.OverlayLineClicked += (m, id, idx) =>
-                _apiHost.Publish("overlay.line",
-                    new { slot = m.Slot, id, index = idx });
-
-            Mirrors.Add(instance);
-            ApplyMirrorOrder();
-            RefreshInactiveMirrors();
-            SetActive(instance);
-            MirrorAdded?.Invoke(instance);
+            WireMirror(instance, () => StopAirPlayIfUnused());
             await instance.StartAsync(_airPlay);
             BindKeybindPersistence(instance);
             Status = AirPlayStatusText(instance);
@@ -2264,6 +2217,35 @@ public partial class MainViewModel : ObservableObject
             RefreshInactiveMirrors();
             UpdateStatus();
         }
+    }
+
+    private void WireMirror(MirrorInstance instance, Action? onDisconnected = null)
+    {
+        instance.Log += Log;
+        instance.Connected += m =>
+        {
+            SetActive(m);
+            AnyConnected?.Invoke();
+            _apiHost.Publish("mirror.connected",
+                new { slot = m.Slot, name = m.DeviceName, serial = m.Device.Serial });
+        };
+        instance.Disconnected += m =>
+        {
+            _apiHost.Publish("mirror.disconnected",
+                new { name = m.DeviceName, serial = m.Device.Serial, manual = m.ManualDisconnect });
+            Mirrors.Remove(m);
+            PromoteNextActive(m);
+            onDisconnected?.Invoke();
+        };
+        instance.OverlayLineClicked += (m, id, idx) =>
+            _apiHost.Publish("overlay.line",
+                new { slot = m.Slot, id, index = idx });
+
+        Mirrors.Add(instance);
+        ApplyMirrorOrder();
+        RefreshInactiveMirrors();
+        SetActive(instance);
+        MirrorAdded?.Invoke(instance);
     }
 
     [RelayCommand]
