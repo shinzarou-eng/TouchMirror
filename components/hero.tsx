@@ -22,19 +22,22 @@ export function Hero() {
 
         <RevealItem>
           <h1 className="mt-6 text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-            TouchMirror
+            Dofus Touch mirroring sur PC
           </h1>
+          <p className="mt-2 font-mono text-xs uppercase tracking-[0.18em] text-primary">
+            TouchMirror
+          </p>
         </RevealItem>
 
         <RevealItem>
           <p className="mt-4 text-lg text-muted-foreground text-balance">
-            Joue à Dofus Touch sur PC, depuis ton vrai téléphone.
+            Joue à Dofus Touch sur PC depuis ton vrai téléphone Android.
           </p>
         </RevealItem>
 
         <RevealItem>
           <p className="mt-2 text-sm text-muted-foreground/70">
-            Mirroring Android natif. Pas un émulateur, pas d&apos;automatisation.
+            Dofus Touch mirroring Android natif. Pas un émulateur, pas d&apos;automatisation.
           </p>
         </RevealItem>
 

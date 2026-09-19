@@ -16,12 +16,14 @@ const siteUrl = "https://www.touchmirror.xyz"
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "TouchMirror — Mirroring Android natif pour Dofus Touch",
+    default: "Dofus Touch Mirroring sur PC — TouchMirror",
     template: "%s · TouchMirror",
   },
   description:
-    "Affiche et contrôle ton vrai téléphone Android depuis Windows. Gratuit, open source, sans compte, sans automatisation. Pensé pour Dofus Touch.",
+    "Dofus Touch mirroring sur PC Windows : affiche et contrôle ton vrai téléphone Android avec TouchMirror. Gratuit, open source, sans émulateur ni automatisation.",
   keywords: [
+    "dofus touch mirroring",
+    "dofus touch miroir pc",
     "dofus touch pc",
     "mirroring dofus touch",
     "android mirroring windows",
