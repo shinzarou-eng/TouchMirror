@@ -36,7 +36,7 @@ export function ComparisonTable() {
         <SectionHeading
           kicker="Comparatif"
           title="Chaque outil a ses forces"
-          description="Voici où se situe TouchMirror face aux alternatives les plus connues."
+          description="TouchMirror n’essaie pas de remplacer chaque outil : voici ce que chaque solution fait le mieux."
         />
 
         <Reveal>
