@@ -1,11 +1,11 @@
-import { Star, Tag, ShieldCheck, EyeOff } from "lucide-react"
+import { Download, EyeOff, ShieldCheck, Star, Tag } from "lucide-react"
 
-import { getRepoStats, formatStars } from "@/lib/github"
+import { formatDownloads, formatStars, getRepoStats } from "@/lib/github"
 import { site } from "@/lib/site"
 import { GithubIcon } from "@/components/icons/github-icon"
 
 export async function TrustBar() {
-  const { stars, latestVersion } = await getRepoStats()
+  const { stars, totalDownloads, latestVersion } = await getRepoStats()
 
   const items = [
     stars !== null
@@ -18,6 +18,9 @@ export async function TrustBar() {
     latestVersion
       ? { icon: Tag, label: latestVersion, href: site.releasesUrl }
       : { icon: Tag, label: "Dernière version", href: site.releasesUrl },
+    totalDownloads !== null
+      ? { icon: Download, label: `${formatDownloads(totalDownloads)} téléchargements`, href: site.releasesUrl }
+      : { icon: Download, label: "Téléchargements GitHub", href: site.releasesUrl },
     { icon: ShieldCheck, label: "Licence MIT", href: site.licenseUrl },
     { icon: EyeOff, label: "Zéro télémétrie", href: undefined },
   ]
