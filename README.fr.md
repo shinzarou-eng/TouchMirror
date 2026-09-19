@@ -29,7 +29,7 @@ Gratuit, open source, sans compte, sans pub.
 [![Dofus Touch](https://img.shields.io/badge/optimis%C3%A9%20pour-Dofus%20Touch-D9A94E?style=flat-square)](https://www.dofus-touch.com)
 [![Discord](https://img.shields.io/badge/Discord-rejoins--nous-5865F2?style=flat-square)](https://discord.gg/DBJ9kNCdX)
 
-<img src="docs/screenshot.png" width="780" alt="TouchMirror — Dofus Touch en cours de jeu">
+<img src="docs/screenshot-multiaccount.png" width="780" alt="TouchMirror — Dofus Touch en miroir depuis le téléphone, second compte dans sa propre tuile">
 
 **[Télécharger la dernière version](https://github.com/shinzarou-eng/TouchMirror/releases/latest)** · **[Site — touchmirror.xyz](https://www.touchmirror.xyz/)** · [Discord](https://discord.gg/DBJ9kNCdX) · [Documentation](docs/wiki/Home.md) · [Roadmap](ROADMAP.md) · [Signaler un bug](https://github.com/shinzarou-eng/TouchMirror/issues) · [Proposer une idée](https://github.com/shinzarou-eng/TouchMirror/issues/new)
 
@@ -61,7 +61,7 @@ L'alternative open source à scrcpy pensée pour les joueurs : affiche et contr�
 | � | **Pipeline GPU direct** | Chemin D3D11 maison : les frames NV12 décodées alimentent un pixel shader sur le GPU — sans readback CPU, sans copie côté UI |
 | �🎯 | **Raccourcis plaqués** | Pose un repère sur un sort à l'écran, assigne une touche — 1 frappe = 1 tap à cet endroit. Style (pastille, cercle, minimal), opacité et taille réglables, persisté par appareil. Manuel pur : pas de répétition, pas de macro |
 | 🖥️ | **Affichage virtuel** | Dofus tourne sur un écran virtuel dédié — le téléphone physique reste libre. Presets paysage, portrait et **tablette** (8″/10″ : les apps passent en UI tablette) |
-| 📱 | **Multicompte** | Plusieurs téléphones dans une seule fenêtre — un compte par téléphone |
+| 📱 | **Multicompte** | Plusieurs téléphones dans une seule fenêtre — ou un second compte sur le même téléphone via un profil Android |
 | 🗂️ | **Espaces de travail** | « Solo », « Duo », « Stream » — appareils, ordre, miroir actif et réglages par appareil restaurés en un clic ; `Ctrl`+`Maj`+`1-9` pour basculer |
 | 🔌 | **Détection instantanée** | `adb track-devices` événementiel — le téléphone apparaît dès le branchement, sans polling |
 | 🎚️ | **Presets qualité** | Performance / Équilibré / Qualité+ / Maximal — résolution, fps et bitrate appliqués en un clic |
@@ -152,6 +152,19 @@ Autorisé par Ankama : autant d'appareils physiques que tu veux, un compte par t
 2. Branche le deuxième → il apparaît dans la liste → **Connecter**
 3. Clique une miniature pour la cibler — seule la tuile active reçoit les actions et sort le son ; les inactives arrêtent de décoder pour économiser le CPU
 4. Au clavier : `Ctrl`+`Tab` pour cycler, `Ctrl`+`1…9` pour viser directement
+
+### Deuxième compte sur le même téléphone
+
+TouchMirror peut aussi créer un **profil Android secondaire** depuis l'app — le téléphone fait alors tourner Dofus Touch deux fois, chaque compte sur son propre écran virtuel et sa propre tuile :
+
+<img src="docs/screenshot-multiaccount.png" width="780" alt="Compte principal — Dofus Touch en miroir depuis le téléphone">
+
+<img src="docs/screenshot-multiaccount-login.png" width="780" alt="Second compte — son profil, son écran virtuel">
+
+1. Menu de l'appareil → **Comptes → Nouveau compte Dofus…**
+2. TouchMirror crée le profil, y installe le jeu existant et le démarre — pas besoin de Samsung Dual Apps ni de Secure Folder
+3. Le clone a son propre écran virtuel et sa propre tuile miroir (ex. `Mon tel · Compte 2`)
+4. Une seule tuile active à la fois : les clics et les touches n'atteignent que le miroir sélectionné — rien n'est jamais répliqué entre les comptes
 
 ## Raccourcis clavier
 
