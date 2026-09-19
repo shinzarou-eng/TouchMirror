@@ -35,6 +35,10 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
 
     public event Action<IntPtr, int, int, int, int>? GpuFrame;
 
+    public unsafe delegate void SoftwareFrameHandler(IntPtr y, int yStride, IntPtr u, int uStride,
+        IntPtr v, int vStride, int width, int height, int colorInfo);
+    public event SoftwareFrameHandler? SwFrame;
+
     public GpuPresenter? GpuPresenter { get; }
 
     private IntPtr ExternalD3D11Device => GpuPresenter != null ? GpuPresenter.SharedDevicePtr : IntPtr.Zero;
@@ -253,7 +257,8 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
                         ReopenSoftware();
                         break;
                     }
-                    ConvertAndPublish(src);
+                    if (!TryPresentSoftware(src))
+                        ConvertAndPublish(src);
                 }
             }
             catch (Exception ex)
@@ -295,6 +300,29 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
                 AVPixelFormat.AV_PIX_FMT_BGRA, (int)SwsFlags.SWS_BILINEAR, null, null, null);
         }
         return ctx;
+    }
+
+    private bool TryPresentSoftware(AVFrame* f)
+    {
+        if (SwFrame == null)
+            return false;
+        var fmt = (AVPixelFormat)f->format;
+        if (fmt == AVPixelFormat.AV_PIX_FMT_NV12)
+        {
+            SwFrame.Invoke((IntPtr)f->data[0], f->linesize[0],
+                (IntPtr)f->data[1], f->linesize[1], IntPtr.Zero, 0,
+                f->width, f->height, FrameColorInfo(f));
+            return true;
+        }
+        if (fmt == AVPixelFormat.AV_PIX_FMT_YUV420P || fmt == AVPixelFormat.AV_PIX_FMT_YUVJ420P)
+        {
+            SwFrame.Invoke((IntPtr)f->data[0], f->linesize[0],
+                (IntPtr)f->data[1], f->linesize[1],
+                (IntPtr)f->data[2], f->linesize[2],
+                f->width, f->height, FrameColorInfo(f));
+            return true;
+        }
+        return false;
     }
 
     private void ConvertAndPublish(AVFrame* f)

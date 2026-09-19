@@ -197,6 +197,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                         if (presenter != null)
                         {
                             Decoder.GpuFrame += presenter.Present;
+                            Decoder.SwFrame += presenter.PresentSoftware;
                             presenter.FrameReady += () =>
                             {
                                 if (Interlocked.Exchange(ref _gpuNotifyPending, 1) == 0)

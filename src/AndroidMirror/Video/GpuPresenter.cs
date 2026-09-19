@@ -5,6 +5,7 @@ using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 using Vortice.D3DCompiler;
+using Vortice.Mathematics;
 using D3D9 = Vortice.Direct3D9;
 
 namespace TouchMirror.Video;
@@ -192,6 +193,34 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         SizeChanged?.Invoke(w, h);
     }
 
+    private unsafe void UpdateColor(int colorInfo)
+    {
+        if ((colorInfo != _lastColorInfo || _cbDirty) && colorInfo >= 0 && colorInfo < ColorTable.Length)
+        {
+            var coefs = ColorTable[colorInfo];
+            Array.Copy(coefs, _cbData, 16);
+            _cbData[13] = _sharpness;
+            fixed (float* p = _cbData)
+                _ctx.UpdateSubresource(_cb!, 0, null, (IntPtr)p, 0, 0);
+            _lastColorInfo = colorInfo;
+            _cbDirty = false;
+        }
+    }
+
+    private void Draw(ID3D11ShaderResourceView srvY, ID3D11ShaderResourceView srvUV, int w, int h)
+    {
+        _ctx.OMSetRenderTargets(_rtv);
+        _ctx.RSSetViewport(0, 0, w, h);
+        _ctx.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+        _ctx.VSSetShader(_vs!);
+        _ctx.PSSetShader(_ps!);
+        _ctx.PSSetShaderResources(0, new[] { srvY, srvUV });
+        _ctx.PSSetConstantBuffer(0, _cb!);
+        _ctx.PSSetSampler(0, _sampler!);
+        _ctx.Draw(3, 0);
+        _ctx.Flush();
+    }
+
     public unsafe void Present(IntPtr srcTexture, int sliceIndex, int w, int h, int colorInfo)
     {
         if (srcTexture == IntPtr.Zero || _disposed)
@@ -200,16 +229,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         {
             if (_disposed)
                 return;
-            if ((colorInfo != _lastColorInfo || _cbDirty) && colorInfo >= 0 && colorInfo < ColorTable.Length)
-            {
-                var coefs = ColorTable[colorInfo];
-                Array.Copy(coefs, _cbData, 16);
-                _cbData[13] = _sharpness;
-                fixed (float* p = _cbData)
-                    _ctx.UpdateSubresource(_cb!, 0, null, (IntPtr)p, 0, 0);
-                _lastColorInfo = colorInfo;
-                _cbDirty = false;
-            }
+            UpdateColor(colorInfo);
             EnsureTargets(w, h);
             if (_rtv == null || _pendingRebind)
                 return;
@@ -244,16 +264,65 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
                 srvY = _srvY!; srvUV = _srvUV!;
             }
 
-            _ctx.OMSetRenderTargets(_rtv);
-            _ctx.RSSetViewport(0, 0, w, h);
-            _ctx.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
-            _ctx.VSSetShader(_vs!);
-            _ctx.PSSetShader(_ps!);
-            _ctx.PSSetShaderResources(0, new[] { srvY, srvUV });
-            _ctx.PSSetConstantBuffer(0, _cb!);
-            _ctx.PSSetSampler(0, _sampler!);
-            _ctx.Draw(3, 0);
-            _ctx.Flush();
+            Draw(srvY, srvUV, w, h);
+        }
+        FrameReady?.Invoke();
+    }
+
+    private byte[]? _uvTmp;
+
+    public unsafe void PresentSoftware(IntPtr yPlane, int yStride, IntPtr uPlane, int uStride,
+        IntPtr vPlane, int vStride, int w, int h, int colorInfo)
+    {
+        if (yPlane == IntPtr.Zero || uPlane == IntPtr.Zero || _disposed)
+            return;
+        lock (_sync)
+        {
+            if (_disposed)
+                return;
+            UpdateColor(colorInfo);
+            EnsureTargets(w, h);
+            if (_rtv == null || _pendingRebind)
+                return;
+
+            _ctx.UpdateSubresource(_nv12!, 0, new Box(0, 0, 0, w, h, 1),
+                yPlane, (uint)yStride, 0u);
+
+            var cw = w / 2;
+            var ch = h / 2;
+            if (vPlane == IntPtr.Zero)
+            {
+                _ctx.UpdateSubresource(_nv12!, 1, new Box(0, 0, 0, cw, ch, 1),
+                    uPlane, (uint)uStride, 0u);
+            }
+            else
+            {
+                var need = cw * 2 * ch;
+                if (_uvTmp == null || _uvTmp.Length < need)
+                    _uvTmp = new byte[need];
+                fixed (byte* dst = _uvTmp)
+                {
+                    var sU = (byte*)uPlane;
+                    var sV = (byte*)vPlane;
+                    for (var row = 0; row < ch; row++)
+                    {
+                        var du = dst + row * cw * 2;
+                        var ru = sU + row * uStride;
+                        var rv = sV + row * vStride;
+                        for (var i = 0; i < cw; i++)
+                        {
+                            du[0] = ru[i];
+                            du[1] = rv[i];
+                            du += 2;
+                        }
+                    }
+                }
+                fixed (byte* src = _uvTmp)
+                    _ctx.UpdateSubresource(_nv12!, 1, new Box(0, 0, 0, cw, ch, 1),
+                        (IntPtr)src, (uint)(cw * 2), 0u);
+            }
+
+            Draw(_srvY!, _srvUV!, w, h);
         }
         FrameReady?.Invoke();
     }
