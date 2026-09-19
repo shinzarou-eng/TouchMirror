@@ -66,6 +66,19 @@ La carte « iPhone · AirPlay » de l'accueil indique **« Bientôt disponible �
 
 Le test décisif : un iPhone physique sur le même Wi-Fi, logs `airplay rtsp` ouverts, et observer où la chaîne casse après `RECORD`.
 
+## Voie câble — protocole QuickTime (USB)
+
+En parallèle du Wi-Fi, le protocole de recopie d'écran par câble (celui utilisé par QuickTime Player sur macOS) est en cours de portage dans `src/AndroidMirror/QuickTime/`. Intérêt : il esquive entièrement FairPlay et le timing PTP — le flux H.264 arrive en clair dans des `CMSampleBuffer`.
+
+Couches portées depuis l'implémentation de référence MIT [quicktime_video_hack](https://github.com/danielpaulus/quicktime_video_hack) :
+
+- **Framing** : préfixes longueur little-endian, familles `PING` / `SYNC` / `ASYN` / `RPLY`, sous-types `CWPA`, `AFMT`, `CVRP`, `CLOK`, `TIME`, `SKEW`, `OG`, `STOP`, `FEED`, `EAT!`, `SPRP`, `SRAT`, `TBAS`, `TJMP`, `RELS`, `HPD0/1`, `HPA0/1`, `NEED`.
+- **CoreMedia** : dictionnaires à clés string/index, `NSNumber`, `CMTime`, `CMClock` (skew), `AudioStreamBasicDescription`, `FormatDescriptor` (SPS/PPS H.264), `CMSampleBuffer` vidéo et audio avec timing, tailles d'échantillons, attachments et NALU Annex-B.
+- **Machine d'état `QtSession`** : rejoue la poignée de main complète (réponses `RPLY`, dicts `HPD1`/`HPA1`, `NEED`, suivi de l'horloge audio pour `SKEW`, fermeture `HPA0`/`HPD0`).
+- **Validation** : `tools/QuickTimeCodec` rejoue les captures binaires du projet de référence — 132 assertions au niveau octet (parsing + sérialisation exacte des réponses).
+
+Reste à faire côté USB : activation de la configuration cachée de l'iPhone (control request `0x40/0x52`), endpoints bulk via libusb/WinUSB, puis `QtFramer` → `QtSession` → `IFrameSource`. Cette partie exige un iPhone physique — et un binding de pilote par appareil, friction d'installation à documenter.
+
 ## Limites assumées
 
 - **Lecture seule par défaut** — AirPlay ne transporte pas d'entrées ; le contrôle BLE HID est opt-in et relève du même principe qu'un clavier/souris Bluetooth physique.
