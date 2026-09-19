@@ -16,6 +16,9 @@ public sealed class ScrcpyOptions
     public string VideoCodec { get; init; } = "auto";
     public string VideoDecoder { get; init; } = "gpu";
     public bool VideoSharpen { get; init; }
+    public double VideoBrightness { get; init; }
+    public double VideoContrast { get; init; } = 1;
+    public double VideoSaturation { get; init; } = 1;
     public bool StayAwake { get; init; }
     public bool Audio { get; init; } = true;
     public bool TurnScreenOff { get; init; }

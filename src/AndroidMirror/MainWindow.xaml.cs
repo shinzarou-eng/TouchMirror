@@ -187,6 +187,13 @@ public partial class MainWindow : FluentWindow
     private void OnRotateDisplayClick(object sender, RoutedEventArgs e)
         => _vm.ActiveMirror?.View.CycleDisplayRotation();
 
+    private void OnColorSliderReset(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is Slider s && double.TryParse(s.Tag as string,
+                System.Globalization.CultureInfo.InvariantCulture, out var def))
+            s.Value = def;
+    }
+
     private string? _activeDock;
 
     private void OnSettingsClick(object sender, RoutedEventArgs e)

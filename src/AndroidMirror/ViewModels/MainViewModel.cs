@@ -246,6 +246,9 @@ public partial class MainViewModel : ObservableObject
         VideoCodec = _settings.VideoCodec;
         VideoDecoder = _settings.VideoDecoder;
         VideoSharpen = _settings.VideoSharpen;
+        VideoBrightness = _settings.VideoBrightness;
+        VideoContrast = _settings.VideoContrast;
+        VideoSaturation = _settings.VideoSaturation;
         StayAwake = _settings.StayAwake;
         EnableAudio = _settings.EnableAudio;
         AutoFullscreen = _settings.AutoFullscreen;
@@ -291,6 +294,9 @@ public partial class MainViewModel : ObservableObject
             _settings.VideoCodec = VideoCodec;
             _settings.VideoDecoder = VideoDecoder;
             _settings.VideoSharpen = VideoSharpen;
+            _settings.VideoBrightness = VideoBrightness;
+            _settings.VideoContrast = VideoContrast;
+            _settings.VideoSaturation = VideoSaturation;
             _settings.EnableAudio = EnableAudio;
             _settings.TurnScreenOff = TurnScreenOff;
         }
@@ -320,6 +326,9 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _videoCodec = "auto";
     [ObservableProperty] private string _videoDecoder = "gpu";
     [ObservableProperty] private bool _videoSharpen;
+    [ObservableProperty] private double _videoBrightness;
+    [ObservableProperty] private double _videoContrast = 1;
+    [ObservableProperty] private double _videoSaturation = 1;
     [ObservableProperty] private bool _stayAwake;
     [ObservableProperty] private bool _enableAudio = true;
     [ObservableProperty] private bool _autoFullscreen;
@@ -1296,6 +1305,9 @@ public partial class MainViewModel : ObservableObject
         VideoCodec = o?.VideoCodec ?? _settings.VideoCodec,
         VideoDecoder = o?.VideoDecoder ?? _settings.VideoDecoder,
         VideoSharpen = VideoSharpen,
+        VideoBrightness = VideoBrightness,
+        VideoContrast = VideoContrast,
+        VideoSaturation = VideoSaturation,
         StayAwake = StayAwake,
         Audio = o?.EnableAudio ?? _settings.EnableAudio,
         TurnScreenOff = o?.TurnScreenOff ?? _settings.TurnScreenOff,
@@ -1395,6 +1407,30 @@ public partial class MainViewModel : ObservableObject
             if (m.Decoder?.GpuPresenter is { } p)
                 p.Sharpness = value ? Video.GpuPresenter.DefaultSharpness : 0f;
         ScheduleSave();
+    }
+
+    private void ApplyColorAdjust()
+    {
+        foreach (var m in Mirrors)
+            if (m.Decoder?.GpuPresenter is { } p)
+            {
+                p.SetColorAdjust((float)VideoBrightness, (float)VideoContrast,
+                    (float)VideoSaturation);
+                p.Redraw();
+            }
+        ScheduleSave();
+    }
+
+    partial void OnVideoBrightnessChanged(double value) => ApplyColorAdjust();
+    partial void OnVideoContrastChanged(double value) => ApplyColorAdjust();
+    partial void OnVideoSaturationChanged(double value) => ApplyColorAdjust();
+
+    [RelayCommand]
+    private void ResetVideoColor()
+    {
+        VideoBrightness = 0;
+        VideoContrast = 1;
+        VideoSaturation = 1;
     }
 
     partial void OnStayAwakeChanged(bool value) => ScheduleSave();

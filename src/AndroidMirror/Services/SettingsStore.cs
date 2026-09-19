@@ -58,6 +58,9 @@ public sealed class AppSettings
     public string VideoCodec { get; set; } = "auto";
     public string VideoDecoder { get; set; } = "gpu";
     public bool VideoSharpen { get; set; }
+    public double VideoBrightness { get; set; }
+    public double VideoContrast { get; set; } = 1;
+    public double VideoSaturation { get; set; } = 1;
     public bool StayAwake { get; set; }
     public bool EnableAudio { get; set; } = true;
     public bool AutoFullscreen { get; set; }

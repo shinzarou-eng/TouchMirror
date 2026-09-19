@@ -30,6 +30,11 @@ public partial class MirrorView : UserControl
     private uint _pressedButtons;
     private bool _mouseCaptured;
 
+    private double _zoom = 1.0;
+    private double _zoomCx = 0.5, _zoomCy = 0.5;
+    private bool _viewPanning;
+    private Point _panLast;
+
     private readonly DispatcherTimer _moveFlush = new() { Interval = TimeSpan.FromMilliseconds(8) };
     private int _pendingMoveX, _pendingMoveY;
     private int _lastSentMoveX = -1, _lastSentMoveY = -1;
@@ -82,6 +87,7 @@ public partial class MirrorView : UserControl
         var hwnd = new WindowInteropHelper(Window.GetWindow(this)
             ?? Application.Current.MainWindow).Handle;
         presenter.Attach(_gpuImage, hwnd);
+        ApplyZoom();
         presenter.SizeChanged += (w, h) => Dispatcher.BeginInvoke(() =>
         {
             presenter.Rebind();
@@ -379,8 +385,15 @@ public partial class MirrorView : UserControl
     {
         if (!GetVideoDrawRect(out var ox, out var oy, out var scale, out var vw, out var vh))
             return;
+        var zx0 = (_zoomCx - 0.5 / _zoom) * vw;
+        var zy0 = (_zoomCy - 0.5 / _zoom) * vh;
+        var zx1 = zx0 + vw / _zoom;
+        var zy1 = zy0 + vh / _zoom;
         foreach (var (kb, el) in _keybindEls)
         {
+            var (dx, dy) = VideoToDisplay(kb.Rx, kb.Ry);
+            el.Visibility = dx >= zx0 && dx <= zx1 && dy >= zy0 && dy <= zy1
+                ? Visibility.Visible : Visibility.Collapsed;
             var p = VideoToView(kb.Rx, kb.Ry, ox, oy, scale);
             el.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             Canvas.SetLeft(el, p.X - el.DesiredSize.Width / 2);
@@ -388,19 +401,28 @@ public partial class MirrorView : UserControl
         }
     }
 
-    private Point VideoToView(double rx, double ry, double ox, double oy, double scale)
+    private (double dx, double dy) VideoToDisplay(double rx, double ry)
     {
         var vx = rx * (_videoW - 1);
         var vy = ry * (_videoH - 1);
-        double dx, dy;
-        switch (_displayRotation)
+        return _displayRotation switch
         {
-            case 90:  dx = _videoH - 1 - vy; dy = vx; break;
-            case 180: dx = _videoW - 1 - vx; dy = _videoH - 1 - vy; break;
-            case 270: dx = vy; dy = _videoW - 1 - vx; break;
-            default:  dx = vx; dy = vy; break;
-        }
-        return new Point(ox + dx * scale, oy + dy * scale);
+            90 => (_videoH - 1 - vy, vx),
+            180 => (_videoW - 1 - vx, _videoH - 1 - vy),
+            270 => (vy, _videoW - 1 - vx),
+            _ => (vx, vy),
+        };
+    }
+
+    private Point VideoToView(double rx, double ry, double ox, double oy, double scale)
+    {
+        var (dx, dy) = VideoToDisplay(rx, ry);
+        var fw = _displayRotation is 90 or 270 ? _videoH : _videoW;
+        var fh = _displayRotation is 90 or 270 ? _videoW : _videoH;
+        var zoX = _zoomCx - 0.5 / _zoom;
+        var zoY = _zoomCy - 0.5 / _zoom;
+        return new Point(ox + (dx - zoX * fw) * _zoom * scale,
+            oy + (dy - zoY * fh) * _zoom * scale);
     }
 
     private bool GetVideoDrawRect(out double ox, out double oy, out double scale,
@@ -419,6 +441,63 @@ public partial class MirrorView : UserControl
         ox = (cw - vw * scale) / 2;
         oy = (ch - vh * scale) / 2;
         return true;
+    }
+
+    public double ViewZoom => _zoom;
+
+    private void ZoomAt(Point viewPt, double factor)
+    {
+        if (!GetVideoDrawRect(out var ox, out var oy, out var scale, out var vw, out var vh))
+            return;
+        var u = Math.Clamp((viewPt.X - ox) / (vw * scale), 0, 1);
+        var v = Math.Clamp((viewPt.Y - oy) / (vh * scale), 0, 1);
+        var tx = _zoomCx - 0.5 / _zoom + u / _zoom;
+        var ty = _zoomCy - 0.5 / _zoom + v / _zoom;
+        _zoom = Math.Clamp(_zoom * factor, 1.0, 8.0);
+        _zoomCx = tx - u / _zoom + 0.5 / _zoom;
+        _zoomCy = ty - v / _zoom + 0.5 / _zoom;
+        if (_zoom == 1.0)
+            _zoomCx = _zoomCy = 0.5;
+        ClampZoom();
+        ApplyZoom();
+    }
+
+    private void ResetZoom()
+    {
+        if (_zoom == 1.0)
+            return;
+        _zoom = 1.0;
+        _zoomCx = _zoomCy = 0.5;
+        ApplyZoom();
+    }
+
+    private void ClampZoom()
+    {
+        var half = 0.5 / _zoom;
+        _zoomCx = Math.Clamp(_zoomCx, half, 1 - half);
+        _zoomCy = Math.Clamp(_zoomCy, half, 1 - half);
+    }
+
+    private (double, double) DisplayToTex(double u, double v) => _displayRotation switch
+    {
+        90 => (v, 1 - u),
+        180 => (1 - u, 1 - v),
+        270 => (1 - v, u),
+        _ => (u, v),
+    };
+
+    private void ApplyZoom()
+    {
+        var w = 1.0 / _zoom;
+        var (tx0, ty0) = DisplayToTex(_zoomCx - w / 2, _zoomCy - w / 2);
+        var (tx1, ty1) = DisplayToTex(_zoomCx + w / 2, _zoomCy + w / 2);
+        _presenter?.SetViewRect((float)Math.Min(tx0, tx1), (float)Math.Min(ty0, ty1),
+            (float)Math.Abs(tx1 - tx0));
+        _presenter?.Redraw();
+        LayoutKeybinds();
+        ZoomBadge.Visibility = _zoom > 1.0 ? Visibility.Visible : Visibility.Collapsed;
+        if (_zoom > 1.0)
+            ZoomText.Text = $"×{_zoom:0.0}";
     }
 
     private void AddKeybindAt(uint x, uint y)
@@ -587,6 +666,7 @@ public partial class MirrorView : UserControl
             ? Transform.Identity
             : new RotateTransform(_displayRotation);
         LayoutKeybinds();
+        ApplyZoom();
     }
 
     private void Unrotate(double rx, double ry, out uint x, out uint y)
@@ -611,6 +691,8 @@ public partial class MirrorView : UserControl
 
         var rx = (p.X - ox) / scale;
         var ry = (p.Y - oy) / scale;
+        rx = rx / _zoom + (_zoomCx - 0.5 / _zoom) * vw;
+        ry = ry / _zoom + (_zoomCy - 0.5 / _zoom) * vh;
         if (strict && (rx < 0 || ry < 0 || rx >= vw || ry >= vh))
             return false;
 
@@ -648,6 +730,21 @@ public partial class MirrorView : UserControl
             if (e.ChangedButton == MouseButton.Left
                 && TryMapPoint(e.GetPosition(InputSurface), out var ex, out var ey, strict: true))
                 AddKeybindAt(ex, ey);
+            e.Handled = true;
+            return;
+        }
+
+        if (Keyboard.Modifiers == ModifierKeys.Alt && _zoom > 1)
+        {
+            if (e.ChangedButton == MouseButton.Left)
+            {
+                _viewPanning = true;
+                _panLast = e.GetPosition(InputSurface);
+                InputSurface.CaptureMouse();
+                _mouseCaptured = true;
+            }
+            else if (e.ChangedButton == MouseButton.Right)
+                ResetZoom();
             e.Handled = true;
             return;
         }
@@ -696,6 +793,24 @@ public partial class MirrorView : UserControl
 
     private void OnMouseMove(object sender, MouseEventArgs e)
     {
+        if (_viewPanning)
+        {
+            if (e.LeftButton != MouseButtonState.Pressed)
+            {
+                _viewPanning = false;
+                return;
+            }
+            var p = e.GetPosition(InputSurface);
+            if (GetVideoDrawRect(out _, out _, out var sc, out var vw, out var vh))
+            {
+                _zoomCx -= (p.X - _panLast.X) / (vw * sc);
+                _zoomCy -= (p.Y - _panLast.Y) / (vh * sc);
+                _panLast = p;
+                ClampZoom();
+                ApplyZoom();
+            }
+            return;
+        }
         if (_iosMouseDown && _iosPointer != null)
         {
             if (TryMapPoint(e.GetPosition(InputSurface), out var ix, out var iy))
@@ -738,6 +853,16 @@ public partial class MirrorView : UserControl
 
     private void OnMouseUp(object sender, MouseButtonEventArgs e)
     {
+        if (_viewPanning)
+        {
+            _viewPanning = false;
+            if (_mouseCaptured)
+            {
+                InputSurface.ReleaseMouseCapture();
+                _mouseCaptured = false;
+            }
+            return;
+        }
         if (_iosMouseDown)
         {
             _iosMouseDown = false;
@@ -778,6 +903,7 @@ public partial class MirrorView : UserControl
 
     private void OnLostCapture(object sender, MouseEventArgs e)
     {
+        _viewPanning = false;
         if (_pressedButtons != 0 && _control != null)
         {
             _control.InjectTouch(AndroidMotionEvent.ActionUp, AndroidMotionEvent.PointerIdMouse,
@@ -791,6 +917,12 @@ public partial class MirrorView : UserControl
 
     private void OnMouseWheel(object sender, MouseWheelEventArgs e)
     {
+        if (Keyboard.Modifiers == ModifierKeys.Alt && _presenter != null)
+        {
+            ZoomAt(e.GetPosition(InputSurface), e.Delta > 0 ? 1.3 : 1.0 / 1.3);
+            e.Handled = true;
+            return;
+        }
         if (_iosPointer != null && _control == null)
         {
             if (TryMapPoint(e.GetPosition(InputSurface), out var wx, out var wy))
@@ -939,6 +1071,9 @@ public partial class MirrorView : UserControl
         _bitmap = null;
         VideoImage.Source = null;
         _moveFlush.Stop();
+        _zoom = 1.0;
+        _zoomCx = _zoomCy = 0.5;
+        _viewPanning = false;
         if (_renderingHooked)
         {
             CompositionTarget.Rendering -= OnRendering;

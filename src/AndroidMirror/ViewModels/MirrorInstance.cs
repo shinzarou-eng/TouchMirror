@@ -187,6 +187,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                             {
                                 presenter = new GpuPresenter();
                                 presenter.Sharpness = options.VideoSharpen ? GpuPresenter.DefaultSharpness : 0f;
+                                presenter.SetColorAdjust((float)options.VideoBrightness,
+                                    (float)options.VideoContrast, (float)options.VideoSaturation);
                             }
                             catch (Exception ex) { Log?.Invoke($"gpu presenter: {ex.Message}"); }
                         }
