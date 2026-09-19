@@ -821,17 +821,93 @@ public partial class MainViewModel : ObservableObject
             ? Path.GetDirectoryName(p.FilePath)!
             : Path.Combine(Path.GetDirectoryName(p.FilePath)!, p.Id));
 
+    private static readonly string BundledPluginsDir =
+        Path.Combine(AppContext.BaseDirectory, "assets", "plugins");
+    private static readonly string UserPluginsDir =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "TouchMirror", "plugins");
+    private static readonly string LegacyPluginsDir =
+        Path.Combine(AppContext.BaseDirectory, "plugins");
+
+    private static string PluginKey(string path)
+        => Path.GetFileName(path).Equals("plugin.js", StringComparison.OrdinalIgnoreCase)
+            ? Path.GetFileName(Path.GetDirectoryName(path)!)
+            : Path.GetFileNameWithoutExtension(path);
+
+    private static bool IsBundledPath(string path)
+        => path.StartsWith(BundledPluginsDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+
+    private void MigrateLegacyPlugins()
+    {
+        try
+        {
+            if (!Directory.Exists(LegacyPluginsDir))
+                return;
+            Directory.CreateDirectory(UserPluginsDir);
+            var moved = 0;
+            foreach (var d in Directory.EnumerateDirectories(LegacyPluginsDir))
+            {
+                var name = Path.GetFileName(d);
+                try
+                {
+                    var bundledPlugin = Path.Combine(BundledPluginsDir, name, "plugin.js");
+                    var legacyPlugin = Path.Combine(d, "plugin.js");
+                    var dest = Path.Combine(UserPluginsDir, name);
+                    var hasPlugin = File.Exists(legacyPlugin);
+                    if (!Directory.EnumerateFileSystemEntries(d).Any()
+                        || Directory.Exists(dest)
+                        || hasPlugin && File.Exists(bundledPlugin)
+                            && File.ReadAllBytes(bundledPlugin).SequenceEqual(File.ReadAllBytes(legacyPlugin)))
+                    {
+                        Directory.Delete(d, true);
+                    }
+                    else
+                    {
+                        Directory.Move(d, dest);
+                        if (hasPlugin)
+                            moved++;
+                    }
+                }
+                catch (Exception ex) { Log($"migration plugin {name} : {ex.Message}"); }
+            }
+            foreach (var f in Directory.EnumerateFiles(LegacyPluginsDir, "*.js"))
+            {
+                try
+                {
+                    var dest = Path.Combine(UserPluginsDir, Path.GetFileName(f));
+                    if (File.Exists(dest)) File.Delete(f);
+                    else { File.Move(f, dest); moved++; }
+                }
+                catch (Exception ex) { Log($"migration plugin {Path.GetFileName(f)} : {ex.Message}"); }
+            }
+            try { Directory.Delete(LegacyPluginsDir, true); } catch { }
+            if (moved > 0)
+                Log($"plugins migrés vers le profil utilisateur : {moved}");
+        }
+        catch (Exception ex) { Log($"migration des plugins : {ex.Message}"); }
+    }
+
     [RelayCommand]
     private void RescanPlugins()
     {
-        var dir = Path.Combine(AppContext.BaseDirectory, "plugins");
-        Directory.CreateDirectory(dir);
-        var files = Directory.EnumerateFiles(dir, "*.js")
-            .Concat(Directory.EnumerateDirectories(dir)
-                .Select(d => Path.Combine(d, "plugin.js"))
-                .Where(File.Exists))
-            .OrderBy(f => f)
-            .ToList();
+        Directory.CreateDirectory(UserPluginsDir);
+        var files = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var root in new[] { UserPluginsDir, BundledPluginsDir })
+        {
+            if (!Directory.Exists(root))
+                continue;
+            foreach (var f in Directory.EnumerateFiles(root, "*.js"))
+                if (seen.Add(PluginKey(f)))
+                    files.Add(f);
+            foreach (var d in Directory.EnumerateDirectories(root))
+            {
+                var pj = Path.Combine(d, "plugin.js");
+                if (File.Exists(pj) && seen.Add(Path.GetFileName(d)))
+                    files.Add(pj);
+            }
+        }
+        files = files.OrderBy(PluginKey).ToList();
 
         for (var i = Plugins.Count - 1; i >= 0; i--)
             if (!files.Contains(Plugins[i].FilePath))
@@ -916,9 +992,8 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void OpenPluginsFolder()
     {
-        var dir = Path.Combine(AppContext.BaseDirectory, "plugins");
-        Directory.CreateDirectory(dir);
-        System.Diagnostics.Process.Start("explorer.exe", dir);
+        Directory.CreateDirectory(UserPluginsDir);
+        System.Diagnostics.Process.Start("explorer.exe", UserPluginsDir);
     }
 
     public ObservableCollection<MarketplaceItem> Catalog { get; } = new();
@@ -991,8 +1066,7 @@ public partial class MainViewModel : ObservableObject
         item.ActionLabel = L("st.installing");
         try
         {
-            var dir = Path.Combine(AppContext.BaseDirectory, "plugins");
-            await MarketplaceService.InstallAsync(item.Entry, dir);
+            await MarketplaceService.InstallAsync(item.Entry, UserPluginsDir);
             _settings.ApprovedPlugins[item.Id] = item.Entry.Hash;
             if (!_settings.EnabledPlugins.Contains(item.Id))
                 _settings.EnabledPlugins.Add(item.Id);
@@ -1095,6 +1169,18 @@ public partial class MainViewModel : ObservableObject
         try
         {
             var p = Plugins.FirstOrDefault(x => x.Id == item.Id);
+            if (p != null && IsBundledPath(p.FilePath))
+            {
+                if (p.Running)
+                    p.Stop();
+                _settings.EnabledPlugins.Remove(p.Id);
+                ScheduleSave();
+                RescanPlugins();
+                foreach (var c in Catalog)
+                    c.Refresh(Plugins);
+                Log($"plugin livré avec l'app — {item.Name} désactivé");
+                return;
+            }
             if (p != null)
             {
                 if (p.Running)
@@ -1106,10 +1192,10 @@ public partial class MainViewModel : ObservableObject
             }
             else if (MarketplaceService.IsValidId(item.Id))
             {
-                var dir = Path.Combine(AppContext.BaseDirectory, "plugins", item.Id);
+                var dir = Path.Combine(UserPluginsDir, item.Id);
                 if (Directory.Exists(dir))
                     Directory.Delete(dir, true);
-                var loose = Path.Combine(AppContext.BaseDirectory, "plugins", item.Id + ".js");
+                var loose = Path.Combine(UserPluginsDir, item.Id + ".js");
                 if (File.Exists(loose))
                     File.Delete(loose);
             }
@@ -1370,6 +1456,7 @@ public partial class MainViewModel : ObservableObject
                 ? L("st.adb_embedded")
                 : $"adb : {adb}";
         await RefreshDevicesAsync();
+        MigrateLegacyPlugins();
         RescanPlugins();
         AppLogger.Forget(CheckUpdateAsync());
         AppLogger.Forget(TrackDevicesLoopAsync());
