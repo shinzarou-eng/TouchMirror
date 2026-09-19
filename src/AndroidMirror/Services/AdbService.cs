@@ -165,12 +165,19 @@ public static class AdbService
                     StandardOutputEncoding = Encoding.UTF8
                 };
                 using var p = Process.Start(psi)!;
-                while (!p.HasExited && !ct.IsCancellationRequested)
+                try
                 {
-                    var n = await p.StandardOutput.ReadAsync(buf, ct);
-                    if (n == 0)
-                        break;
-                    onChanged();
+                    while (!p.HasExited && !ct.IsCancellationRequested)
+                    {
+                        var n = await p.StandardOutput.ReadAsync(buf, ct);
+                        if (n == 0)
+                            break;
+                        onChanged();
+                    }
+                }
+                finally
+                {
+                    try { if (!p.HasExited) p.Kill(); } catch { }
                 }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { }

@@ -5,6 +5,7 @@ using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 using Vortice.D3DCompiler;
+using Vortice.Mathematics;
 using D3D9 = Vortice.Direct3D9;
 
 namespace TouchMirror.Video;
@@ -26,7 +27,7 @@ public sealed class GpuPresenter : IDisposable
                         null, DriverType.Hardware,
                         DeviceCreationFlags.BgraSupport | DeviceCreationFlags.VideoSupport,
                         new[] { FeatureLevel.Level_11_1, FeatureLevel.Level_11_0 },
-                        out ID3D11Device dev);
+                        out ID3D11Device? dev);
                     _device = r.Success ? dev : null;
                 }
                 return _device;
@@ -56,7 +57,8 @@ public sealed class GpuPresenter : IDisposable
     private ID3D11Texture2D? _nv12;
     private ID3D11ShaderResourceView? _srvY, _srvUV;
     private ID3D11Texture2D? _bgra;
-    private ID3D11RenderTargetView? _rtv;
+    private ID3D11Texture2D? _frame;
+    private ID3D11RenderTargetView? _frameRtv;
     private int _w, _h;
     private bool _pendingRebind;
     private bool _disposed;
@@ -88,23 +90,35 @@ cbuffer ColorCB : register(b0) {
     float4 coefR;
     float4 coefG;
     float4 coefB;
+    float4 uvRect;
+    float4 adj;
 };
 Texture2D<float> texY : register(t0);
 Texture2D<float2> texUV : register(t1);
 SamplerState samp : register(s0);
 float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
-    float y0 = texY.Sample(samp, uv);
+    float2 suv = uv * uvRect.zw + uvRect.xy;
+    float y0 = texY.Sample(samp, suv);
     if (coefB.y > 0.0) {
-        float n = texY.Sample(samp, uv, int2(0, -1)) + texY.Sample(samp, uv, int2(0, 1))
-                + texY.Sample(samp, uv, int2(-1, 0)) + texY.Sample(samp, uv, int2(1, 0));
-        y0 = saturate(y0 + coefB.y * (4.0 * y0 - n));
+        float b = texY.Sample(samp, suv, int2(0, -1));
+        float d = texY.Sample(samp, suv, int2(-1, 0));
+        float f = texY.Sample(samp, suv, int2(1, 0));
+        float h = texY.Sample(samp, suv, int2(0, 1));
+        float mn = min(y0, min(min(b, d), min(f, h)));
+        float mx = max(y0, max(max(b, d), max(f, h)));
+        float r = y0 + coefB.y * (4.0 * y0 - b - d - f - h);
+        float pad = (mx - mn) * 0.25;
+        y0 = clamp(r, mn - pad, mx + pad);
     }
     float y = y0 * yuvT.x + yuvT.y;
-    float2 c = texUV.Sample(samp, uv) * yuvT.z + yuvT.w;
+    float2 c = texUV.Sample(samp, suv) * yuvT.z + yuvT.w;
     float3 rgb;
     rgb.r = y + coefR.x * c.y;
     rgb.g = y + coefG.x * c.x + coefG.y * c.y;
     rgb.b = y + coefB.x * c.x;
+    float lum = dot(rgb, float3(0.2126, 0.7152, 0.0722));
+    rgb = lum + (rgb - lum) * adj.z;
+    rgb = (rgb - 0.5) * adj.y + 0.5 + adj.x;
     return float4(saturate(rgb), 1.0);
 }";
 
@@ -112,7 +126,10 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
     private int _lastColorInfo = -1;
     private float _sharpness;
     private bool _cbDirty = true;
-    private readonly float[] _cbData = new float[16];
+    private readonly float[] _cbData = new float[24];
+    private float _viewX, _viewY, _viewS = 1f;
+    private float _adjB, _adjC = 1f, _adjS = 1f;
+    private ID3D11ShaderResourceView? _lastY, _lastUV;
     public const float DefaultSharpness = 0.22f;
 
     public float Sharpness
@@ -148,7 +165,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         _ps = dev.CreatePixelShader(psBytes.Span, null);
         _cb = dev.CreateBuffer(new BufferDescription
         {
-            ByteWidth = 64,
+            ByteWidth = 96,
             Usage = ResourceUsage.Default,
             BindFlags = BindFlags.ConstantBuffer,
         });
@@ -170,8 +187,9 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         var dev = SharedDevice!;
 
         _srvY?.Dispose(); _srvUV?.Dispose(); _nv12?.Dispose();
-        _rtv?.Dispose(); _bgra?.Dispose();
-        _rtv = null; _bgra = null;
+        _frameRtv?.Dispose(); _frame?.Dispose(); _bgra?.Dispose();
+        _frameRtv = null; _frame = null; _bgra = null;
+        _lastY = _lastUV = null;
         _pendingRebind = true;
 
         _nv12 = dev.CreateTexture2D(new Texture2DDescription
@@ -192,6 +210,62 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         SizeChanged?.Invoke(w, h);
     }
 
+    private unsafe void UpdateColor(int colorInfo)
+    {
+        if ((colorInfo != _lastColorInfo || _cbDirty) && colorInfo >= 0 && colorInfo < ColorTable.Length)
+        {
+            var coefs = ColorTable[colorInfo];
+            Array.Copy(coefs, _cbData, 16);
+            _cbData[13] = _sharpness;
+            _cbData[16] = _viewX; _cbData[17] = _viewY;
+            _cbData[18] = _viewS; _cbData[19] = _viewS;
+            _cbData[20] = _adjB; _cbData[21] = _adjC; _cbData[22] = _adjS;
+            fixed (float* p = _cbData)
+                _ctx.UpdateSubresource(_cb!, 0, null, (IntPtr)p, 0, 0);
+            _lastColorInfo = colorInfo;
+            _cbDirty = false;
+        }
+    }
+
+    public void SetViewRect(float x, float y, float scale)
+    {
+        _viewX = x; _viewY = y; _viewS = Math.Max(scale, 0.0001f);
+        _cbDirty = true;
+    }
+
+    public void SetColorAdjust(float brightness, float contrast, float saturation)
+    {
+        _adjB = brightness; _adjC = contrast; _adjS = saturation;
+        _cbDirty = true;
+    }
+
+    public void Redraw()
+    {
+        lock (_sync)
+        {
+            if (_disposed || _frameRtv == null || _pendingRebind || _lastY == null)
+                return;
+            UpdateColor(_lastColorInfo);
+            Draw(_lastY, _lastUV!, _w, _h);
+        }
+        Invalidate();
+    }
+
+    private void Draw(ID3D11ShaderResourceView srvY, ID3D11ShaderResourceView srvUV, int w, int h)
+    {
+        _lastY = srvY; _lastUV = srvUV;
+        _ctx.OMSetRenderTargets(_frameRtv!);
+        _ctx.RSSetViewport(0, 0, w, h);
+        _ctx.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+        _ctx.VSSetShader(_vs!);
+        _ctx.PSSetShader(_ps!);
+        _ctx.PSSetShaderResources(0, new[] { srvY, srvUV });
+        _ctx.PSSetConstantBuffer(0, _cb!);
+        _ctx.PSSetSampler(0, _sampler!);
+        _ctx.Draw(3, 0);
+        _ctx.Flush();
+    }
+
     public unsafe void Present(IntPtr srcTexture, int sliceIndex, int w, int h, int colorInfo)
     {
         if (srcTexture == IntPtr.Zero || _disposed)
@@ -200,18 +274,9 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         {
             if (_disposed)
                 return;
-            if ((colorInfo != _lastColorInfo || _cbDirty) && colorInfo >= 0 && colorInfo < ColorTable.Length)
-            {
-                var coefs = ColorTable[colorInfo];
-                Array.Copy(coefs, _cbData, 16);
-                _cbData[13] = _sharpness;
-                fixed (float* p = _cbData)
-                    _ctx.UpdateSubresource(_cb!, 0, null, (IntPtr)p, 0, 0);
-                _lastColorInfo = colorInfo;
-                _cbDirty = false;
-            }
+            UpdateColor(colorInfo);
             EnsureTargets(w, h);
-            if (_rtv == null || _pendingRebind)
+            if (_frameRtv == null || _pendingRebind)
                 return;
 
             ID3D11ShaderResourceView srvY, srvUV;
@@ -244,16 +309,65 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
                 srvY = _srvY!; srvUV = _srvUV!;
             }
 
-            _ctx.OMSetRenderTargets(_rtv);
-            _ctx.RSSetViewport(0, 0, w, h);
-            _ctx.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
-            _ctx.VSSetShader(_vs!);
-            _ctx.PSSetShader(_ps!);
-            _ctx.PSSetShaderResources(0, new[] { srvY, srvUV });
-            _ctx.PSSetConstantBuffer(0, _cb!);
-            _ctx.PSSetSampler(0, _sampler!);
-            _ctx.Draw(3, 0);
-            _ctx.Flush();
+            Draw(srvY, srvUV, w, h);
+        }
+        FrameReady?.Invoke();
+    }
+
+    private byte[]? _uvTmp;
+
+    public unsafe void PresentSoftware(IntPtr yPlane, int yStride, IntPtr uPlane, int uStride,
+        IntPtr vPlane, int vStride, int w, int h, int colorInfo)
+    {
+        if (yPlane == IntPtr.Zero || uPlane == IntPtr.Zero || _disposed)
+            return;
+        lock (_sync)
+        {
+            if (_disposed)
+                return;
+            UpdateColor(colorInfo);
+            EnsureTargets(w, h);
+            if (_frameRtv == null || _pendingRebind)
+                return;
+
+            _ctx.UpdateSubresource(_nv12!, 0, new Box(0, 0, 0, w, h, 1),
+                yPlane, (uint)yStride, 0u);
+
+            var cw = w / 2;
+            var ch = h / 2;
+            if (vPlane == IntPtr.Zero)
+            {
+                _ctx.UpdateSubresource(_nv12!, 1, new Box(0, 0, 0, cw, ch, 1),
+                    uPlane, (uint)uStride, 0u);
+            }
+            else
+            {
+                var need = cw * 2 * ch;
+                if (_uvTmp == null || _uvTmp.Length < need)
+                    _uvTmp = new byte[need];
+                fixed (byte* dst = _uvTmp)
+                {
+                    var sU = (byte*)uPlane;
+                    var sV = (byte*)vPlane;
+                    for (var row = 0; row < ch; row++)
+                    {
+                        var du = dst + row * cw * 2;
+                        var ru = sU + row * uStride;
+                        var rv = sV + row * vStride;
+                        for (var i = 0; i < cw; i++)
+                        {
+                            du[0] = ru[i];
+                            du[1] = rv[i];
+                            du += 2;
+                        }
+                    }
+                }
+                fixed (byte* src = _uvTmp)
+                    _ctx.UpdateSubresource(_nv12!, 1, new Box(0, 0, 0, cw, ch, 1),
+                        (IntPtr)src, (uint)(cw * 2), 0u);
+            }
+
+            Draw(_srvY!, _srvUV!, w, h);
         }
         FrameReady?.Invoke();
     }
@@ -297,9 +411,20 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
 
         lock (_sync)
         {
-            _rtv?.Dispose(); _bgra?.Dispose();
+            _frameRtv?.Dispose(); _frame?.Dispose(); _bgra?.Dispose();
             _bgra = SharedDevice!.OpenSharedResource<ID3D11Texture2D>(handle);
-            _rtv = SharedDevice!.CreateRenderTargetView(_bgra);
+            var d = _bgra.Description;
+            _frame = SharedDevice!.CreateTexture2D(new Texture2DDescription
+            {
+                Width = d.Width, Height = d.Height, MipLevels = 1, ArraySize = 1,
+                Format = d.Format,
+                SampleDescription = new SampleDescription(1, 0),
+                Usage = ResourceUsage.Default,
+                BindFlags = BindFlags.RenderTarget,
+                CPUAccessFlags = CpuAccessFlags.None,
+                MiscFlags = ResourceOptionFlags.None,
+            });
+            _frameRtv = SharedDevice!.CreateRenderTargetView(_frame);
             _pendingRebind = false;
         }
 
@@ -314,15 +439,15 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         lock (_sync)
         {
             w = _w; h = _h;
-            if (_bgra == null || _w <= 0)
+            if (_frame == null || _w <= 0)
                 return null;
-            var desc = _bgra.Description;
+            var desc = _frame.Description;
             desc.Usage = ResourceUsage.Staging;
             desc.BindFlags = BindFlags.None;
             desc.CPUAccessFlags = CpuAccessFlags.Read;
             desc.MiscFlags = ResourceOptionFlags.None;
             using var staging = SharedDevice!.CreateTexture2D(desc);
-            _ctx.CopyResource(staging, _bgra);
+            _ctx.CopyResource(staging, _frame);
             var map = _ctx.Map(staging, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
             try
             {
@@ -349,11 +474,20 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
 
     public void Invalidate()
     {
-        if (_disposed || _image == null)
+        var img = _image;
+        if (_disposed || img == null)
             return;
-        _image.Lock();
-        _image.AddDirtyRect(new Int32Rect(0, 0, _w, _h));
-        _image.Unlock();
+        img.Lock();
+        try
+        {
+            lock (_sync)
+            {
+                if (_bgra != null && _frame != null)
+                    _ctx.CopyResource(_bgra, _frame);
+            }
+            img.AddDirtyRect(new Int32Rect(0, 0, _w, _h));
+        }
+        finally { img.Unlock(); }
     }
 
     public void ClearSources()
@@ -367,6 +501,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
                 e.tex.Dispose();
             }
             _srcCache.Clear();
+            _lastY = _lastUV = null;
         }
     }
 
@@ -381,7 +516,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
             }
             _srcCache.Clear();
             _srvY?.Dispose(); _srvUV?.Dispose(); _nv12?.Dispose();
-            _rtv?.Dispose(); _bgra?.Dispose();
+            _frameRtv?.Dispose(); _frame?.Dispose(); _bgra?.Dispose();
             _vs?.Dispose(); _ps?.Dispose(); _sampler?.Dispose(); _cb?.Dispose();
         }
         _tex9?.Dispose();

@@ -27,9 +27,9 @@ Free, open source, no account, no ads.
 [![Dofus Touch](https://img.shields.io/badge/optimized%20for-Dofus%20Touch-D9A94E?style=flat-square)](https://www.dofus-touch.com)
 [![Discord](https://img.shields.io/badge/Discord-join%20us-5865F2?style=flat-square)](https://discord.gg/DBJ9kNCdX)
 
-<img src="docs/screenshot.png" width="780" alt="TouchMirror — Dofus Touch in game">
+<img src="docs/screenshot-multiaccount.png" width="780" alt="TouchMirror — Dofus Touch mirrored from a phone, second account ready in its own tile">
 
-**[Download the latest release](https://github.com/shinzarou-eng/TouchMirror/releases/latest)** · [Discord](https://discord.gg/DBJ9kNCdX) · [Documentation](docs/wiki/Home.md) · [Roadmap](ROADMAP.md) · [Report a bug](https://github.com/shinzarou-eng/TouchMirror/issues) · [Suggest a feature](https://github.com/shinzarou-eng/TouchMirror/issues/new)
+**[Download the latest release](https://github.com/shinzarou-eng/TouchMirror/releases/latest)** · **[Site — touchmirror.xyz](https://www.touchmirror.xyz/)** · [Discord](https://discord.gg/DBJ9kNCdX) · [Documentation](docs/wiki/Home.md) · [Roadmap](ROADMAP.md) · [Report a bug](https://github.com/shinzarou-eng/TouchMirror/issues) · [Suggest a feature](https://github.com/shinzarou-eng/TouchMirror/issues/new)
 
 🧪 **[Looking for testers — join the Discord](https://discord.gg/DBJ9kNCdX)** — bugs, ideas, multi-phone testing: community feedback shapes the roadmap.
 
@@ -59,7 +59,7 @@ Think of it as an open-source scrcpy alternative made for players: mirror and co
 | � | **Direct GPU pipeline** | Custom D3D11 path: decoded NV12 frames feed a pixel shader on the GPU — no CPU readback, no UI-thread copy |
 | �🎯 | **On-screen keybinds** | Drop a marker on a spell, bind a key — 1 keypress = 1 tap at that spot. Adjustable style (pill, circle, minimal), opacity and size, saved per device. Fully manual: no repeat, no macros |
 | 🖥️ | **Virtual display** | The game runs on a dedicated virtual screen — the physical phone stays free. Landscape, portrait and **tablet** presets (apps switch to tablet UI) |
-| 📱 | **Multi-account** | Several phones in one window — one account per phone |
+| 📱 | **Multi-account** | Several phones in one window — or a second account on the same phone via an Android profile |
 | 🗂️ | **Workspaces** | "Solo", "Duo", "Stream" — devices, order, active mirror and per-device settings restored in one click; `Ctrl`+`Shift`+`1-9` to switch |
 | 🔌 | **Instant detection** | Event-driven `adb track-devices` — the phone shows up as soon as it's plugged in, no polling |
 | 🎚️ | **Quality presets** | Performance / Balanced / Quality+ / Max — resolution, fps and bitrate applied in one click |
@@ -80,7 +80,7 @@ Think of it as an open-source scrcpy alternative made for players: mirror and co
 | 🔗 | **Local API** | HTTP + SSE on localhost with a token — Stream Deck, OBS, scripts. Drives the app only: connect/disconnect, record, screenshot — no endpoint can send touch or keys into the game |
 | 🧩 | **Plugins** | Embedded JavaScript engine (sandbox) — `plugin.json` manifest, official plugins verified by hash |
 | 🔄 | **Updates** | The app detects new GitHub releases at startup |
-| 🍎 | **iPhone / AirPlay** (*beta*) | Mirror an iPhone/iPad over Wi-Fi — the app hosts a local AirPlay receiver. *Not yet bundled in the GitHub zip — local builds only* |
+| 🍎 | **iPhone / AirPlay** (*beta*) | Mirror an iPhone/iPad over Wi-Fi — the app hosts a local AirPlay receiver. *Not yet bundled in the GitHub zip — local builds only* · [progress notes](docs/airplay.md) |
 
 ## Comparison
 
@@ -152,6 +152,19 @@ Allowed by Ankama: as many physical devices as you want, one account per phone.
 2. Plug in the second → it shows up in the list → **Connect**
 3. Click a thumbnail to target it — only the active tile receives actions and plays audio; inactive ones stop decoding to save CPU
 4. From the keyboard: `Ctrl`+`Tab` to cycle, `Ctrl`+`1…9` to target directly
+
+### Second account on the same phone
+
+TouchMirror can also create a **secondary Android profile** from the app — the phone then runs Dofus Touch twice, each account on its own virtual display and mirror tile:
+
+<img src="docs/screenshot-multiaccount.png" width="780" alt="Main account — Dofus Touch mirrored from the phone">
+
+<img src="docs/screenshot-multiaccount-login.png" width="780" alt="Second account — own profile, own virtual display">
+
+1. Device menu → **Accounts → New Dofus account…**
+2. TouchMirror creates the profile, installs the existing game into it and starts it — no Samsung Dual Apps or Secure Folder required
+3. The clone gets its own virtual display and mirror tile (e.g. `My Phone · Account 2`)
+4. One tile is active at a time: clicks and keys only ever reach the selected mirror — nothing is replicated between accounts
 
 ## Keyboard shortcuts
 

@@ -1,7 +1,7 @@
 {
   "name": "Almanax",
-  "description": "Badge sur chaque miroir : offrande et bonus du jour en alternance (calendrier complet hors-ligne), badge rouge pendant le rappel de 20h. Heure réglable en tête du script.",
-  "version": "1.1",
+  "description": "Badge sur chaque miroir : offrande dans le titre et bonus du jour affiché en entier (calendrier complet hors-ligne), badge rouge pendant le rappel de 20h. Heure réglable en tête du script.",
+  "version": "1.2",
   "author": "TouchMirror",
   "icon": "📅",
   "tags": ["rappel", "dofus", "almanax"]

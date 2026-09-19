@@ -246,6 +246,9 @@ public partial class MainViewModel : ObservableObject
         VideoCodec = _settings.VideoCodec;
         VideoDecoder = _settings.VideoDecoder;
         VideoSharpen = _settings.VideoSharpen;
+        VideoBrightness = _settings.VideoBrightness;
+        VideoContrast = _settings.VideoContrast;
+        VideoSaturation = _settings.VideoSaturation;
         StayAwake = _settings.StayAwake;
         EnableAudio = _settings.EnableAudio;
         AutoFullscreen = _settings.AutoFullscreen;
@@ -291,6 +294,9 @@ public partial class MainViewModel : ObservableObject
             _settings.VideoCodec = VideoCodec;
             _settings.VideoDecoder = VideoDecoder;
             _settings.VideoSharpen = VideoSharpen;
+            _settings.VideoBrightness = VideoBrightness;
+            _settings.VideoContrast = VideoContrast;
+            _settings.VideoSaturation = VideoSaturation;
             _settings.EnableAudio = EnableAudio;
             _settings.TurnScreenOff = TurnScreenOff;
         }
@@ -320,6 +326,9 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _videoCodec = "auto";
     [ObservableProperty] private string _videoDecoder = "gpu";
     [ObservableProperty] private bool _videoSharpen;
+    [ObservableProperty] private double _videoBrightness;
+    [ObservableProperty] private double _videoContrast = 1;
+    [ObservableProperty] private double _videoSaturation = 1;
     [ObservableProperty] private bool _stayAwake;
     [ObservableProperty] private bool _enableAudio = true;
     [ObservableProperty] private bool _autoFullscreen;
@@ -821,17 +830,93 @@ public partial class MainViewModel : ObservableObject
             ? Path.GetDirectoryName(p.FilePath)!
             : Path.Combine(Path.GetDirectoryName(p.FilePath)!, p.Id));
 
+    private static readonly string BundledPluginsDir =
+        Path.Combine(AppContext.BaseDirectory, "assets", "plugins");
+    private static readonly string UserPluginsDir =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "TouchMirror", "plugins");
+    private static readonly string LegacyPluginsDir =
+        Path.Combine(AppContext.BaseDirectory, "plugins");
+
+    private static string PluginKey(string path)
+        => Path.GetFileName(path).Equals("plugin.js", StringComparison.OrdinalIgnoreCase)
+            ? Path.GetFileName(Path.GetDirectoryName(path)!)
+            : Path.GetFileNameWithoutExtension(path);
+
+    private static bool IsBundledPath(string path)
+        => path.StartsWith(BundledPluginsDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+
+    private void MigrateLegacyPlugins()
+    {
+        try
+        {
+            if (!Directory.Exists(LegacyPluginsDir))
+                return;
+            Directory.CreateDirectory(UserPluginsDir);
+            var moved = 0;
+            foreach (var d in Directory.EnumerateDirectories(LegacyPluginsDir))
+            {
+                var name = Path.GetFileName(d);
+                try
+                {
+                    var bundledPlugin = Path.Combine(BundledPluginsDir, name, "plugin.js");
+                    var legacyPlugin = Path.Combine(d, "plugin.js");
+                    var dest = Path.Combine(UserPluginsDir, name);
+                    var hasPlugin = File.Exists(legacyPlugin);
+                    if (!Directory.EnumerateFileSystemEntries(d).Any()
+                        || Directory.Exists(dest)
+                        || hasPlugin && File.Exists(bundledPlugin)
+                            && File.ReadAllBytes(bundledPlugin).SequenceEqual(File.ReadAllBytes(legacyPlugin)))
+                    {
+                        Directory.Delete(d, true);
+                    }
+                    else
+                    {
+                        Directory.Move(d, dest);
+                        if (hasPlugin)
+                            moved++;
+                    }
+                }
+                catch (Exception ex) { Log($"migration plugin {name} : {ex.Message}"); }
+            }
+            foreach (var f in Directory.EnumerateFiles(LegacyPluginsDir, "*.js"))
+            {
+                try
+                {
+                    var dest = Path.Combine(UserPluginsDir, Path.GetFileName(f));
+                    if (File.Exists(dest)) File.Delete(f);
+                    else { File.Move(f, dest); moved++; }
+                }
+                catch (Exception ex) { Log($"migration plugin {Path.GetFileName(f)} : {ex.Message}"); }
+            }
+            try { Directory.Delete(LegacyPluginsDir, true); } catch { }
+            if (moved > 0)
+                Log($"plugins migrés vers le profil utilisateur : {moved}");
+        }
+        catch (Exception ex) { Log($"migration des plugins : {ex.Message}"); }
+    }
+
     [RelayCommand]
     private void RescanPlugins()
     {
-        var dir = Path.Combine(AppContext.BaseDirectory, "plugins");
-        Directory.CreateDirectory(dir);
-        var files = Directory.EnumerateFiles(dir, "*.js")
-            .Concat(Directory.EnumerateDirectories(dir)
-                .Select(d => Path.Combine(d, "plugin.js"))
-                .Where(File.Exists))
-            .OrderBy(f => f)
-            .ToList();
+        Directory.CreateDirectory(UserPluginsDir);
+        var files = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var root in new[] { UserPluginsDir, BundledPluginsDir })
+        {
+            if (!Directory.Exists(root))
+                continue;
+            foreach (var f in Directory.EnumerateFiles(root, "*.js"))
+                if (seen.Add(PluginKey(f)))
+                    files.Add(f);
+            foreach (var d in Directory.EnumerateDirectories(root))
+            {
+                var pj = Path.Combine(d, "plugin.js");
+                if (File.Exists(pj) && seen.Add(Path.GetFileName(d)))
+                    files.Add(pj);
+            }
+        }
+        files = files.OrderBy(PluginKey).ToList();
 
         for (var i = Plugins.Count - 1; i >= 0; i--)
             if (!files.Contains(Plugins[i].FilePath))
@@ -916,9 +1001,8 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void OpenPluginsFolder()
     {
-        var dir = Path.Combine(AppContext.BaseDirectory, "plugins");
-        Directory.CreateDirectory(dir);
-        System.Diagnostics.Process.Start("explorer.exe", dir);
+        Directory.CreateDirectory(UserPluginsDir);
+        System.Diagnostics.Process.Start("explorer.exe", UserPluginsDir);
     }
 
     public ObservableCollection<MarketplaceItem> Catalog { get; } = new();
@@ -991,8 +1075,7 @@ public partial class MainViewModel : ObservableObject
         item.ActionLabel = L("st.installing");
         try
         {
-            var dir = Path.Combine(AppContext.BaseDirectory, "plugins");
-            await MarketplaceService.InstallAsync(item.Entry, dir);
+            await MarketplaceService.InstallAsync(item.Entry, UserPluginsDir);
             _settings.ApprovedPlugins[item.Id] = item.Entry.Hash;
             if (!_settings.EnabledPlugins.Contains(item.Id))
                 _settings.EnabledPlugins.Add(item.Id);
@@ -1095,6 +1178,18 @@ public partial class MainViewModel : ObservableObject
         try
         {
             var p = Plugins.FirstOrDefault(x => x.Id == item.Id);
+            if (p != null && IsBundledPath(p.FilePath))
+            {
+                if (p.Running)
+                    p.Stop();
+                _settings.EnabledPlugins.Remove(p.Id);
+                ScheduleSave();
+                RescanPlugins();
+                foreach (var c in Catalog)
+                    c.Refresh(Plugins);
+                Log($"plugin livré avec l'app — {item.Name} désactivé");
+                return;
+            }
             if (p != null)
             {
                 if (p.Running)
@@ -1106,10 +1201,10 @@ public partial class MainViewModel : ObservableObject
             }
             else if (MarketplaceService.IsValidId(item.Id))
             {
-                var dir = Path.Combine(AppContext.BaseDirectory, "plugins", item.Id);
+                var dir = Path.Combine(UserPluginsDir, item.Id);
                 if (Directory.Exists(dir))
                     Directory.Delete(dir, true);
-                var loose = Path.Combine(AppContext.BaseDirectory, "plugins", item.Id + ".js");
+                var loose = Path.Combine(UserPluginsDir, item.Id + ".js");
                 if (File.Exists(loose))
                     File.Delete(loose);
             }
@@ -1210,6 +1305,9 @@ public partial class MainViewModel : ObservableObject
         VideoCodec = o?.VideoCodec ?? _settings.VideoCodec,
         VideoDecoder = o?.VideoDecoder ?? _settings.VideoDecoder,
         VideoSharpen = VideoSharpen,
+        VideoBrightness = VideoBrightness,
+        VideoContrast = VideoContrast,
+        VideoSaturation = VideoSaturation,
         StayAwake = StayAwake,
         Audio = o?.EnableAudio ?? _settings.EnableAudio,
         TurnScreenOff = o?.TurnScreenOff ?? _settings.TurnScreenOff,
@@ -1311,6 +1409,30 @@ public partial class MainViewModel : ObservableObject
         ScheduleSave();
     }
 
+    private void ApplyColorAdjust()
+    {
+        foreach (var m in Mirrors)
+            if (m.Decoder?.GpuPresenter is { } p)
+            {
+                p.SetColorAdjust((float)VideoBrightness, (float)VideoContrast,
+                    (float)VideoSaturation);
+                p.Redraw();
+            }
+        ScheduleSave();
+    }
+
+    partial void OnVideoBrightnessChanged(double value) => ApplyColorAdjust();
+    partial void OnVideoContrastChanged(double value) => ApplyColorAdjust();
+    partial void OnVideoSaturationChanged(double value) => ApplyColorAdjust();
+
+    [RelayCommand]
+    private void ResetVideoColor()
+    {
+        VideoBrightness = 0;
+        VideoContrast = 1;
+        VideoSaturation = 1;
+    }
+
     partial void OnStayAwakeChanged(bool value) => ScheduleSave();
     partial void OnAutoLaunchDofusChanged(bool value) => ScheduleSave();
     partial void OnAutoFullscreenChanged(bool value) => ScheduleSave();
@@ -1370,6 +1492,7 @@ public partial class MainViewModel : ObservableObject
                 ? L("st.adb_embedded")
                 : $"adb : {adb}";
         await RefreshDevicesAsync();
+        MigrateLegacyPlugins();
         RescanPlugins();
         AppLogger.Forget(CheckUpdateAsync());
         AppLogger.Forget(TrackDevicesLoopAsync());
@@ -1487,7 +1610,20 @@ public partial class MainViewModel : ObservableObject
                         "remembered", CustomName: prefs.CustomName, Color: prefs.Color));
             }
 
-            Devices = new ObservableCollection<AdbDevice>(list);
+            for (var i = 0; i < list.Count; i++)
+            {
+                if (i < Devices.Count)
+                {
+                    if (!Equals(Devices[i], list[i]))
+                        Devices[i] = list[i];
+                }
+                else
+                {
+                    Devices.Add(list[i]);
+                }
+            }
+            while (Devices.Count > list.Count)
+                Devices.RemoveAt(Devices.Count - 1);
             UpdateSetupOffer(list);
             var current = SelectedDevice != null
                 ? list.FirstOrDefault(d => d.SharesIdentity(SelectedDevice) || d.DeviceKey == SelectedDevice.DeviceKey)
@@ -1720,30 +1856,7 @@ public partial class MainViewModel : ObservableObject
             instance.DeviceName = $"{device.ShortName} · {account.Name}";
         try
         {
-            instance.Log += Log;
-            instance.Connected += m =>
-            {
-                SetActive(m);
-                AnyConnected?.Invoke();
-                _apiHost.Publish("mirror.connected",
-                    new { slot = m.Slot, name = m.DeviceName, serial = m.Device.Serial });
-            };
-            instance.Disconnected += m =>
-            {
-                _apiHost.Publish("mirror.disconnected",
-                    new { name = m.DeviceName, serial = m.Device.Serial, manual = m.ManualDisconnect });
-                Mirrors.Remove(m);
-                PromoteNextActive(m);
-            };
-            instance.OverlayLineClicked += (m, id, idx) =>
-                _apiHost.Publish("overlay.line",
-                    new { slot = m.Slot, id, index = idx });
-
-            Mirrors.Add(instance);
-            ApplyMirrorOrder();
-            RefreshInactiveMirrors();
-            SetActive(instance);
-            MirrorAdded?.Invoke(instance);
+            WireMirror(instance);
             Services.AppLogger.Write("startasync begin");
             var options = BuildOptions(prefs, account);
             if (account != null)
@@ -1896,36 +2009,12 @@ public partial class MainViewModel : ObservableObject
             {
                 ShouldSyncClipboard = () => false
             };
-            instance.Log += Log;
             instance.BleStatusChanged += s =>
             {
                 Status = s;
                 OnPropertyChanged(nameof(IosBleActive));
             };
-            instance.Connected += m =>
-            {
-                SetActive(m);
-                AnyConnected?.Invoke();
-                _apiHost.Publish("mirror.connected",
-                    new { slot = m.Slot, name = m.DeviceName, serial = m.Device.Serial });
-            };
-            instance.Disconnected += m =>
-            {
-                _apiHost.Publish("mirror.disconnected",
-                    new { name = m.DeviceName, serial = m.Device.Serial, manual = m.ManualDisconnect });
-                Mirrors.Remove(m);
-                PromoteNextActive(m);
-                StopAirPlayIfUnused();
-            };
-            instance.OverlayLineClicked += (m, id, idx) =>
-                _apiHost.Publish("overlay.line",
-                    new { slot = m.Slot, id, index = idx });
-
-            Mirrors.Add(instance);
-            ApplyMirrorOrder();
-            RefreshInactiveMirrors();
-            SetActive(instance);
-            MirrorAdded?.Invoke(instance);
+            WireMirror(instance, () => StopAirPlayIfUnused());
             await instance.StartAsync(_airPlay);
             BindKeybindPersistence(instance);
             Status = AirPlayStatusText(instance);
@@ -2164,6 +2253,35 @@ public partial class MainViewModel : ObservableObject
             RefreshInactiveMirrors();
             UpdateStatus();
         }
+    }
+
+    private void WireMirror(MirrorInstance instance, Action? onDisconnected = null)
+    {
+        instance.Log += Log;
+        instance.Connected += m =>
+        {
+            SetActive(m);
+            AnyConnected?.Invoke();
+            _apiHost.Publish("mirror.connected",
+                new { slot = m.Slot, name = m.DeviceName, serial = m.Device.Serial });
+        };
+        instance.Disconnected += m =>
+        {
+            _apiHost.Publish("mirror.disconnected",
+                new { name = m.DeviceName, serial = m.Device.Serial, manual = m.ManualDisconnect });
+            Mirrors.Remove(m);
+            PromoteNextActive(m);
+            onDisconnected?.Invoke();
+        };
+        instance.OverlayLineClicked += (m, id, idx) =>
+            _apiHost.Publish("overlay.line",
+                new { slot = m.Slot, id, index = idx });
+
+        Mirrors.Add(instance);
+        ApplyMirrorOrder();
+        RefreshInactiveMirrors();
+        SetActive(instance);
+        MirrorAdded?.Invoke(instance);
     }
 
     [RelayCommand]

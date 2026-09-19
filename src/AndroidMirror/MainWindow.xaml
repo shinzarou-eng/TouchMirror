@@ -1812,6 +1812,61 @@
                                                          IsChecked="{Binding VideoSharpen}" />
                                     </Grid>
                                     <Border Height="1" Background="{DynamicResource SurfaceFaintBrush}" />
+                                    <Grid MinHeight="38"
+                                          ToolTip="{loc:Loc double_clic_valeur_par_defaut}">
+                                        <TextBlock Text="{loc:Loc luminosite}" FontSize="12" VerticalAlignment="Center" />
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock FontSize="11" Width="40" TextAlignment="Right"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                       Text="{Binding VideoBrightness, StringFormat={}{0:+0%;-0%;0%}}" />
+                                            <Slider Width="135" VerticalAlignment="Center" Tag="0"
+                                                    Minimum="-0.5" Maximum="0.5" SmallChange="0.02"
+                                                    IsMoveToPointEnabled="True"
+                                                    MouseDoubleClick="OnColorSliderReset"
+                                                    Value="{Binding VideoBrightness}" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Border Height="1" Background="{DynamicResource SurfaceFaintBrush}" />
+                                    <Grid MinHeight="38"
+                                          ToolTip="{loc:Loc double_clic_valeur_par_defaut}">
+                                        <TextBlock Text="{loc:Loc contraste}" FontSize="12" VerticalAlignment="Center" />
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock FontSize="11" Width="40" TextAlignment="Right"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                       Text="{Binding VideoContrast, StringFormat={}{0:P0}}" />
+                                            <Slider Width="135" VerticalAlignment="Center" Tag="1"
+                                                    Minimum="0.5" Maximum="1.5" SmallChange="0.02"
+                                                    IsMoveToPointEnabled="True"
+                                                    MouseDoubleClick="OnColorSliderReset"
+                                                    Value="{Binding VideoContrast}" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Border Height="1" Background="{DynamicResource SurfaceFaintBrush}" />
+                                    <Grid MinHeight="38"
+                                          ToolTip="{loc:Loc double_clic_valeur_par_defaut}">
+                                        <TextBlock Text="{loc:Loc saturation}" FontSize="12" VerticalAlignment="Center" />
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock FontSize="11" Width="40" TextAlignment="Right"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                       Text="{Binding VideoSaturation, StringFormat={}{0:P0}}" />
+                                            <Slider Width="135" VerticalAlignment="Center" Tag="1"
+                                                    Minimum="0" Maximum="2" SmallChange="0.02"
+                                                    IsMoveToPointEnabled="True"
+                                                    MouseDoubleClick="OnColorSliderReset"
+                                                    Value="{Binding VideoSaturation}" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <ui:Button HorizontalAlignment="Right" Margin="0,4,0,2"
+                                               Appearance="Transparent" Padding="8,2" FontSize="11"
+                                               Command="{Binding ResetVideoColorCommand}"
+                                               Content="{loc:Loc reinitialiser}" />
+                                    <Border Height="1" Background="{DynamicResource SurfaceFaintBrush}" />
                                     <Grid MinHeight="38">
                                         <TextBlock Text="{loc:Loc audio_du_jeu_sur_le_pc}" FontSize="12" VerticalAlignment="Center" />
                                         <ui:ToggleSwitch HorizontalAlignment="Right" VerticalAlignment="Center"

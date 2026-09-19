@@ -6,11 +6,21 @@ const DATA = [[1,1,"Oeuf de Dragoeuf Doré",4,"Archimonstres : La vitesse d'appa
 const byDate = {};
 for (const r of DATA) byDate[r[0] + '/' + r[1]] = r;
 
-let tick = 0;
 let fired = false;
 
 function jour(d) {
   return byDate[d.getDate() + '/' + (d.getMonth() + 1)];
+}
+
+function wrap(t, n) {
+  const out = [];
+  let cur = '';
+  for (const m of String(t).split(' ')) {
+    if (cur && (cur + ' ' + m).length > n) { out.push(cur); cur = m; }
+    else cur = cur ? cur + ' ' + m : m;
+  }
+  if (cur) out.push(cur);
+  return out;
 }
 
 tm.log('almanax actif — calendrier hors-ligne, rappel à ' + HEURE + 'h');
@@ -21,7 +31,6 @@ tm.setInterval(() => {
   const cible = HEURE * 60;
   const dansLaFenetre = mins >= cible && mins < cible + DUREE_M;
   const j = jour(now);
-  const alterne = (tick++ % 2) === 1;
   const mirrors = tm.getMirrors().data || [];
 
   for (const m of mirrors) {
@@ -30,12 +39,12 @@ tm.setInterval(() => {
       tm.overlay(m.slot, { visible: false });
       continue;
     }
-    const texte = alterne && j[4] ? j[4] : j[2] + ' x' + j[3];
     tm.overlay(m.slot, {
       visible: true, title: 'almanax', pos: 'bl', compact: true,
-      color: dansLaFenetre ? '#FF5C5C' : '#3ECF8E'
+      color: dansLaFenetre ? '#FF5C5C' : '#3ECF8E',
+      lines: wrap(j[4] || '', 46)
     });
-    tm.push(m.slot, { label: (dansLaFenetre ? '! ' : '') + texte.slice(0, 52) });
+    tm.push(m.slot, { label: (dansLaFenetre ? '! ' : '') + j[2] + ' x' + j[3] });
   }
 
   if (dansLaFenetre && !fired) { fired = true; tm.log('rappel Almanax affiché'); }

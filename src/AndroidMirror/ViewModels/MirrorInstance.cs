@@ -187,6 +187,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                             {
                                 presenter = new GpuPresenter();
                                 presenter.Sharpness = options.VideoSharpen ? GpuPresenter.DefaultSharpness : 0f;
+                                presenter.SetColorAdjust((float)options.VideoBrightness,
+                                    (float)options.VideoContrast, (float)options.VideoSaturation);
                             }
                             catch (Exception ex) { Log?.Invoke($"gpu presenter: {ex.Message}"); }
                         }
@@ -197,6 +199,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                         if (presenter != null)
                         {
                             Decoder.GpuFrame += presenter.Present;
+                            Decoder.SwFrame += presenter.PresentSoftware;
                             presenter.FrameReady += () =>
                             {
                                 if (Interlocked.Exchange(ref _gpuNotifyPending, 1) == 0)
@@ -347,13 +350,21 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             return;
         var now = Environment.TickCount64;
         var ptsMs = p.Pts / 1000;
-        if (_mBasePts < 0)
+        if (_mBasePts < 0 || ptsMs < _mLastPts - 500)
         {
             _mBasePts = _mLastPts = ptsMs;
             _mBaseArrival = _mLastArrival = now;
+            _mLagEma = _mJitterEma = _adaptLagRef = 0;
             return;
         }
         var lag = (double)(now - _mBaseArrival) - (ptsMs - _mBasePts);
+        if (Math.Abs(lag) > 30_000)
+        {
+            _mBasePts = _mLastPts = ptsMs;
+            _mBaseArrival = _mLastArrival = now;
+            _mLagEma = _mJitterEma = _adaptLagRef = 0;
+            return;
+        }
         _mLagEma = _mLagEma == 0 ? lag : _mLagEma * 0.92 + lag * 0.08;
         var dt = (now - _mLastArrival) - (double)(ptsMs - _mLastPts);
         _mJitterEma = _mJitterEma * 0.9 + Math.Abs(dt) * 0.1;

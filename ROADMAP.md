@@ -30,6 +30,7 @@ L'ordre indique les priorités, pas des dates de sortie. Les périmètres peuven
 | 5. Capture et création | Sauvegarder les moments utiles et simplifier le streaming | À l'étude | Base stabilisée et mesures de ressources |
 | 6. Intégrations officielles | Relier TouchMirror aux outils du bureau sans automatiser le jeu | À l'étude | API fiabilisée à l'étape 1 |
 | 7. Portage bureau | Évaluer Linux puis macOS via une interface réécrite en Avalonia | À l'étude | Étapes 1–4 stabilisées |
+| 8. AirPlay iPhone | Recevoir la recopie d'écran iOS nativement, sans binaire tiers | En cours | Indépendant |
 
 ## 1. Fiabilité et confiance
 
@@ -132,6 +133,18 @@ Le cœur est déjà portable : protocole scrcpy, adb, FFmpeg, API locale, plugin
 
 **Validation avant engagement :** un prototype affiche un miroir sur Linux ; la consommation CPU est mesurée ; le partage de code entre Windows et les autres OS est démontré sans duplication de la logique. macOS est envisagé après Linux, sur la même base Avalonia.
 
+## 8. AirPlay iPhone
+
+**Résultat attendu :** recevoir la recopie d'écran d'un iPhone comme le fait une Apple TV — via le Centre de contrôle iOS, en Wi-Fi, sans câble — puis profiter des mêmes tuiles, réglages et outils qu'avec Android.
+
+Le récepteur AirPlay est développé en interne plutôt qu'issu d'un dépôt rebrandé : les implémentations open source existantes sont anciennes, distribuées en binaires opaques ou sous licences incompatibles, et une implémentation propre s'intègre directement au pipeline de tuiles, aux espaces de travail et aux plugins — tout en restant auditable dans le dépôt. Une brique externe est assumée et créditée : le déchiffrement FairPlay reprend du code du projet [UxPlay](https://github.com/FDH2/UxPlay) (GPL-3.0), isolé dans `FairPlayHelper.exe`, un processus séparé distribué sous sa licence d'origine — l'application reste sous MIT.
+
+- [x] Prise de connexion iPhone → PC et échange de clés du protocole.
+- [ ] Décodage et affichage du flux vidéo dans une tuile miroir.
+- [ ] Intégration aux espaces de travail, à l'enregistrement et aux plugins.
+
+La carte « iPhone · AirPlay » de l'accueil indique « Bientôt disponible » tant que la vidéo n'est pas stable. L'avancement est détaillé au fil du développement dans le salon devblog du Discord. Aucune date n'est promise : la fonctionnalité sera publiée quand elle sera fiable.
+
 ## Hors périmètre
 
 **Ces éléments ne feront jamais partie de TouchMirror — ni aujourd'hui, ni dans une version future :**
@@ -142,7 +155,7 @@ Le cœur est déjà portable : protocole scrcpy, adb, FFmpeg, API locale, plugin
 - Diffusion d'une même action sur plusieurs téléphones.
 - Routes API d'injection tactile, clavier, texte ou presse-papiers vers Android.
 
-Un moteur de mirroring maison, un service cloud et une marketplace de scripts ne sont pas prioritaires dans cette roadmap.
+Un service cloud et une marketplace de scripts ne sont pas prioritaires dans cette roadmap.
 
 TouchMirror n'est pas affilié à Ankama. L'absence d'automatisation ne constitue ni une approbation de l'éditeur ni une garantie contre une sanction. Les règles applicables restent celles de l'éditeur.
 
