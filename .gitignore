@@ -29,5 +29,9 @@ engine/bin/
 .relnotes/*.draft.md
 
 AGENTS.local.md
+AUDIT.local.md
 MEMORY.md
 GRAPHISME.md
+publish/
+/*.tmp.html
+/hub-assets/

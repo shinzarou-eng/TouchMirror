@@ -5,9 +5,7 @@ import com.touchmirror.engine.AsyncProcessor;
 import com.touchmirror.engine.Options;
 import com.touchmirror.engine.device.Streamer;
 import com.touchmirror.engine.model.Codec;
-import com.touchmirror.engine.model.CodecOption;
 import com.touchmirror.engine.model.ConfigurationException;
-import com.touchmirror.engine.util.CodecUtils;
 import com.touchmirror.engine.util.IO;
 import com.touchmirror.engine.util.Ln;
 import com.touchmirror.engine.util.LogUtils;
@@ -22,7 +20,6 @@ import android.os.Looper;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
@@ -46,24 +43,19 @@ public final class AudioEncoder implements AsyncProcessor {
         }
     }
 
-    private static final int SAMPLE_RATE = AudioConfig.SAMPLE_RATE;
-    private static final int CHANNELS = AudioConfig.CHANNELS;
-
     private final AudioCapture capture;
     private final Streamer streamer;
     private final int bitRate;
-    private final List<CodecOption> codecOptions;
     private final String encoderName;
-
-    private boolean recreatePts;
-    private long previousPts;
 
     private final BlockingQueue<InputTask> inputTasks = new ArrayBlockingQueue<>(64);
     private final BlockingQueue<OutputTask> outputTasks = new ArrayBlockingQueue<>(64);
 
+    private boolean recreatePts;
+    private long previousPts;
+
     private Thread thread;
     private HandlerThread mediaCodecThread;
-
     private Thread inputThread;
     private Thread outputThread;
 
@@ -73,48 +65,34 @@ public final class AudioEncoder implements AsyncProcessor {
         this.capture = capture;
         this.streamer = streamer;
         this.bitRate = options.getAudioBitRate();
-        this.codecOptions = options.getAudioCodecOptions();
         this.encoderName = options.getAudioEncoder();
     }
 
-    private static MediaFormat createFormat(String mimeType, int bitRate, List<CodecOption> codecOptions) {
+    private static MediaFormat createFormat(String mimeType, int bitRate) {
         MediaFormat format = new MediaFormat();
         format.setString(MediaFormat.KEY_MIME, mimeType);
         format.setInteger(MediaFormat.KEY_BIT_RATE, bitRate);
-        format.setInteger(MediaFormat.KEY_CHANNEL_COUNT, CHANNELS);
-        format.setInteger(MediaFormat.KEY_SAMPLE_RATE, SAMPLE_RATE);
-
-        if (codecOptions != null) {
-            for (CodecOption option : codecOptions) {
-                String key = option.getKey();
-                Object value = option.getValue();
-                CodecUtils.setCodecOption(format, key, value);
-                Ln.d("Audio codec option set: " + key + " (" + value.getClass().getSimpleName() + ") = " + value);
-            }
-        }
-
+        format.setInteger(MediaFormat.KEY_CHANNEL_COUNT, AudioConfig.CHANNELS);
+        format.setInteger(MediaFormat.KEY_SAMPLE_RATE, AudioConfig.SAMPLE_RATE);
         return format;
     }
 
     @TargetApi(AndroidVersions.API_24_ANDROID_7_0)
-    private void inputThread(MediaCodec mediaCodec, AudioCapture capture) throws IOException, InterruptedException {
-        final MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
-
+    private void inputLoop(MediaCodec mediaCodec) throws IOException, InterruptedException {
+        MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
         while (!Thread.currentThread().isInterrupted()) {
             InputTask task = inputTasks.take();
             ByteBuffer buffer = mediaCodec.getInputBuffer(task.index);
-            int r = capture.read(buffer, bufferInfo);
-            if (r <= 0) {
-                throw new IOException("Could not read audio: " + r);
+            int size = capture.read(buffer, bufferInfo);
+            if (size <= 0) {
+                throw new IOException("Could not read audio: " + size);
             }
-
             mediaCodec.queueInputBuffer(task.index, bufferInfo.offset, bufferInfo.size, bufferInfo.presentationTimeUs, bufferInfo.flags);
         }
     }
 
-    private void outputThread(MediaCodec mediaCodec) throws IOException, InterruptedException {
+    private void outputLoop(MediaCodec mediaCodec) throws IOException, InterruptedException {
         streamer.writeAudioHeader();
-
         while (!Thread.currentThread().isInterrupted()) {
             OutputTask task = outputTasks.take();
             ByteBuffer buffer = mediaCodec.getOutputBuffer(task.index);
@@ -130,19 +108,14 @@ public final class AudioEncoder implements AsyncProcessor {
     }
 
     private void fixTimestamp(MediaCodec.BufferInfo bufferInfo) {
-        assert recreatePts;
-
         if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
             return;
         }
 
         long pts = bufferInfo.presentationTimeUs;
         if (previousPts != 0) {
-            long now = System.nanoTime() / 1000;
-            long duration = pts - previousPts;
-            bufferInfo.presentationTimeUs = now - duration;
+            bufferInfo.presentationTimeUs = System.nanoTime() / 1000 - (pts - previousPts);
         }
-
         previousPts = pts;
     }
 
@@ -203,7 +176,6 @@ public final class AudioEncoder implements AsyncProcessor {
         }
 
         MediaCodec mediaCodec = null;
-
         boolean mediaCodecStarted = false;
         try {
             capture.checkCompatibility();
@@ -217,16 +189,15 @@ public final class AudioEncoder implements AsyncProcessor {
             mediaCodecThread = new HandlerThread("media-codec");
             mediaCodecThread.start();
 
-            MediaFormat format = createFormat(codec.getMimeType(), bitRate, codecOptions);
             mediaCodec.setCallback(new EncoderCallback(), new Handler(mediaCodecThread.getLooper()));
-            mediaCodec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+            mediaCodec.configure(createFormat(codec.getMimeType(), bitRate), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
 
             capture.start();
 
-            final MediaCodec mediaCodecRef = mediaCodec;
+            MediaCodec mediaCodecRef = mediaCodec;
             inputThread = new Thread(() -> {
                 try {
-                    inputThread(mediaCodecRef, capture);
+                    inputLoop(mediaCodecRef);
                 } catch (IOException | InterruptedException e) {
                     Ln.e("Audio capture error", e);
                 } finally {
@@ -236,7 +207,7 @@ public final class AudioEncoder implements AsyncProcessor {
 
             outputThread = new Thread(() -> {
                 try {
-                    outputThread(mediaCodecRef);
+                    outputLoop(mediaCodecRef);
                 } catch (InterruptedException e) {
                 } catch (IOException e) {
                     if (!IO.isBrokenPipe(e)) {
@@ -293,9 +264,7 @@ public final class AudioEncoder implements AsyncProcessor {
                 }
                 mediaCodec.release();
             }
-            if (capture != null) {
-                capture.stop();
-            }
+            capture.stop();
         }
     }
 
@@ -306,7 +275,8 @@ public final class AudioEncoder implements AsyncProcessor {
                 MediaCodec mediaCodec = MediaCodec.createByCodecName(encoderName);
                 String mimeType = Codec.getMimeType(mediaCodec);
                 if (!codec.getMimeType().equals(mimeType)) {
-                    Ln.e("Audio encoder type for \"" + encoderName + "\" (" + mimeType + ") does not match codec type (" + codec.getMimeType() + ")");
+                    Ln.e("Audio encoder type for \"" + encoderName + "\" (" + mimeType + ") does not match codec type (" + codec.getMimeType()
+                            + ")");
                     throw new ConfigurationException("Incorrect encoder type: " + encoderName);
                 }
                 return mediaCodec;
@@ -314,7 +284,8 @@ public final class AudioEncoder implements AsyncProcessor {
                 Ln.e("Audio encoder '" + encoderName + "' for " + codec.getName() + " not found\n" + LogUtils.buildAudioEncoderListMessage());
                 throw new ConfigurationException("Unknown encoder: " + encoderName);
             } catch (IOException e) {
-                Ln.e("Could not create audio encoder '" + encoderName + "' for " + codec.getName() + "\n" + LogUtils.buildAudioEncoderListMessage());
+                Ln.e("Could not create audio encoder '" + encoderName + "' for " + codec.getName() + "\n"
+                        + LogUtils.buildAudioEncoderListMessage());
                 throw e;
             }
         }

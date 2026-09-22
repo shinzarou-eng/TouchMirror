@@ -5,6 +5,7 @@ import com.touchmirror.engine.model.Size;
 import java.util.Objects;
 
 public final class DisplayProperties {
+
     private Size size;
     private int rotation;
 
@@ -33,11 +34,11 @@ public final class DisplayProperties {
 
     @Override
     public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) {
+        if (!(o instanceof DisplayProperties)) {
             return false;
         }
-        DisplayProperties that = (DisplayProperties) o;
-        return rotation == that.rotation && Objects.equals(size, that.size);
+        DisplayProperties other = (DisplayProperties) o;
+        return rotation == other.rotation && Objects.equals(size, other.size);
     }
 
     @Override

@@ -2,8 +2,8 @@ package com.touchmirror.engine.control;
 
 public final class DeviceMessage {
 
-    public static final int TYPE_CLIPBOARD = 0;
-    public static final int TYPE_ACK_CLIPBOARD = 1;
+    public static final int TYPE_CLIPBOARD = com.touchmirror.engine.Protocol.DEVMSG_CLIPBOARD;
+    public static final int TYPE_ACK_CLIPBOARD = com.touchmirror.engine.Protocol.DEVMSG_ACK_CLIPBOARD;
 
     private int type;
     private String text;

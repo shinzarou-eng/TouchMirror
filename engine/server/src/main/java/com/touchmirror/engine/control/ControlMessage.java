@@ -1,27 +1,29 @@
 package com.touchmirror.engine.control;
 
+import com.touchmirror.engine.Protocol;
 import com.touchmirror.engine.model.Position;
 
 public final class ControlMessage {
 
-    public static final int TYPE_INJECT_KEYCODE = 0;
-    public static final int TYPE_INJECT_TEXT = 1;
-    public static final int TYPE_INJECT_TOUCH_EVENT = 2;
-    public static final int TYPE_INJECT_SCROLL_EVENT = 3;
-    public static final int TYPE_BACK_OR_SCREEN_ON = 4;
-    public static final int TYPE_EXPAND_NOTIFICATION_PANEL = 5;
-    public static final int TYPE_EXPAND_SETTINGS_PANEL = 6;
-    public static final int TYPE_COLLAPSE_PANELS = 7;
-    public static final int TYPE_GET_CLIPBOARD = 8;
-    public static final int TYPE_SET_CLIPBOARD = 9;
-    public static final int TYPE_SET_DISPLAY_POWER = 10;
-    public static final int TYPE_ROTATE_DEVICE = 11;
-    public static final int TYPE_OPEN_HARD_KEYBOARD_SETTINGS = 15;
-    public static final int TYPE_START_APP = 16;
-    public static final int TYPE_RESET_VIDEO = 17;
-    public static final int TYPE_RESIZE_DISPLAY = 21;
-    public static final int TYPE_SCAN_FILE = 22;
-    public static final int TYPE_SET_VIDEO_PARAMS = 23;
+    public static final int TYPE_CONFIG = Protocol.MSG_CONFIG;
+    public static final int TYPE_INJECT_KEYCODE = Protocol.MSG_INJECT_KEYCODE;
+    public static final int TYPE_INJECT_TEXT = Protocol.MSG_INJECT_TEXT;
+    public static final int TYPE_INJECT_TOUCH_EVENT = Protocol.MSG_INJECT_TOUCH;
+    public static final int TYPE_INJECT_SCROLL_EVENT = Protocol.MSG_INJECT_SCROLL;
+    public static final int TYPE_BACK_OR_SCREEN_ON = Protocol.MSG_BACK_OR_SCREEN_ON;
+    public static final int TYPE_EXPAND_NOTIFICATION_PANEL = Protocol.MSG_EXPAND_NOTIFICATIONS;
+    public static final int TYPE_EXPAND_SETTINGS_PANEL = Protocol.MSG_EXPAND_SETTINGS;
+    public static final int TYPE_COLLAPSE_PANELS = Protocol.MSG_COLLAPSE_PANELS;
+    public static final int TYPE_GET_CLIPBOARD = Protocol.MSG_GET_CLIPBOARD;
+    public static final int TYPE_SET_CLIPBOARD = Protocol.MSG_SET_CLIPBOARD;
+    public static final int TYPE_SET_DISPLAY_POWER = Protocol.MSG_SET_DISPLAY_POWER;
+    public static final int TYPE_ROTATE_DEVICE = Protocol.MSG_ROTATE_DEVICE;
+    public static final int TYPE_OPEN_HARD_KEYBOARD_SETTINGS = Protocol.MSG_HARD_KEYBOARD_SETTINGS;
+    public static final int TYPE_START_APP = Protocol.MSG_START_APP;
+    public static final int TYPE_RESET_VIDEO = Protocol.MSG_RESET_VIDEO;
+    public static final int TYPE_RESIZE_DISPLAY = Protocol.MSG_RESIZE_DISPLAY;
+    public static final int TYPE_SCAN_FILE = Protocol.MSG_SCAN_FILE;
+    public static final int TYPE_SET_VIDEO_PARAMS = Protocol.MSG_SET_VIDEO_PARAMS;
 
     public static final long SEQUENCE_INVALID = 0;
 
@@ -50,8 +52,16 @@ public final class ControlMessage {
     private int height;
     private int bitRate;
     private boolean suspend;
+    private byte[] config;
 
     private ControlMessage() {
+    }
+
+    public static ControlMessage createConfig(byte[] data) {
+        ControlMessage msg = new ControlMessage();
+        msg.type = TYPE_CONFIG;
+        msg.config = data;
+        return msg;
     }
 
     public static ControlMessage createInjectKeycode(int action, int keycode, int repeat, int metaState) {
@@ -242,5 +252,9 @@ public final class ControlMessage {
 
     public boolean isSuspend() {
         return suspend;
+    }
+
+    public byte[] getConfig() {
+        return config;
     }
 }

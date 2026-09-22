@@ -5,8 +5,8 @@ namespace TouchMirror.Services;
 public static class AppLogger
 {
     private static readonly string _path =
-        System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "TouchMirror", "app.log");
+        System.IO.Path.Combine(AppContext.GetData("TouchMirror.LogDirectory") as string
+            ?? System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TouchMirror"), "app.log");
     private static readonly object _lock = new();
     private static StreamWriter? _writer;
 
@@ -17,6 +17,15 @@ public static class AppLogger
         try
         {
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(_path)!);
+            if (File.Exists(_path))
+            {
+                try
+                {
+                    File.Copy(_path, System.IO.Path.Combine(
+                        System.IO.Path.GetDirectoryName(_path)!, "app.prev.log"), true);
+                }
+                catch { }
+            }
             File.WriteAllText(_path, $"=== TouchMirror {DateTime.Now:yyyy-MM-dd HH:mm:ss} ===\n");
         }
         catch { }

@@ -5,10 +5,8 @@ import com.touchmirror.engine.AsyncProcessor;
 import com.touchmirror.engine.Options;
 import com.touchmirror.engine.device.Streamer;
 import com.touchmirror.engine.model.Codec;
-import com.touchmirror.engine.model.CodecOption;
 import com.touchmirror.engine.model.ConfigurationException;
 import com.touchmirror.engine.model.Size;
-import com.touchmirror.engine.util.CodecUtils;
 import com.touchmirror.engine.util.IO;
 import com.touchmirror.engine.util.Ln;
 import com.touchmirror.engine.util.LogUtils;
@@ -23,12 +21,11 @@ import android.view.Surface;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class SurfaceEncoder implements AsyncProcessor {
 
-    private static final int DEFAULT_I_FRAME_INTERVAL = 10;
+    private static final int I_FRAME_INTERVAL = 10;
     private static final int REPEAT_FRAME_DELAY_US = 100_000;
     private static final String KEY_MAX_FPS_TO_ENCODER = "max-fps-to-encoder";
 
@@ -38,7 +35,6 @@ public class SurfaceEncoder implements AsyncProcessor {
     private final SurfaceCapture capture;
     private final Streamer streamer;
     private final String encoderName;
-    private final List<CodecOption> codecOptions;
     private final int videoBitRate;
     private final int maxSize;
     private final float maxFps;
@@ -53,7 +49,6 @@ public class SurfaceEncoder implements AsyncProcessor {
     private final AtomicBoolean stopped = new AtomicBoolean();
 
     private final CaptureControl captureControl = new CaptureControl();
-
     private VideoConstraints videoConstraints;
 
     public SurfaceEncoder(SurfaceCapture capture, Streamer streamer, Options options) {
@@ -62,7 +57,6 @@ public class SurfaceEncoder implements AsyncProcessor {
         this.videoBitRate = options.getVideoBitRate();
         this.maxSize = options.getMaxSize();
         this.maxFps = options.getMaxFps();
-        this.codecOptions = options.getVideoCodecOptions();
         this.encoderName = options.getVideoEncoder();
         this.downsizeOnError = options.getDownsizeOnError();
         this.minSizeAlignment = options.getMinSizeAlignment();
@@ -71,8 +65,8 @@ public class SurfaceEncoder implements AsyncProcessor {
 
     private void streamCapture() throws IOException, ConfigurationException {
         Codec codec = streamer.getCodec();
-        MediaCodec mediaCodec = createMediaCodec(codec, encoderName);
-        MediaFormat format = createFormat(codec.getMimeType(), videoBitRate, maxFps, codecOptions);
+        MediaCodec mediaCodec = createMediaCodec(codec);
+        MediaFormat format = createFormat(codec.getMimeType());
 
         MediaCodecInfo.VideoCapabilities caps;
         int alignment;
@@ -100,7 +94,6 @@ public class SurfaceEncoder implements AsyncProcessor {
             streamer.writeVideoHeader();
 
             int retainedResetReasons = 0;
-
             do {
                 int resetReasons = captureControl.consumeReset();
                 if ((resetReasons & CaptureControl.RESET_REASON_TERMINATED) != 0) {
@@ -139,8 +132,7 @@ public class SurfaceEncoder implements AsyncProcessor {
                             boolean isClientResize = (resetReasons & CaptureControl.RESET_REASON_CLIENT_RESIZED) != 0
                                     && (resetReasons & CaptureControl.RESET_REASON_DISPLAY_PROPERTIES_CHANGED) == 0;
                             streamer.writeSessionMeta(size.getWidth(), size.getHeight(), isClientResize);
-
-                            encode(mediaCodec, streamer);
+                            encode(mediaCodec);
                         }
 
                         alive = !stopped.get() && !capture.isClosed();
@@ -195,8 +187,7 @@ public class SurfaceEncoder implements AsyncProcessor {
             assert !ignoreVideoEncoderConstraints : "caps != null implies !ignoreVideoEncoderConstraints";
             Ln.i("Applying video encoder constraints");
             videoConstraints = videoConstraints.withCapabilities(caps);
-            boolean accepted = capture.applyNewVideoConstraints(videoConstraints);
-            if (accepted) {
+            if (capture.applyNewVideoConstraints(videoConstraints)) {
                 return true;
             }
         }
@@ -210,12 +201,11 @@ public class SurfaceEncoder implements AsyncProcessor {
             return false;
         }
 
-        boolean accepted = capture.applyNewVideoConstraints(videoConstraints.withMaxSize(newMaxSize));
-        if (!accepted) {
+        if (!capture.applyNewVideoConstraints(videoConstraints.withMaxSize(newMaxSize))) {
             return false;
         }
 
-        Ln.i("Retrying with -m" + newMaxSize + "...");
+        Ln.i("Retrying with maxSize=" + newMaxSize + "...");
         return true;
     }
 
@@ -229,7 +219,7 @@ public class SurfaceEncoder implements AsyncProcessor {
         return 0;
     }
 
-    private void encode(MediaCodec codec, Streamer streamer) throws IOException {
+    private void encode(MediaCodec codec) throws IOException {
         MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
 
         boolean eos;
@@ -238,8 +228,7 @@ public class SurfaceEncoder implements AsyncProcessor {
             try {
                 eos = (bufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0;
                 if (outputBufferId >= 0 && bufferInfo.size > 0) {
-                    boolean isConfig = (bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0;
-                    if (!isConfig) {
+                    if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0) {
                         firstFrameSent = true;
                         consecutiveErrors = 0;
                     }
@@ -255,7 +244,7 @@ public class SurfaceEncoder implements AsyncProcessor {
         } while (!eos);
     }
 
-    private static MediaCodec createMediaCodec(Codec codec, String encoderName) throws IOException, ConfigurationException {
+    private MediaCodec createMediaCodec(Codec codec) throws IOException, ConfigurationException {
         if (encoderName != null) {
             Ln.d("Creating encoder by name: '" + encoderName + "'");
             try {
@@ -285,16 +274,16 @@ public class SurfaceEncoder implements AsyncProcessor {
         }
     }
 
-    private static MediaFormat createFormat(String videoMimeType, int bitRate, float maxFps, List<CodecOption> codecOptions) {
+    private MediaFormat createFormat(String mimeType) {
         MediaFormat format = new MediaFormat();
-        format.setString(MediaFormat.KEY_MIME, videoMimeType);
-        format.setInteger(MediaFormat.KEY_BIT_RATE, bitRate);
+        format.setString(MediaFormat.KEY_MIME, mimeType);
+        format.setInteger(MediaFormat.KEY_BIT_RATE, videoBitRate);
         format.setInteger(MediaFormat.KEY_FRAME_RATE, 60);
         format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
         if (Build.VERSION.SDK_INT >= AndroidVersions.API_24_ANDROID_7_0) {
             format.setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED);
         }
-        format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, DEFAULT_I_FRAME_INTERVAL);
+        format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, I_FRAME_INTERVAL);
         format.setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, REPEAT_FRAME_DELAY_US);
         if (Build.VERSION.SDK_INT >= AndroidVersions.API_23_ANDROID_6_0) {
             format.setInteger(MediaFormat.KEY_PRIORITY, 0);
@@ -306,15 +295,6 @@ public class SurfaceEncoder implements AsyncProcessor {
             format.setFloat(KEY_MAX_FPS_TO_ENCODER, maxFps);
         }
 
-        if (codecOptions != null) {
-            for (CodecOption option : codecOptions) {
-                String key = option.getKey();
-                Object value = option.getValue();
-                CodecUtils.setCodecOption(format, key, value);
-                Ln.d("Video codec option set: " + key + " (" + value.getClass().getSimpleName() + ") = " + value);
-            }
-        }
-
         return format;
     }
 
@@ -322,7 +302,6 @@ public class SurfaceEncoder implements AsyncProcessor {
     public void start(TerminationListener listener) {
         thread = new Thread(() -> {
             Looper.prepare();
-
             try {
                 streamCapture();
             } catch (ConfigurationException e) {

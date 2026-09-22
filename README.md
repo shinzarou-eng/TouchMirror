@@ -27,7 +27,13 @@ Free, open source, no account, no ads.
 [![Dofus Touch](https://img.shields.io/badge/optimized%20for-Dofus%20Touch-D9A94E?style=flat-square)](https://www.dofus-touch.com)
 [![Discord](https://img.shields.io/badge/Discord-join%20us-5865F2?style=flat-square)](https://discord.gg/DBJ9kNCdX)
 
-<img src="docs/screenshot-multiaccount.png" width="780" alt="TouchMirror — Dofus Touch mirrored from a phone, second account ready in its own tile">
+<img src="docs/screenshot-multiaccount.png" width="780" alt="TouchMirror — Dofus Touch mirrored live, second phone in its own tile">
+
+<p>
+<img src="docs/screenshot-hub.png" width="252" alt="Hub — detected devices and live carousel">
+<img src="docs/screenshot-marketplace.png" width="252" alt="Marketplace — official extensions catalog">
+<img src="docs/screenshot-plugins.png" width="252" alt="Installed plugins panel">
+</p>
 
 **[Download the latest release](https://github.com/shinzarou-eng/TouchMirror/releases/latest)** · **[Site — touchmirror.xyz](https://www.touchmirror.xyz/)** · [Discord](https://discord.gg/DBJ9kNCdX) · [Documentation](docs/wiki/Home.md) · [Roadmap](ROADMAP.md) · [Report a bug](https://github.com/shinzarou-eng/TouchMirror/issues) · [Suggest a feature](https://github.com/shinzarou-eng/TouchMirror/issues/new)
 
@@ -40,7 +46,7 @@ Free, open source, no account, no ads.
 <details>
 <summary><b>Table of contents</b></summary>
 
-[Why TouchMirror?](#why-touchmirror) · [Features](#features) · [Comparison](#comparison) · [Installation](#installation) · [On-screen keybinds](#on-screen-keybinds) · [Virtual display](#virtual-display) · [Multi-account](#multi-account) · [Keyboard shortcuts](#keyboard-shortcuts) · [Local API](#local-api-optional) · [Build from source](#build-from-source) · [Tech stack](#tech-stack) · [Ankama compliance](#ankama-compliance) · [Roadmap](#roadmap) · [Get involved](#get-involved) · [License](#license)
+[Why TouchMirror?](#why-touchmirror) · [Features](#features) · [Installation](#installation) · [On-screen keybinds](#on-screen-keybinds) · [Virtual display](#virtual-display) · [Multi-account](#multi-account) · [Keyboard shortcuts](#keyboard-shortcuts) · [Local API](#local-api-optional) · [Build from source](#build-from-source) · [Tech stack](#tech-stack) · [Ankama compliance](#ankama-compliance) · [Roadmap](#roadmap) · [Get involved](#get-involved) · [License](#license)
 
 </details>
 
@@ -52,56 +58,53 @@ Think of it as an open-source scrcpy alternative made for players: mirror and co
 
 ## Features
 
+**Mirror & control**
+
 | | | |
 |---|---|---|
 | 🎥 | **HD mirroring** | Native phone resolution, 60/90/120 fps, H.264, H.265 and AV1 codecs |
 | ⚡ | **Low latency** | Low-latency FFmpeg decoding, latest-frame priority, ~400 ms audio, optimized sockets |
-| � | **Direct GPU pipeline** | Custom D3D11 path: decoded NV12 frames feed a pixel shader on the GPU — no CPU readback, no UI-thread copy |
-| �🎯 | **On-screen keybinds** | Drop a marker on a spell, bind a key — 1 keypress = 1 tap at that spot. Adjustable style (pill, circle, minimal), opacity and size, saved per device. Fully manual: no repeat, no macros |
-| 🖥️ | **Virtual display** | The game runs on a dedicated virtual screen — the physical phone stays free. Landscape, portrait and **tablet** presets (apps switch to tablet UI) |
-| 📱 | **Multi-account** | Several phones in one window — or a second account on the same phone via an Android profile |
-| 🗂️ | **Workspaces** | "Solo", "Duo", "Stream" — devices, order, active mirror and per-device settings restored in one click; `Ctrl`+`Shift`+`1-9` to switch |
-| 🔌 | **Instant detection** | Event-driven `adb track-devices` — the phone shows up as soon as it's plugged in, no polling |
-| 🎚️ | **Quality presets** | Performance / Balanced / Quality+ / Max — resolution, fps and bitrate applied in one click |
-| 🍃 | **Resource saver** | Inactive mirrors stop decoding video (CPU/GPU saved) — recording keeps running in the background |
-| 🩺 | **Built-in diagnostics** | USB verdicts (faulty cable, authorization, unstable link) and network diagnostics right in the app |
-| 🛡️ | **Automatic firewall** | The inbound rule is created when you enable AirPlay mirroring — a single UAC prompt, only if you use iOS |
-| 🎨 | **Customization** | Rename each phone (tiles + hub) and pick its accent color — right-click the device |
-| 📶 | **USB & WiFi** | Switch to wireless in one click, then unplug the cable — the stream keeps going |
+| ⚙️ | **Direct GPU pipeline** | Custom D3D11 path: decoded NV12 frames feed a pixel shader on the GPU — no CPU readback, no UI-thread copy |
 | 🖱️ | **Mouse = touch** | Click, drag, wheel = scroll, `Ctrl`+wheel = pinch-to-zoom (map zoom) |
 | ⌨️ | **Keyboard** | Typed text reaches the phone like a Bluetooth keyboard |
 | 📋 | **Clipboard** | Bidirectional — `Ctrl`+`V` pastes to the phone, copying on the phone reaches the PC |
-| ⏺️ | **MP4 recording** | Remux with no re-encode — files ready to play and upload |
-| 📸 | **PNG screenshots** | One click, saved to `Pictures\TouchMirror` |
-| 🌙 | **Screen off** | The phone's physical display goes dark while mirroring — saves battery and AMOLED |
-| 📖 | **Built-in help** | Forum, encyclopedia and DofusDB in a browser panel without leaving the game |
+| 🌙 | **Screen off** | The phone's physical display goes dark while mirroring — saves battery, protects AMOLED panels |
 | ⛶ | **Fullscreen** | `F11` or dedicated button, control bar appears at the top edge |
 | 🎬 | **Capture mode** | Clean window for OBS — ideal for streaming |
+
+**Multiple phones, one window**
+
+| | | |
+|---|---|---|
+| 📱 | **Multi-account** | Several phones in one window — or a second account on the same phone via an Android profile |
+| 🗂️ | **Workspaces** | "Solo", "Duo", "Stream" — devices, order, active mirror and per-device settings restored in one click; `Ctrl`+`Shift`+`1-9` to switch |
+| 🔌 | **Instant detection** | Event-driven `adb track-devices` — the phone shows up as soon as it's plugged in, no polling |
+| � | **Auto-reconnect** | A dropped session retries with a bounded budget and never jumps to another device — a voluntary disconnect cancels cleanly |
+| 🍃 | **Resource saver** | Inactive mirrors stop decoding video (CPU/GPU saved) — recording keeps running in the background |
+| 🎨 | **Customization** | Rename each phone (tiles + hub) and pick its accent color — right-click the device |
+| 📶 | **USB & WiFi** | QR pairing in one scan (Android 11+, no cable ever) — or switch a plugged device to wireless in one click |
+
+**Built for players**
+
+| | | |
+|---|---|---|
+| 🎯 | **On-screen keybinds** | Drop a marker on a spell, bind a key — 1 keypress = 1 tap at that spot. Adjustable style (pill, circle, minimal), opacity and size, saved per device. Fully manual: no repeat, no macros |
+| 🖥️ | **Virtual display** | The game runs on a dedicated virtual screen — the physical phone stays free. Landscape, portrait and **tablet** presets (apps switch to tablet UI) |
+| 🎚️ | **Quality presets** | Performance / Balanced / Quality+ / Max — resolution, fps and bitrate applied in one click |
+| ⏺️ | **MP4 recording** | Remux with no re-encode — files ready to play and upload |
+| 📸 | **PNG screenshots** | One click, saved to `Pictures\TouchMirror` |
+| 📖 | **Built-in help** | Forum, encyclopedia and DofusDB in a browser panel without leaving the game |
+
+**Extensibility & ops**
+
+| | | |
+|---|---|---|
 | 🔗 | **Local API** | HTTP + SSE on localhost with a token — Stream Deck, OBS, scripts. Drives the app only: connect/disconnect, record, screenshot — no endpoint can send touch or keys into the game |
 | 🧩 | **Plugins** | Embedded JavaScript engine (sandbox) — `plugin.json` manifest, official plugins verified by hash |
-| 🔄 | **Updates** | The app detects new GitHub releases at startup |
+| 🩺 | **Built-in diagnostics** | One-click copyable report: automatic `[OK]`/`[!!]` verdicts, real mDNS probe and per-brand hints (Xiaomi, Samsung, Oppo, Vivo, Huawei) — paste it straight into Discord |
+| �️ | **Automatic firewall** | The inbound rule is created when you enable AirPlay mirroring — a single UAC prompt, restricted to your local network |
+| ⬆️ | **Updates** | The app detects new GitHub releases at startup |
 | 🍎 | **iPhone / AirPlay** (*beta*) | Mirror an iPhone/iPad over Wi-Fi — the app hosts a local AirPlay receiver. *Not yet bundled in the GitHub zip — local builds only* · [progress notes](docs/airplay.md) |
-
-## Comparison
-
-Every tool has its strengths — here's where TouchMirror stands:
-
-| Feature | TouchMirror | scrcpy | Vysor | Walky |
-|---|:---:|:---:|:---:|:---:|
-| Native Windows GUI | ✅ | — (CLI) | ✅ | ✅ |
-| Multiple phones in one window | ✅ | — | — | ✅ |
-| On-screen keybinds (key → tap) | ✅ | — | — | — |
-| Virtual display / tablet mode | ✅ | ✅ (option) | — | ✅ |
-| Multi-account on a single phone | ✅ | — | — | ✅ |
-| iPhone / iOS | ✅ *(beta)* | — | ✅ | ✅ |
-| GPU-rendered pipeline | ✅ | — | — | ✅ |
-| Quality presets, built-in diagnostics | ✅ | — | — | ✅ |
-| Built-in MP4 recording | ✅ | ✅ | — | — |
-| Local API + sandboxed plugins | ✅ | — | — | — |
-| Multi-language | ✅ FR · EN | — | ✅ | — |
-| Open source | ✅ MIT | ✅ Apache-2.0 | — | — |
-
-*As of 09/16/2026 — feel free to open an issue if anything has changed.*
 
 ## Installation
 
@@ -121,7 +124,10 @@ Every tool has its strengths — here's where TouchMirror stands:
 
 ### WiFi mode
 
-Menu **⋯ → Enable WiFi** while the cable is plugged in → the device switches to TCP/IP and reconnects automatically. Unplug the cable, the stream keeps going. *(PC and phone on the same network; must be redone after a phone reboot — Android limitation.)*
+Two ways to go wireless — PC and phone on the same network:
+
+- **QR pairing (Android 11+, no cable at all)** — pair icon in the hub: scan the QR from *Wireless debugging → Pair via QR code* on the phone and it shows up in the list on its own. Pairing is remembered — the phone auto-reconnects on the same network until you revoke it. Manual `ip:port` + code entry and a "already paired → connect" path are there as fallback.
+- **From a plugged-in device** — menu **⋯ → Enable WiFi** switches the device to TCP/IP; unplug the cable, the stream keeps going. *(Must be redone after a phone reboot — Android limitation.)*
 
 ## On-screen keybinds
 
@@ -142,7 +148,7 @@ Settings → **VIDEO → Display**: instead of the physical screen, the mirror s
 
 - **The game runs in the virtual display** — you can use your phone normally at the same time
 - **Landscape** presets (1080p/900p/720p), **portrait** (1080×1920) and **tablet** (1920×1200, 2560×1600)
-- Tablet presets lower the density → apps switch to tablet UI (airier HUD)
+- Tablet presets lower the density → apps switch to tablet UI (roomier HUD)
 
 ## Multi-account
 
@@ -157,9 +163,7 @@ Allowed by Ankama: as many physical devices as you want, one account per phone.
 
 TouchMirror can also create a **secondary Android profile** from the app — the phone then runs Dofus Touch twice, each account on its own virtual display and mirror tile:
 
-<img src="docs/screenshot-multiaccount.png" width="780" alt="Main account — Dofus Touch mirrored from the phone">
-
-<img src="docs/screenshot-multiaccount-login.png" width="780" alt="Second account — own profile, own virtual display">
+<img src="docs/screenshot-hub.png" width="780" alt="Device hub — detected phones, live carousel and the per-account setup panel">
 
 1. Device menu → **Accounts → New Dofus account…**
 2. TouchMirror creates the profile, installs the existing game into it and starts it — no Samsung Dual Apps or Secure Folder required
@@ -171,10 +175,13 @@ TouchMirror can also create a **secondary Android profile** from the app — the
 | Key | Action |
 |---|---|
 | `F11` | Fullscreen |
+| `Esc` | Close what's open — dialog, side panel, mirror hub, fullscreen |
 | `Ctrl` + `Tab` | Next / previous mirror (`+Shift`) |
 | `Ctrl` + `1…9` | Activate mirror N directly |
+| `Ctrl` + `Shift` + `1…9` | Switch to workspace N |
+| `Ctrl` + `V` | Paste the PC clipboard onto the phone |
 | `Ctrl` + wheel | Pinch zoom |
-| Bound key | Tap at the on-screen marker (keybinds) |
+| Assigned key | Tap at the on-screen marker (keybinds) |
 | Mouse on the video | Direct touch — no hidden shortcuts interfering with the game |
 
 ## Local API (optional)

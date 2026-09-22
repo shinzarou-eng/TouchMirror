@@ -2,39 +2,22 @@ package com.touchmirror.engine.model;
 
 public enum Orientation {
 
-    Orient0("0"),
-    Orient90("90"),
-    Orient180("180"),
-    Orient270("270"),
-    Flip0("flip0"),
-    Flip90("flip90"),
-    Flip180("flip180"),
-    Flip270("flip270");
+    Orient0,
+    Orient90,
+    Orient180,
+    Orient270,
+    Flip0,
+    Flip90,
+    Flip180,
+    Flip270;
 
     public enum Lock {
-        Unlocked, LockedInitial, LockedValue,
-    }
-
-    private final String name;
-
-    Orientation(String name) {
-        this.name = name;
-    }
-
-    public static Orientation getByName(String name) {
-        for (Orientation orientation : values()) {
-            if (orientation.name.equals(name)) {
-                return orientation;
-            }
-        }
-
-        throw new IllegalArgumentException("Unknown orientation: " + name);
+        Unlocked, LockedInitial, LockedValue
     }
 
     public static Orientation fromRotation(int ccwRotation) {
         assert ccwRotation >= 0 && ccwRotation < 4;
-        int cwRotation = (4 - ccwRotation) % 4;
-        return values()[cwRotation];
+        return values()[(4 - ccwRotation) % 4];
     }
 
     public boolean isFlipped() {

@@ -52,6 +52,8 @@ public sealed class GpuPresenter : IDisposable
 
     private ID3D11VertexShader? _vs;
     private ID3D11PixelShader? _ps;
+    private ID3D11PixelShader? _psFxaa;
+    private ID3D11Buffer? _cbFxaa;
     private ID3D11SamplerState? _sampler;
 
     private ID3D11Texture2D? _nv12;
@@ -59,6 +61,9 @@ public sealed class GpuPresenter : IDisposable
     private ID3D11Texture2D? _bgra;
     private ID3D11Texture2D? _frame;
     private ID3D11RenderTargetView? _frameRtv;
+    private ID3D11Texture2D? _pre;
+    private ID3D11RenderTargetView? _preRtv;
+    private ID3D11ShaderResourceView? _preSrv;
     private int _w, _h;
     private bool _pendingRebind;
     private bool _disposed;
@@ -92,6 +97,7 @@ cbuffer ColorCB : register(b0) {
     float4 coefB;
     float4 uvRect;
     float4 adj;
+    float4 fx;
 };
 Texture2D<float> texY : register(t0);
 Texture2D<float2> texUV : register(t1);
@@ -106,9 +112,9 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         float h = texY.Sample(samp, suv, int2(0, 1));
         float mn = min(y0, min(min(b, d), min(f, h)));
         float mx = max(y0, max(max(b, d), max(f, h)));
-        float r = y0 + coefB.y * (4.0 * y0 - b - d - f - h);
-        float pad = (mx - mn) * 0.25;
-        y0 = clamp(r, mn - pad, mx + pad);
+        float amp = saturate(min(mn, 1.0 - mx) / max(mx, 1e-4));
+        float w = -sqrt(amp) * coefB.y * 0.5;
+        y0 = (y0 + (b + d + f + h) * w) / (1.0 + 4.0 * w);
     }
     float y = y0 * yuvT.x + yuvT.y;
     float2 c = texUV.Sample(samp, suv) * yuvT.z + yuvT.w;
@@ -119,18 +125,83 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
     float lum = dot(rgb, float3(0.2126, 0.7152, 0.0722));
     rgb = lum + (rgb - lum) * adj.z;
     rgb = (rgb - 0.5) * adj.y + 0.5 + adj.x;
+    rgb = saturate(rgb);
+    if (fx.x != 0.0) {
+        float lum2 = dot(rgb, float3(0.2126, 0.7152, 0.0722));
+        float sat = max(rgb.r, max(rgb.g, rgb.b)) - min(rgb.r, min(rgb.g, rgb.b));
+        rgb = lum2 + (rgb - lum2) * (1.0 + fx.x * (1.0 - sat));
+    }
+    if (fx.z != 1.0)
+        rgb = pow(saturate(rgb), fx.z);
+    if (fx.y != 0.0) {
+        float d = distance(uv, float2(0.5, 0.5));
+        float v = smoothstep(0.85, 0.35, d);
+        rgb *= lerp(1.0, v, fx.y);
+    }
     return float4(saturate(rgb), 1.0);
+}";
+
+    private const string PsFxaaSrc = @"
+cbuffer FxaaCB : register(b0) { float4 rcpFrame; };
+Texture2D<float4> tex : register(t0);
+SamplerState samp : register(s0);
+static const float3 LUMA = float3(0.299, 0.587, 0.114);
+float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
+    float2 px = rcpFrame.xy;
+    float3 nw = tex.Sample(samp, uv + float2(-1.0, -1.0) * px).rgb;
+    float3 ne = tex.Sample(samp, uv + float2( 1.0, -1.0) * px).rgb;
+    float3 sw = tex.Sample(samp, uv + float2(-1.0,  1.0) * px).rgb;
+    float3 se = tex.Sample(samp, uv + float2( 1.0,  1.0) * px).rgb;
+    float3 m  = tex.Sample(samp, uv).rgb;
+    float lnw = dot(nw, LUMA);
+    float lne = dot(ne, LUMA);
+    float lsw = dot(sw, LUMA);
+    float lse = dot(se, LUMA);
+    float lm  = dot(m, LUMA);
+    float lmin = min(lm, min(min(lnw, lne), min(lsw, lse)));
+    float lmax = max(lm, max(max(lnw, lne), max(lsw, lse)));
+    if (lmax - lmin < 0.0312)
+        return float4(m, 1.0);
+    float2 dir = float2((lsw + lse) - (lnw + lne), (lnw + lsw) - (lne + lse));
+    float dirReduce = max((lnw + lne + lsw + lse) * 0.03125, 0.0078125);
+    float rcpMin = 1.0 / (min(abs(dir.x), abs(dir.y)) + dirReduce);
+    dir = clamp(dir * rcpMin, -8.0, 8.0) * px;
+    float3 a = 0.5 * (tex.Sample(samp, uv + dir * (1.0 / 3.0 - 0.5)).rgb
+                    + tex.Sample(samp, uv + dir * (2.0 / 3.0 - 0.5)).rgb);
+    float3 b = a * 0.5 + 0.25 * (tex.Sample(samp, uv + dir * -0.5).rgb
+                               + tex.Sample(samp, uv + dir *  0.5).rgb);
+    float lb = dot(b, LUMA);
+    return float4((lb < lmin || lb > lmax) ? a : b, 1.0);
 }";
 
     private ID3D11Buffer? _cb;
     private int _lastColorInfo = -1;
     private float _sharpness;
     private bool _cbDirty = true;
-    private readonly float[] _cbData = new float[24];
+    private readonly float[] _cbData = new float[28];
     private float _viewX, _viewY, _viewS = 1f;
     private float _adjB, _adjC = 1f, _adjS = 1f;
+    private float _vibrance, _vignette, _gamma = 1f;
+    private bool _fxaa;
     private ID3D11ShaderResourceView? _lastY, _lastUV;
     public const float DefaultSharpness = 0.22f;
+
+    public bool Fxaa
+    {
+        get => _fxaa;
+        set
+        {
+            _fxaa = value;
+            if (!value)
+            {
+                lock (_sync)
+                {
+                    _preSrv?.Dispose(); _preRtv?.Dispose(); _pre?.Dispose();
+                    _preSrv = null; _preRtv = null; _pre = null;
+                }
+            }
+        }
+    }
 
     public float Sharpness
     {
@@ -163,9 +234,18 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
             ShaderFlags.None, EffectFlags.None);
         _vs = dev.CreateVertexShader(vsBytes.Span, null);
         _ps = dev.CreatePixelShader(psBytes.Span, null);
+        var fxaaBytes = Compiler.Compile(PsFxaaSrc, "main", "ps", "ps_4_0",
+            ShaderFlags.None, EffectFlags.None);
+        _psFxaa = dev.CreatePixelShader(fxaaBytes.Span, null);
+        _cbFxaa = dev.CreateBuffer(new BufferDescription
+        {
+            ByteWidth = 16,
+            Usage = ResourceUsage.Default,
+            BindFlags = BindFlags.ConstantBuffer,
+        });
         _cb = dev.CreateBuffer(new BufferDescription
         {
-            ByteWidth = 96,
+            ByteWidth = 112,
             Usage = ResourceUsage.Default,
             BindFlags = BindFlags.ConstantBuffer,
         });
@@ -188,7 +268,9 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
 
         _srvY?.Dispose(); _srvUV?.Dispose(); _nv12?.Dispose();
         _frameRtv?.Dispose(); _frame?.Dispose(); _bgra?.Dispose();
+        _preSrv?.Dispose(); _preRtv?.Dispose(); _pre?.Dispose();
         _frameRtv = null; _frame = null; _bgra = null;
+        _preSrv = null; _preRtv = null; _pre = null;
         _lastY = _lastUV = null;
         _pendingRebind = true;
 
@@ -220,6 +302,8 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
             _cbData[16] = _viewX; _cbData[17] = _viewY;
             _cbData[18] = _viewS; _cbData[19] = _viewS;
             _cbData[20] = _adjB; _cbData[21] = _adjC; _cbData[22] = _adjS;
+            _cbData[24] = _vibrance; _cbData[25] = _vignette;
+            _cbData[26] = _gamma != 1f ? 1f / _gamma : 1f;
             fixed (float* p = _cbData)
                 _ctx.UpdateSubresource(_cb!, 0, null, (IntPtr)p, 0, 0);
             _lastColorInfo = colorInfo;
@@ -239,6 +323,14 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         _cbDirty = true;
     }
 
+    public void SetEffects(float vibrance, float vignette, float gamma)
+    {
+        _vibrance = Math.Clamp(vibrance, -1f, 1f);
+        _vignette = Math.Clamp(vignette, -1f, 1f);
+        _gamma = Math.Clamp(gamma, 0.5f, 1.8f);
+        _cbDirty = true;
+    }
+
     public void Redraw()
     {
         lock (_sync)
@@ -251,10 +343,32 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         Invalidate();
     }
 
+    private void EnsurePre()
+    {
+        if (_pre != null)
+            return;
+        var dev = SharedDevice!;
+        _pre = dev.CreateTexture2D(new Texture2DDescription
+        {
+            Width = (uint)_w, Height = (uint)_h, MipLevels = 1, ArraySize = 1,
+            Format = Format.B8G8R8A8_UNorm,
+            SampleDescription = new SampleDescription(1, 0),
+            Usage = ResourceUsage.Default,
+            BindFlags = BindFlags.RenderTarget | BindFlags.ShaderResource,
+        });
+        _preRtv = dev.CreateRenderTargetView(_pre);
+        _preSrv = dev.CreateShaderResourceView(_pre);
+
+        var rcp = new float[] { 1f / _w, 1f / _h, 0, 0 };
+        _ctx.UpdateSubresource(rcp, _cbFxaa!);
+    }
+
     private void Draw(ID3D11ShaderResourceView srvY, ID3D11ShaderResourceView srvUV, int w, int h)
     {
         _lastY = srvY; _lastUV = srvUV;
-        _ctx.OMSetRenderTargets(_frameRtv!);
+        if (_fxaa)
+            EnsurePre();
+        _ctx.OMSetRenderTargets(_fxaa ? _preRtv! : _frameRtv!);
         _ctx.RSSetViewport(0, 0, w, h);
         _ctx.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         _ctx.VSSetShader(_vs!);
@@ -263,6 +377,17 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         _ctx.PSSetConstantBuffer(0, _cb!);
         _ctx.PSSetSampler(0, _sampler!);
         _ctx.Draw(3, 0);
+
+        if (_fxaa)
+        {
+            _ctx.PSSetShaderResources(0, new ID3D11ShaderResourceView[2]);
+            _ctx.OMSetRenderTargets(_frameRtv!);
+            _ctx.PSSetShader(_psFxaa!);
+            _ctx.PSSetShaderResources(0, new[] { _preSrv! });
+            _ctx.PSSetConstantBuffer(0, _cbFxaa!);
+            _ctx.Draw(3, 0);
+            _ctx.PSSetShaderResources(0, new ID3D11ShaderResourceView[1]);
+        }
         _ctx.Flush();
     }
 
@@ -283,6 +408,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
             var srcKey = (srcTexture, sliceIndex);
             if (!_srcCache.TryGetValue(srcKey, out var entry))
             {
+                Marshal.AddRef(srcTexture);
                 var src = new ID3D11Texture2D(srcTexture);
                 ID3D11ShaderResourceView? y = null, uv = null;
                 try
@@ -517,7 +643,9 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
             _srcCache.Clear();
             _srvY?.Dispose(); _srvUV?.Dispose(); _nv12?.Dispose();
             _frameRtv?.Dispose(); _frame?.Dispose(); _bgra?.Dispose();
-            _vs?.Dispose(); _ps?.Dispose(); _sampler?.Dispose(); _cb?.Dispose();
+            _preSrv?.Dispose(); _preRtv?.Dispose(); _pre?.Dispose();
+            _vs?.Dispose(); _ps?.Dispose(); _psFxaa?.Dispose(); _sampler?.Dispose();
+            _cb?.Dispose(); _cbFxaa?.Dispose();
         }
         _tex9?.Dispose();
     }

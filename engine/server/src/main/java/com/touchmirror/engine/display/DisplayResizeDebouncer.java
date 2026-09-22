@@ -14,9 +14,9 @@ public final class DisplayResizeDebouncer {
     }
 
     private final Callback callback;
+
     private Size request;
     private long deadline;
-
     private Thread thread;
 
     public DisplayResizeDebouncer(Callback callback) {
@@ -25,8 +25,7 @@ public final class DisplayResizeDebouncer {
 
     public void start() {
         assert thread == null;
-        thread = new Thread(this::debounce);
-        thread.setName("debouncer");
+        thread = new Thread(this::debounce, "debouncer");
         thread.setDaemon(true);
         thread.start();
     }
@@ -41,7 +40,7 @@ public final class DisplayResizeDebouncer {
     private void debounce() {
         try {
             while (true) {
-                Size newSize;
+                Size size;
                 synchronized (this) {
                     while (true) {
                         long now = SystemClock.uptimeMillis();
@@ -51,15 +50,13 @@ public final class DisplayResizeDebouncer {
                         if (request == null) {
                             wait();
                         } else {
-                            assert now < deadline;
                             wait(deadline - now);
                         }
                     }
-                    assert request != null : "An active deadline implies request != null";
-                    newSize = request;
+                    size = request;
                     request = null;
                 }
-                callback.trigger(newSize);
+                callback.trigger(size);
             }
         } catch (InterruptedException e) {
         } finally {

@@ -8,10 +8,14 @@ public partial class WorkspaceItem : ObservableObject
     public Workspace Model { get; }
     public string Id => Model.Id;
 
-    [ObservableProperty] private string _name;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Initial))]
+    private string _name;
     [ObservableProperty] private bool _isEditing;
     [ObservableProperty] private bool _isActive;
     [ObservableProperty] private int _deviceCount;
+
+    public string Initial => Name.Length > 0 ? char.ToUpperInvariant(Name[0]).ToString() : "?";
 
     public WorkspaceItem(Workspace model)
     {

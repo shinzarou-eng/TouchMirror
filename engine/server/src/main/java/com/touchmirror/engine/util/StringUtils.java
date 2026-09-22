@@ -5,11 +5,11 @@ public final class StringUtils {
     }
 
     public static int getUtf8TruncationIndex(byte[] utf8, int maxLength) {
-        int len = utf8.length;
-        if (len <= maxLength) {
-            return len;
+        if (utf8.length <= maxLength) {
+            return utf8.length;
         }
-        len = maxLength;
+
+        int len = maxLength;
         while ((utf8[len] & 0x80) != 0 && (utf8[len] & 0xc0) != 0xc0) {
             len--;
         }

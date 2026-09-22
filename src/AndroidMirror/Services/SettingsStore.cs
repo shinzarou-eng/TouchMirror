@@ -16,12 +16,22 @@ public sealed class DevicePrefs
     public string? Model { get; set; }
     public string? LastSerial { get; set; }
     public string? Color { get; set; }
+    public bool Pinned { get; set; }
     public List<KeybindData> Keybinds { get; set; } = new();
     public Dictionary<string, List<KeybindData>> KeybindProfiles { get; set; } = new();
     public string? ActiveKeybindProfile { get; set; }
     public int KeybindStyle { get; set; }
     public double KeybindOpacity { get; set; } = 0.92;
     public double KeybindSize { get; set; } = 30;
+    public int? MaxSize { get; set; }
+    public int? MaxFps { get; set; }
+    public int? VideoBitRate { get; set; }
+    public string? VideoCodec { get; set; }
+    public string? VideoDecoder { get; set; }
+    public bool? EnableAudio { get; set; }
+    public bool? TurnScreenOff { get; set; }
+    public string? NewDisplay { get; set; }
+    public bool? AdaptiveBitrate { get; set; }
 }
 
 public sealed class WorkspaceDevice
@@ -58,9 +68,13 @@ public sealed class AppSettings
     public string VideoCodec { get; set; } = "auto";
     public string VideoDecoder { get; set; } = "gpu";
     public bool VideoSharpen { get; set; }
+    public bool VideoFxaa { get; set; }
     public double VideoBrightness { get; set; }
     public double VideoContrast { get; set; } = 1;
     public double VideoSaturation { get; set; } = 1;
+    public double VideoVibrance { get; set; }
+    public double VideoVignette { get; set; }
+    public double VideoGamma { get; set; } = 1;
     public bool StayAwake { get; set; }
     public bool EnableAudio { get; set; } = true;
     public bool AutoFullscreen { get; set; }

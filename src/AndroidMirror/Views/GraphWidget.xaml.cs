@@ -75,7 +75,7 @@ public partial class GraphWidget : UserControl
             var tb = new TextBlock
             {
                 Text = lines[i],
-                Foreground = new SolidColorBrush(Color.FromRgb(0xEA, 0xEA, 0xEA)),
+                Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xE9, 0xEC)),
                 FontSize = 11,
                 Cursor = Cursors.Hand,
                 Margin = new Thickness(0, 1, 0, 1)

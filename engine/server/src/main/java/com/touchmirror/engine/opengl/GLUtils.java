@@ -112,9 +112,9 @@ public final class GLUtils {
     }
 
     public static FloatBuffer createFloatBuffer(float[] values) {
-        FloatBuffer fb = ByteBuffer.allocateDirect(values.length * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
-        fb.put(values);
-        fb.position(0);
-        return fb;
+        FloatBuffer buffer = ByteBuffer.allocateDirect(values.length * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
+        buffer.put(values);
+        buffer.position(0);
+        return buffer;
     }
 }

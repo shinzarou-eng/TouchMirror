@@ -1,9 +1,9 @@
 package com.touchmirror.engine.video;
 
+import com.touchmirror.engine.util.Ln;
+
 import android.media.MediaCodec;
 import android.os.Bundle;
-
-import com.touchmirror.engine.util.Ln;
 
 public class CaptureControl {
 
@@ -12,23 +12,22 @@ public class CaptureControl {
     public static final int RESET_REASON_CLIENT_RESET = 1 << 2;
     public static final int RESET_REASON_CLIENT_RESIZED = 1 << 3;
 
-    private int reset = 0;
-
+    private int resetReasons;
     private MediaCodec runningMediaCodec;
 
     public synchronized boolean isResetRequested() {
-        return reset != 0;
+        return resetReasons != 0;
     }
 
     public synchronized int consumeReset() {
-        int value = reset;
-        reset = 0;
-        return value;
+        int reasons = resetReasons;
+        resetReasons = 0;
+        return reasons;
     }
 
     public synchronized void reset(int reason) {
         assert reason != 0;
-        reset |= reason;
+        resetReasons |= reason;
         if (runningMediaCodec != null) {
             try {
                 runningMediaCodec.signalEndOfInputStream();
@@ -37,8 +36,8 @@ public class CaptureControl {
         }
     }
 
-    public synchronized void setRunningMediaCodec(MediaCodec runningMediaCodec) {
-        this.runningMediaCodec = runningMediaCodec;
+    public synchronized void setRunningMediaCodec(MediaCodec mediaCodec) {
+        this.runningMediaCodec = mediaCodec;
     }
 
     public synchronized void setVideoParams(int bitRate, boolean suspend) {

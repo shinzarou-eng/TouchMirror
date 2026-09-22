@@ -23,6 +23,9 @@ import java.util.Objects;
 
 public final class LogUtils {
 
+    private static final int OPTION_COLUMN = 70;
+    private static final int APP_NAME_COLUMN = 30;
+
     private LogUtils() {
     }
 
@@ -30,16 +33,13 @@ public final class LogUtils {
         StringBuilder builder = new StringBuilder("List of ").append(type).append(" encoders:");
         MediaCodecList codecList = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
         for (Codec codec : codecs) {
-            MediaCodecInfo[] encoders = CodecUtils.getEncoders(codecList, codec.getMimeType());
-            for (MediaCodecInfo info : encoders) {
+            for (MediaCodecInfo info : CodecUtils.getEncoders(codecList, codec.getMimeType())) {
                 int lineStart = builder.length();
                 builder.append("\n    --").append(type).append("-codec=").append(codec.getName());
                 builder.append(" --").append(type).append("-encoder=").append(info.getName());
                 if (Build.VERSION.SDK_INT >= AndroidVersions.API_29_ANDROID_10) {
-                    int lineLength = builder.length() - lineStart;
-                    final int column = 70;
-                    if (lineLength < column) {
-                        int padding = column - lineLength;
+                    int padding = OPTION_COLUMN - (builder.length() - lineStart);
+                    if (padding > 0) {
                         builder.append(String.format("%" + padding + "s", " "));
                     }
                     builder.append(" (").append(getHwCodecType(info)).append(')');
@@ -50,10 +50,8 @@ public final class LogUtils {
                         builder.append(" (alias for ").append(info.getCanonicalName()).append(')');
                     }
                 }
-
             }
         }
-
         return builder.toString();
     }
 
@@ -70,10 +68,7 @@ public final class LogUtils {
         if (info.isSoftwareOnly()) {
             return "sw";
         }
-        if (info.isHardwareAccelerated()) {
-            return "hw";
-        }
-        return "hybrid";
+        return info.isHardwareAccelerated() ? "hw" : "hybrid";
     }
 
     public static String buildDisplayListMessage() {
@@ -81,66 +76,53 @@ public final class LogUtils {
         DisplayManager displayManager = ServiceManager.getDisplayManager();
         int[] displayIds = displayManager.getDisplayIds();
         if (displayIds == null || displayIds.length == 0) {
-            builder.append("\n    (none)");
-        } else {
-            for (int id : displayIds) {
-                builder.append("\n    --display-id=").append(id).append("    (");
-                DisplayInfo displayInfo = displayManager.getDisplayInfo(id);
-                if (displayInfo != null) {
-                    Size size = displayInfo.getSize();
-                    builder.append(size.getWidth()).append("x").append(size.getHeight());
-                } else {
-                    builder.append("size unknown");
-                }
-                builder.append(")");
+            return builder.append("\n    (none)").toString();
+        }
+
+        for (int id : displayIds) {
+            builder.append("\n    --display-id=").append(id).append("    (");
+            DisplayInfo displayInfo = displayManager.getDisplayInfo(id);
+            if (displayInfo != null) {
+                Size size = displayInfo.getSize();
+                builder.append(size.getWidth()).append('x').append(size.getHeight());
+            } else {
+                builder.append("size unknown");
             }
+            builder.append(')');
         }
         return builder.toString();
     }
 
     public static String buildAppListMessage() {
-        List<DeviceApp> apps = Device.listApps();
-        return buildAppListMessage("List of apps:", apps);
+        return buildAppListMessage("List of apps:", Device.listApps());
     }
 
     @SuppressLint("QueryPermissionsNeeded")
     public static String buildAppListMessage(String title, List<DeviceApp> apps) {
         StringBuilder builder = new StringBuilder(title);
 
-        Collections.sort(apps, (thisApp, otherApp) -> {
-            int cmp = -Boolean.compare(thisApp.isSystem(), otherApp.isSystem());
-            if (cmp != 0) {
-                return cmp;
+        Collections.sort(apps, (first, second) -> {
+            int cmp = -Boolean.compare(first.isSystem(), second.isSystem());
+            if (cmp == 0) {
+                cmp = Objects.compare(first.getName(), second.getName(), String::compareTo);
             }
-
-            cmp = Objects.compare(thisApp.getName(), otherApp.getName(), String::compareTo);
-            if (cmp != 0) {
-                return cmp;
+            if (cmp == 0) {
+                cmp = Objects.compare(first.getPackageName(), second.getPackageName(), String::compareTo);
             }
-
-            return Objects.compare(thisApp.getPackageName(), otherApp.getPackageName(), String::compareTo);
+            return cmp;
         });
 
-        final int column = 30;
         for (DeviceApp app : apps) {
             String name = app.getName();
-            int padding = column - name.length();
-            builder.append("\n ");
-            if (app.isSystem()) {
-                builder.append("* ");
-            } else {
-                builder.append("- ");
-
-            }
-            builder.append(name);
+            builder.append("\n ").append(app.isSystem() ? "* " : "- ").append(name);
+            int padding = APP_NAME_COLUMN - name.length();
             if (padding > 0) {
                 builder.append(String.format("%" + padding + "s", " "));
             } else {
-                builder.append("\n   ").append(String.format("%" + column + "s", " "));
+                builder.append("\n   ").append(String.format("%" + APP_NAME_COLUMN + "s", " "));
             }
-            builder.append(" ").append(app.getPackageName());
+            builder.append(' ').append(app.getPackageName());
         }
-
         return builder.toString();
     }
 }

@@ -3,6 +3,9 @@ package com.touchmirror.engine.display;
 import com.touchmirror.engine.model.Size;
 
 public final class DisplayInfo {
+
+    public static final int FLAG_SUPPORTS_PROTECTED_BUFFERS = 1;
+
     private final int displayId;
     private final Size size;
     private final int rotation;
@@ -10,8 +13,6 @@ public final class DisplayInfo {
     private final int flags;
     private final int dpi;
     private final String uniqueId;
-
-    public static final int FLAG_SUPPORTS_PROTECTED_BUFFERS = 0x00000001;
 
     public DisplayInfo(int displayId, Size size, int rotation, int layerStack, int flags, int dpi, String uniqueId) {
         this.displayId = displayId;

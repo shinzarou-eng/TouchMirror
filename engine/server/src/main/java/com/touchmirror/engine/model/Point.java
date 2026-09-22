@@ -3,6 +3,7 @@ package com.touchmirror.engine.model;
 import java.util.Objects;
 
 public class Point {
+
     private final int x;
     private final int y;
 
@@ -24,7 +25,7 @@ public class Point {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
+        if (!(o instanceof Point)) {
             return false;
         }
         Point point = (Point) o;

@@ -5,7 +5,6 @@ import com.touchmirror.engine.model.Point;
 public class Pointer {
 
     private final long id;
-
     private final int localId;
 
     private Point point;

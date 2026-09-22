@@ -81,7 +81,6 @@ public class NewDisplayCapture extends SurfaceCapture {
         assert newDisplay != null;
         this.displayImePolicy = options.getDisplayImePolicy();
         this.crop = options.getCrop();
-        assert options.getCaptureOrientationLock() != null;
         this.captureOrientationLocked = options.getCaptureOrientationLock() != Orientation.Lock.Unlocked;
         this.captureOrientation = options.getCaptureOrientation();
         assert captureOrientation != null;
@@ -137,15 +136,12 @@ public class NewDisplayCapture extends SurfaceCapture {
                 displaySize = displaySize.constrain(videoConstraints, false);
             } else {
                 if (displaySize == null) {
-                    assert !flexDisplay;
                     displaySize = mainDisplaySize;
                 }
-
                 displaySize = displaySize.align(videoConstraints.getAlignment());
             }
 
             if (dpi == 0) {
-                assert !flexDisplay;
                 dpi = scaleDpi(mainDisplaySize, mainDisplayDpi, displaySize);
             }
 
@@ -156,18 +152,13 @@ public class NewDisplayCapture extends SurfaceCapture {
             dpi = displayInfo.getDpi();
             displayRotation = displayInfo.getRotation();
             displaySize = displayInfo.getSize();
-            if (flexDisplay) {
-                displaySize = displaySize.constrain(videoConstraints, false);
-            } else {
-                displaySize = displaySize.align(videoConstraints.getAlignment());
-            }
+            displaySize = flexDisplay ? displaySize.constrain(videoConstraints, false) : displaySize.align(videoConstraints.getAlignment());
         }
 
         VideoFilter filter = new VideoFilter(displaySize);
 
         if (crop != null) {
-            boolean transposed = (displayRotation % 2) != 0;
-            filter.addCrop(crop, transposed);
+            filter.addCrop(crop, (displayRotation % 2) != 0);
         }
 
         filter.addOrientation(displayRotation, captureOrientationLocked, captureOrientation);
@@ -182,22 +173,15 @@ public class NewDisplayCapture extends SurfaceCapture {
         }
 
         eventTransform = filter.getInverseTransform();
-
         videoSize = filter.getOutputSize();
 
-        if ((displayRotation % 2) == 0) {
-            physicalSize = displaySize;
-        } else {
-            physicalSize = displaySize.rotate();
-        }
+        physicalSize = (displayRotation % 2) == 0 ? displaySize : displaySize.rotate();
         VideoFilter displayFilter = new VideoFilter(physicalSize);
         displayFilter.addRotation(displayRotation);
-        AffineMatrix displayRotationMatrix = displayFilter.getInverseTransform();
-
-        displayTransform = AffineMatrix.multiplyAll(displayRotationMatrix, eventTransform);
+        displayTransform = AffineMatrix.multiplyAll(displayFilter.getInverseTransform(), eventTransform);
     }
 
-    public void startNew(Surface surface) {
+    private void startNew(Surface surface) {
         try {
             int flags = VIRTUAL_DISPLAY_FLAG_PUBLIC
                     | VIRTUAL_DISPLAY_FLAG_PRESENTATION
@@ -233,8 +217,7 @@ public class NewDisplayCapture extends SurfaceCapture {
             displayMonitor.start(virtualDisplayId, (props) -> {
                 int reason;
                 if (flexDisplay) {
-                    boolean isClientResize = tracker.onChanged(props);
-                    if (isClientResize) {
+                    if (tracker.onChanged(props)) {
                         reason = CaptureControl.RESET_REASON_CLIENT_RESIZED;
                     } else {
                         reason = CaptureControl.RESET_REASON_DISPLAY_PROPERTIES_CHANGED;
@@ -328,9 +311,7 @@ public class NewDisplayCapture extends SurfaceCapture {
     }
 
     private static int scaleDpi(Size initialSize, int initialDpi, Size size) {
-        int den = initialSize.getMax();
-        int num = size.getMax();
-        return initialDpi * num / den;
+        return initialDpi * size.getMax() / initialSize.getMax();
     }
 
     public void requestResize(int width, int height) {
@@ -338,8 +319,7 @@ public class NewDisplayCapture extends SurfaceCapture {
             throw new IllegalStateException("Cannot resize a non-flex display");
         }
 
-        VideoConstraints constraints = getVideoConstraints();
-        Size newSize = new Size(width, height).constrain(constraints, false);
+        Size newSize = new Size(width, height).constrain(getVideoConstraints(), false);
         if (Ln.isEnabled(Ln.Level.VERBOSE)) {
             Ln.v(getClass().getSimpleName() + ": requestResize(" + width + ", " + height + ")");
             Ln.v(getClass().getSimpleName() + ": constrained size = " + newSize);
@@ -365,7 +345,6 @@ public class NewDisplayCapture extends SurfaceCapture {
             size = size.constrain(videoConstraints, false);
             int displayId = virtualDisplay.getDisplay().getDisplayId();
             DisplayInfo displayInfo = ServiceManager.getDisplayManager().getDisplayInfo(displayId);
-            @SuppressWarnings("checkstyle:HiddenField")
             int dpi = displayInfo.getDpi();
             int displayRotation = displayInfo.getRotation();
             if (captureOrientation.isSwap()) {

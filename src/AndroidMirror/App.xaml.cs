@@ -34,13 +34,12 @@ public partial class App : Application
             return;
         }
         AppLogger.Write("Application démarrée");
-        try
+        ApplySystemTheme();
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged += (_, ev) =>
         {
-            Wpf.Ui.Appearance.ApplicationThemeManager.Apply(Wpf.Ui.Appearance.ApplicationTheme.Dark);
-            Wpf.Ui.Appearance.ApplicationAccentColorManager.Apply(
-                System.Windows.Media.Color.FromRgb(0x4E, 0xC9, 0x8E));
-        }
-        catch { }
+            if (ev.Category == Microsoft.Win32.UserPreferenceCategory.General)
+                Dispatcher.Invoke(ApplySystemTheme);
+        };
         DispatcherUnhandledException += (_, args) =>
         {
             AppLogger.Write(args.Exception);
@@ -55,6 +54,29 @@ public partial class App : Application
         };
         EnsureFfmpegExtracted();
         base.OnStartup(e);
+    }
+
+    private void ApplySystemTheme()
+    {
+        try
+        {
+            var dark = true;
+            Wpf.Ui.Appearance.ApplicationThemeManager.Apply(
+                dark ? Wpf.Ui.Appearance.ApplicationTheme.Dark : Wpf.Ui.Appearance.ApplicationTheme.Light);
+            Wpf.Ui.Appearance.ApplicationAccentColorManager.Apply(
+                dark
+                    ? System.Windows.Media.Color.FromRgb(0xC9, 0xD1, 0xD9)
+                    : System.Windows.Media.Color.FromRgb(0x5A, 0x64, 0x70));
+            var dicts = Resources.MergedDictionaries;
+            for (var i = dicts.Count - 1; i >= 0; i--)
+                if (dicts[i].Source?.OriginalString.Contains("/Themes/") == true)
+                    dicts.RemoveAt(i);
+            dicts.Add(new ResourceDictionary
+            {
+                Source = new Uri(dark ? "Themes/Dark.xaml" : "Themes/Light.xaml", UriKind.Relative)
+            });
+        }
+        catch { }
     }
 
     private static void EnsureFfmpegExtracted()

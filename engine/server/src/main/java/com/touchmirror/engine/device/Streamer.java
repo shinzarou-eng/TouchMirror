@@ -1,12 +1,11 @@
 package com.touchmirror.engine.device;
 
+import com.touchmirror.engine.Protocol;
 import com.touchmirror.engine.audio.AudioCodec;
 import com.touchmirror.engine.model.Codec;
-import com.touchmirror.engine.util.IO;
 
 import android.media.MediaCodec;
 
-import java.io.FileDescriptor;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -14,19 +13,17 @@ import java.util.Arrays;
 
 public final class Streamer {
 
-    private static final long PACKET_FLAG_SESSION = 1L << 63;
-    private static final long PACKET_FLAG_CONFIG = 1L << 62;
-    private static final long PACKET_FLAG_KEY_FRAME = 1L << 61;
-
-    private final FileDescriptor fd;
+    private final Muxer muxer;
+    private final int channel;
     private final Codec codec;
     private final boolean sendStreamMeta;
     private final boolean sendFrameMeta;
 
-    private final ByteBuffer headerBuffer = ByteBuffer.allocate(12);
+    private final ByteBuffer headerBuffer = ByteBuffer.allocate(16);
 
-    public Streamer(FileDescriptor fd, Codec codec, boolean sendCodecMeta, boolean sendFrameMeta) {
-        this.fd = fd;
+    public Streamer(Muxer muxer, int channel, Codec codec, boolean sendCodecMeta, boolean sendFrameMeta) {
+        this.muxer = muxer;
+        this.channel = channel;
         this.codec = codec;
         this.sendStreamMeta = sendCodecMeta;
         this.sendFrameMeta = sendFrameMeta;
@@ -37,29 +34,30 @@ public final class Streamer {
     }
 
     public void writeAudioHeader() throws IOException {
-        if (sendStreamMeta) {
-            ByteBuffer buffer = ByteBuffer.allocate(4);
-            buffer.putInt(codec.getId());
-            buffer.flip();
-            IO.writeFully(fd, buffer);
-        }
+        writeCodecHeader();
     }
 
     public void writeVideoHeader() throws IOException {
+        writeCodecHeader();
+    }
+
+    private void writeCodecHeader() throws IOException {
         if (sendStreamMeta) {
-            ByteBuffer buffer = ByteBuffer.allocate(4);
+            ByteBuffer buffer = ByteBuffer.allocate(5);
+            buffer.put((byte) Protocol.KIND_CODEC);
             buffer.putInt(codec.getId());
             buffer.flip();
-            IO.writeFully(fd, buffer);
+            muxer.write(channel, buffer);
         }
     }
 
     public void writeDisableStream(boolean error) throws IOException {
-        byte[] code = new byte[4];
+        byte[] code = new byte[2];
+        code[0] = (byte) Protocol.KIND_END;
         if (error) {
-            code[3] = 1;
+            code[1] = 1;
         }
-        IO.writeFully(fd, code, 0, code.length);
+        muxer.write(channel, code);
     }
 
     public void writePacket(ByteBuffer buffer, long pts, boolean config, boolean keyFrame) throws IOException {
@@ -71,11 +69,19 @@ public final class Streamer {
             }
         }
 
-        if (sendFrameMeta) {
-            writeFrameMeta(fd, buffer.remaining(), pts, config, keyFrame);
+        headerBuffer.clear();
+        headerBuffer.put((byte) Protocol.KIND_PACKET);
+        headerBuffer.putLong(pts);
+        byte flags = 0;
+        if (config) {
+            flags |= Protocol.PACKET_FLAG_CONFIG;
         }
-
-        IO.writeFully(fd, buffer);
+        if (keyFrame) {
+            flags |= Protocol.PACKET_FLAG_KEY_FRAME;
+        }
+        headerBuffer.put(flags);
+        headerBuffer.flip();
+        muxer.write(channel, new ByteBuffer[]{headerBuffer, buffer});
     }
 
     public void writePacket(ByteBuffer codecBuffer, MediaCodec.BufferInfo bufferInfo) throws IOException {
@@ -88,36 +94,13 @@ public final class Streamer {
     public void writeSessionMeta(int width, int height, boolean isClientResize) throws IOException {
         if (sendStreamMeta) {
             headerBuffer.clear();
-
-            int flags = (int) (PACKET_FLAG_SESSION >> 32);
-            if (isClientResize) {
-                flags |= 1;
-            }
-            headerBuffer.putInt(flags);
+            headerBuffer.put((byte) Protocol.KIND_SESSION);
             headerBuffer.putInt(width);
             headerBuffer.putInt(height);
+            headerBuffer.put((byte) (isClientResize ? 1 : 0));
             headerBuffer.flip();
-            IO.writeFully(fd, headerBuffer);
+            muxer.write(channel, headerBuffer);
         }
-    }
-
-    private void writeFrameMeta(FileDescriptor fd, int packetSize, long pts, boolean config, boolean keyFrame) throws IOException {
-        headerBuffer.clear();
-
-        long ptsAndFlags;
-        if (config) {
-            ptsAndFlags = PACKET_FLAG_CONFIG;
-        } else {
-            ptsAndFlags = pts;
-            if (keyFrame) {
-                ptsAndFlags |= PACKET_FLAG_KEY_FRAME;
-            }
-        }
-
-        headerBuffer.putLong(ptsAndFlags);
-        headerBuffer.putInt(packetSize);
-        headerBuffer.flip();
-        IO.writeFully(fd, headerBuffer);
     }
 
     private static void fixOpusConfigPacket(ByteBuffer buffer) throws IOException {

@@ -5,7 +5,7 @@
 - **.NET 10 SDK** — [dotnet.microsoft.com](https://dotnet.microsoft.com/download)
 - Windows 10/11 avec le workload desktop (le SDK suffit, Visual Studio non requis)
 
-C'est tout : **adb, le serveur scrcpy et FFmpeg sont embarqués** dans le repo (`assets/`).
+C'est tout : **adb, le moteur et FFmpeg sont embarqués** dans le repo (`assets/`).
 
 ## Compiler et lancer
 
@@ -34,7 +34,7 @@ src/AndroidMirror/
 │   ├── AdbService.cs        # Détection appareils, commandes adb, écran éteint
 │   ├── UpdateService.cs     # Vérification des releases GitHub
 │   └── AppLogger.cs         # Journal
-├── Scrcpy/                  # Protocole + session serveur scrcpy
+├── Engine/                  # Protocole + session moteur (touchmirror-engine)
 └── Video/                   # VideoDecoder (FFmpeg.AutoGen), AudioPlayer (NAudio),
                              # Mp4Recorder (remux)
 assets/

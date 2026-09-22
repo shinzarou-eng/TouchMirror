@@ -1,11 +1,9 @@
 package com.touchmirror.engine.model;
 
 public final class NewDisplay {
-    private Size size;
-    private int dpi;
 
-    public NewDisplay() {
-    }
+    private final Size size;
+    private final int dpi;
 
     public NewDisplay(Size size, int dpi) {
         this.size = size;

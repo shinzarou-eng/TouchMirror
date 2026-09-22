@@ -17,11 +17,12 @@ import java.io.OutputStream;
 
 public final class CleanUp {
 
-    private static final int PENDING_CHANGE_DISPLAY_POWER = 1 << 0;
+    private static final int PENDING_CHANGE_DISPLAY_POWER = 1;
+
     private int pendingChanges;
     private boolean pendingRestoreDisplayPower;
 
-    private Thread thread;
+    private final Thread thread;
     private boolean interrupted;
 
     private CleanUp(Options options) {
@@ -46,8 +47,7 @@ public final class CleanUp {
         boolean disableShowTouches = false;
         if (options.getShowTouches()) {
             try {
-                String oldValue = Settings.getAndPutValue(Settings.TABLE_SYSTEM, "show_touches", "1");
-                disableShowTouches = !"1".equals(oldValue);
+                disableShowTouches = !"1".equals(Settings.getAndPutValue(Settings.TABLE_SYSTEM, "show_touches", "1"));
             } catch (SettingsException e) {
                 Ln.e("Could not change \"show_touches\"", e);
             }
@@ -59,9 +59,9 @@ public final class CleanUp {
             try {
                 String oldValue = Settings.getAndPutValue(Settings.TABLE_GLOBAL, "stay_on_while_plugged_in", String.valueOf(stayOn));
                 try {
-                    int currentStayOn = Integer.parseInt(oldValue);
-                    if (currentStayOn != stayOn) {
-                        restoreStayOn = currentStayOn;
+                    int current = Integer.parseInt(oldValue);
+                    if (current != stayOn) {
+                        restoreStayOn = current;
                     }
                 } catch (NumberFormatException e) {
                 }
@@ -76,9 +76,9 @@ public final class CleanUp {
             try {
                 String oldValue = Settings.getAndPutValue(Settings.TABLE_SYSTEM, "screen_off_timeout", String.valueOf(screenOffTimeout));
                 try {
-                    int currentScreenOffTimeout = Integer.parseInt(oldValue);
-                    if (currentScreenOffTimeout != screenOffTimeout) {
-                        restoreScreenOffTimeout = currentScreenOffTimeout;
+                    int current = Integer.parseInt(oldValue);
+                    if (current != screenOffTimeout) {
+                        restoreScreenOffTimeout = current;
                     }
                 } catch (NumberFormatException e) {
                 }
@@ -93,18 +93,17 @@ public final class CleanUp {
         if (displayId > 0) {
             int displayImePolicy = options.getDisplayImePolicy();
             if (displayImePolicy != -1) {
-                int currentDisplayImePolicy = ServiceManager.getWindowManager().getDisplayImePolicy(displayId);
-                if (currentDisplayImePolicy != displayImePolicy) {
+                int current = ServiceManager.getWindowManager().getDisplayImePolicy(displayId);
+                if (current != displayImePolicy) {
                     ServiceManager.getWindowManager().setDisplayImePolicy(displayId, displayImePolicy);
-                    restoreDisplayImePolicy = currentDisplayImePolicy;
+                    restoreDisplayImePolicy = current;
                 }
             }
         }
 
-        boolean powerOffScreen = options.getPowerOffScreenOnClose();
-
         try {
-            run(displayId, restoreStayOn, disableShowTouches, powerOffScreen, restoreScreenOffTimeout, restoreDisplayImePolicy);
+            run(displayId, restoreStayOn, disableShowTouches, options.getPowerOffScreenOnClose(), restoreScreenOffTimeout,
+                    restoreDisplayImePolicy);
         } catch (IOException e) {
             Ln.e("Clean up I/O exception", e);
         }
@@ -126,12 +125,11 @@ public final class CleanUp {
 
         ProcessBuilder builder = new ProcessBuilder(cmd);
         builder.environment().put("CLASSPATH", Server.SERVER_PATH);
-        Process process = builder.start();
-        OutputStream out = process.getOutputStream();
+        OutputStream out = builder.start().getOutputStream();
 
         while (true) {
-            int localPendingChanges;
-            boolean localPendingRestoreDisplayPower;
+            int changes;
+            boolean restoreDisplayPower;
             synchronized (this) {
                 while (!interrupted && pendingChanges == 0) {
                     try {
@@ -143,12 +141,12 @@ public final class CleanUp {
                 if (interrupted) {
                     break;
                 }
-                localPendingChanges = pendingChanges;
-                localPendingRestoreDisplayPower = pendingRestoreDisplayPower;
+                changes = pendingChanges;
+                restoreDisplayPower = pendingRestoreDisplayPower;
                 pendingChanges = 0;
             }
-            if ((localPendingChanges & PENDING_CHANGE_DISPLAY_POWER) != 0) {
-                out.write(localPendingRestoreDisplayPower ? 1 : 0);
+            if ((changes & PENDING_CHANGE_DISPLAY_POWER) != 0) {
+                out.write(restoreDisplayPower ? 1 : 0);
                 out.flush();
             }
         }
@@ -192,7 +190,6 @@ public final class CleanUp {
         int restoreDisplayImePolicy = Integer.parseInt(args[5]);
 
         boolean restoreDisplayPower = false;
-
         try {
             int msg;
             while ((msg = System.in.read()) != -1) {

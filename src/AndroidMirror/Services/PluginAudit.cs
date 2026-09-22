@@ -7,6 +7,9 @@ public static class PluginAudit
     private static readonly Regex Calls = new(@"\btm\.(\w+)", RegexOptions.Compiled);
     private static readonly Regex RawCalls = new(@"\b__call\(\s*['""](\w+)", RegexOptions.Compiled);
     private static readonly Regex Events = new(@"\btm\.on\(\s*['""]([\w.]+)", RegexOptions.Compiled);
+    private static readonly Regex OverlayUse = new(@"\btm\.(overlay|push)\b|\b__call\(\s*['""](overlay|push)", RegexOptions.Compiled);
+
+    public static bool UsesOverlay(string code) => OverlayUse.IsMatch(code);
 
     public static List<string> Extract(string code)
     {

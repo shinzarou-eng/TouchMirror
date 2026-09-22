@@ -19,20 +19,17 @@ public class DisplayMonitor {
         void onDisplayPropertiesChanged(DisplayProperties props);
     }
 
-    private static final boolean USE_DEFAULT_METHOD = Build.VERSION.SDK_INT < AndroidVersions.API_34_ANDROID_14;
-
-    private DisplayManager.DisplayListenerHandle displayListenerHandle;
-    private HandlerThread handlerThread;
-
-    private IDisplayWindowListener displayWindowListener;
+    private static final boolean USE_LEGACY_LISTENER = Build.VERSION.SDK_INT < AndroidVersions.API_34_ANDROID_14;
+    private static final long POLL_INTERVAL_MS = 500;
 
     private int displayId = Device.DISPLAY_ID_NONE;
-
     private DisplayProperties props;
-
     private Listener listener;
 
-    private static final long POLL_INTERVAL_MS = 500;
+    private DisplayManager.DisplayListenerHandle displayListenerHandle;
+    private HandlerThread listenerThread;
+    private IDisplayWindowListener displayWindowListener;
+
     private HandlerThread pollThread;
     private Handler pollHandler;
     private final Runnable pollRunnable = new Runnable() {
@@ -43,38 +40,31 @@ public class DisplayMonitor {
             } catch (Throwable e) {
                 Ln.e("DisplayMonitor error", e);
             }
-            Handler h = pollHandler;
-            if (h != null) {
-                h.postDelayed(this, POLL_INTERVAL_MS);
+            Handler handler = pollHandler;
+            if (handler != null) {
+                handler.postDelayed(this, POLL_INTERVAL_MS);
             }
         }
     };
 
     public void start(int displayId, Listener listener) {
         assert listener != null;
-        this.listener = listener;
-
         assert this.displayId == Device.DISPLAY_ID_NONE;
+
+        this.listener = listener;
         this.displayId = displayId;
 
-        if (USE_DEFAULT_METHOD) {
-            handlerThread = new HandlerThread("DisplayListener");
-            handlerThread.start();
-            Handler handler = new Handler(handlerThread.getLooper());
+        if (USE_LEGACY_LISTENER) {
+            listenerThread = new HandlerThread("DisplayListener");
+            listenerThread.start();
             displayListenerHandle = ServiceManager.getDisplayManager().registerDisplayListener(eventDisplayId -> {
                 if (Ln.isEnabled(Ln.Level.VERBOSE)) {
                     Ln.v("DisplayMonitor: onDisplayChanged(" + eventDisplayId + ")");
                 }
-
                 if (eventDisplayId == displayId) {
-                    try {
-                        checkDisplayPropertiesChanged();
-                    } catch (Throwable e) {
-                        Ln.e("DisplayMonitor error", e);
-                        throw e;
-                    }
+                    checkDisplayPropertiesChanged();
                 }
-            }, handler);
+            }, new Handler(listenerThread.getLooper()));
         } else {
             displayWindowListener = new DisplayWindowListener() {
                 @Override
@@ -82,14 +72,8 @@ public class DisplayMonitor {
                     if (Ln.isEnabled(Ln.Level.VERBOSE)) {
                         Ln.v("DisplayMonitor: onDisplayConfigurationChanged(" + eventDisplayId + ")");
                     }
-
                     if (eventDisplayId == displayId) {
-                        try {
-                            checkDisplayPropertiesChanged();
-                        } catch (Throwable e) {
-                            Ln.e("DisplayMonitor error", e);
-                            throw e;
-                        }
+                        checkDisplayPropertiesChanged();
                     }
                 }
             };
@@ -103,14 +87,13 @@ public class DisplayMonitor {
     }
 
     public void stopAndRelease() {
-        if (USE_DEFAULT_METHOD) {
+        if (USE_LEGACY_LISTENER) {
             if (displayListenerHandle != null) {
                 ServiceManager.getDisplayManager().unregisterDisplayListener(displayListenerHandle);
                 displayListenerHandle = null;
             }
-
-            if (handlerThread != null) {
-                handlerThread.quitSafely();
+            if (listenerThread != null) {
+                listenerThread.quitSafely();
             }
         } else if (displayWindowListener != null) {
             ServiceManager.getWindowManager().unregisterDisplayWindowListener(displayWindowListener);
@@ -123,10 +106,10 @@ public class DisplayMonitor {
         }
     }
 
-    private synchronized DisplayProperties getAndSetDisplayProperties(DisplayProperties props) {
-        DisplayProperties oldProps = this.props;
-        this.props = props;
-        return oldProps;
+    private synchronized DisplayProperties swapDisplayProperties(DisplayProperties newProps) {
+        DisplayProperties old = props;
+        props = newProps;
+        return old;
     }
 
     public synchronized void setSessionDisplayProperties(DisplayProperties props) {
@@ -134,26 +117,24 @@ public class DisplayMonitor {
     }
 
     private synchronized void checkDisplayPropertiesChanged() {
-        DisplayInfo di = ServiceManager.getDisplayManager().getDisplayInfo(displayId);
-        if (di == null) {
+        DisplayInfo displayInfo = ServiceManager.getDisplayManager().getDisplayInfo(displayId);
+        if (displayInfo == null) {
             Ln.w("DisplayInfo for " + displayId + " cannot be retrieved");
-            DisplayProperties oldProps = getAndSetDisplayProperties(null);
+            DisplayProperties old = swapDisplayProperties(null);
             if (Ln.isEnabled(Ln.Level.VERBOSE)) {
-                Ln.v("DisplayMonitor: " + oldProps + " -> (unknown)");
+                Ln.v("DisplayMonitor: " + old + " -> (unknown)");
             }
             listener.onDisplayPropertiesChanged(null);
-        } else {
-            DisplayProperties newProps = new DisplayProperties(di.getSize(), di.getRotation());
+            return;
+        }
 
-            DisplayProperties oldProps = getAndSetDisplayProperties(newProps);
-            if (!newProps.equals(oldProps)) {
-                if (Ln.isEnabled(Ln.Level.VERBOSE)) {
-                    Ln.v("DisplayMonitor: " + oldProps + " -> " + newProps);
-                }
-                listener.onDisplayPropertiesChanged(newProps);
-            } else if (Ln.isEnabled(Ln.Level.VERBOSE)) {
-                Ln.v("DisplayMonitor: " + newProps + " (unchanged)");
-            }
+        DisplayProperties newProps = new DisplayProperties(displayInfo.getSize(), displayInfo.getRotation());
+        DisplayProperties old = swapDisplayProperties(newProps);
+        if (Ln.isEnabled(Ln.Level.VERBOSE)) {
+            Ln.v("DisplayMonitor: " + old + " -> " + newProps + (newProps.equals(old) ? " (unchanged)" : ""));
+        }
+        if (!newProps.equals(old)) {
+            listener.onDisplayPropertiesChanged(newProps);
         }
     }
 }

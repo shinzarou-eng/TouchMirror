@@ -55,7 +55,6 @@ else
     if (File.Exists(auFile))
     {
         var sizes = System.Text.Json.JsonSerializer.Deserialize<int[]>(File.ReadAllText(auFile))!;
-        var off = 0;
         foreach (var sz in sizes)
         {
             var au = new List<byte[]>();
@@ -73,42 +72,38 @@ foreach (var mode in new[] { "gpu", "cpu", "gpu", "cpu" })
     var hw = mode == "gpu";
     int frames = 0;
     long feedTicks = 0;
-    bool hwActive = false; int fallbacks = 0;
+    bool hwActive = false;
     var cpuStart = Process.GetCurrentProcess().TotalProcessorTime;
     var sw = Stopwatch.StartNew();
     using (var dec = new VideoDecoder(codec, preferHardware: hw))
     {
         var colorPrinted = false;
-        dec.GpuFrame += (t, s, w, h, ci) =>
+        void PrintColor(int ci)
         {
-            frames++;
             if (colorPrinted) return;
             colorPrinted = true;
             var sp = (ci >> 1) switch { 0 => "bt601", 2 => "bt2020", _ => "bt709" };
             Console.WriteLine($"colorspace={sp} range={((ci & 1) == 1 ? "full" : "limited")}");
-        };
-        dec.FrameAvailable += () =>
-        {
-            frames++;
-            while (dec.TryTakeLatest(out var buf, out _, out _))
-                if (buf != null) dec.Release(buf);
-        };
+        }
+        dec.GpuFrame += (t, s, w, h, ci) => { frames++; PrintColor(ci); };
+        dec.SwFrame += (y, ys, u, us, v, vs, w, h, ci) => { frames++; PrintColor(ci); };
         foreach (var nal in packets)
         {
             var t = Stopwatch.GetTimestamp();
-            dec.Feed(nal);
+            dec.Feed(nal, nal.Length);
             feedTicks += Stopwatch.GetTimestamp() - t;
             while (dec.TryTakeLatest(out var b, out _, out _))
-                if (b != null) dec.Release(b);
+                if (b != null) { frames++; dec.Release(b); }
         }
         Thread.Sleep(300);
+        while (dec.TryTakeLatest(out var b, out _, out _))
+            if (b != null) { frames++; dec.Release(b); }
         hwActive = dec.HardwareDecoding;
-        fallbacks = dec.HardwareFallbacks;
     }
     sw.Stop();
     var cpu = (Process.GetCurrentProcess().TotalProcessorTime - cpuStart).TotalMilliseconds;
     var wall = sw.Elapsed.TotalMilliseconds;
-    Console.WriteLine($"[{(hw ? "GPU" : "CPU")}{(hwActive ? "+hw" : hw ? "→sw!" : "")}{(fallbacks > 0 ? $" fallbacks={fallbacks}" : "")}] frames={frames} wall={wall:F0}ms " +
+    Console.WriteLine($"[{(hw ? "GPU" : "CPU")}{(hwActive ? "+hw" : hw ? "→sw!" : "")}] frames={frames} wall={wall:F0}ms " +
         $"feed_decode={feedTicks / (double)Stopwatch.Frequency * 1000:F0}ms " +
         $"({feedTicks / (double)Stopwatch.Frequency * 1000 / Math.Max(frames, 1):F2}ms/frame) " +
         $"cpu_proc={cpu:F0}ms ({100 * cpu / wall:F1}% d'un cœur)  " +
@@ -187,7 +182,7 @@ static void MuxTest(string srcPath, string codec, byte[] bytes)
     }
     else
     {
-        rec.WriteConfig(units[cfgIdx]);
+        rec.WriteConfig(units[cfgIdx], units[cfgIdx].Length);
     }
     Console.WriteLine($"config: headerWritten={rec.HeaderWritten}, {units.Count} unités");
     long pts = 0;
@@ -195,7 +190,7 @@ static void MuxTest(string srcPath, string codec, byte[] bytes)
     for (var k = 0; k < units.Count; k++)
     {
         if (k == cfgIdx) continue;
-        rec.WritePacket(units[k], pts += 33_000, keyframe: first);
+        rec.WritePacket(units[k], units[k].Length, pts += 33_000, keyframe: first);
         first = false;
     }
     Thread.Sleep(50);

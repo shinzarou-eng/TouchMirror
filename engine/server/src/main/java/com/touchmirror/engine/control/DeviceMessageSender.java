@@ -9,9 +9,9 @@ import java.util.concurrent.BlockingQueue;
 public final class DeviceMessageSender {
 
     private final ControlChannel controlChannel;
+    private final BlockingQueue<DeviceMessage> queue = new ArrayBlockingQueue<>(16);
 
     private Thread thread;
-    private final BlockingQueue<DeviceMessage> queue = new ArrayBlockingQueue<>(16);
 
     public DeviceMessageSender(ControlChannel controlChannel) {
         this.controlChannel = controlChannel;
@@ -23,17 +23,12 @@ public final class DeviceMessageSender {
         }
     }
 
-    private void loop() throws IOException, InterruptedException {
-        while (!Thread.currentThread().isInterrupted()) {
-            DeviceMessage msg = queue.take();
-            controlChannel.send(msg);
-        }
-    }
-
     public void start() {
         thread = new Thread(() -> {
             try {
-                loop();
+                while (!Thread.currentThread().isInterrupted()) {
+                    controlChannel.send(queue.take());
+                }
             } catch (IOException | InterruptedException e) {
             } finally {
                 Ln.d("Device message sender stopped");

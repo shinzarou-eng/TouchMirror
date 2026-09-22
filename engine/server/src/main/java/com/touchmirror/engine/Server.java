@@ -7,6 +7,7 @@ import com.touchmirror.engine.audio.AudioDirectCapture;
 import com.touchmirror.engine.audio.AudioSource;
 import com.touchmirror.engine.audio.AudioRawRecorder;
 import com.touchmirror.engine.control.ControlChannel;
+import com.touchmirror.engine.control.ControlMessage;
 import com.touchmirror.engine.control.Controller;
 import com.touchmirror.engine.device.DesktopConnection;
 import com.touchmirror.engine.device.Device;
@@ -63,51 +64,51 @@ public final class Server {
     }
 
     private static void mirror(Options options) throws IOException, ConfigurationException {
-        if (Build.VERSION.SDK_INT < AndroidVersions.API_29_ANDROID_10) {
-            if (options.getNewDisplay() != null) {
-                Ln.e("New virtual display is not supported before Android 10");
-                throw new ConfigurationException("New virtual display is not supported");
-            }
-            if (options.getDisplayImePolicy() != -1) {
-                Ln.e("Display IME policy is not supported before Android 10");
-                throw new ConfigurationException("Display IME policy is not supported");
-            }
-        }
-
-        CleanUp cleanUp = null;
-
-        if (options.getCleanup()) {
-            cleanUp = CleanUp.start(options);
-        }
-
         int scid = options.getScid();
         boolean tunnelForward = options.isTunnelForward();
-        boolean control = options.getControl();
-        boolean video = options.getVideo();
-        boolean audio = options.getAudio();
-        boolean sendDummyByte = options.getSendDummyByte();
 
         Workarounds.apply();
 
-        String startApp = options.getStartApp();
-        if (startApp != null) {
-            int startAppDisplayId = options.getDisplayId() != Device.DISPLAY_ID_NONE
-                    ? options.getDisplayId() : 0;
-            new Thread(() -> Device.startApp(startApp, startAppDisplayId), "start-app").start();
-        }
-
         List<AsyncProcessor> asyncProcessors = new ArrayList<>();
 
-        DesktopConnection connection = DesktopConnection.open(scid, tunnelForward, video, audio, control, sendDummyByte);
+        DesktopConnection connection = DesktopConnection.open(scid, tunnelForward, true);
+        CleanUp cleanUp = null;
         try {
-            if (options.getSendDeviceMeta()) {
-                connection.sendDeviceMeta(Device.getDeviceName());
+            int caps = Protocol.CAP_VIDEO | Protocol.CAP_AUDIO | Protocol.CAP_CONTROL | Protocol.CAP_CLIPBOARD
+                    | Protocol.CAP_H265 | Protocol.CAP_AV1 | Protocol.CAP_VDISPLAY;
+            connection.sendHello(Device.getDeviceName(), caps);
+
+            ControlChannel controlChannel = connection.getControlChannel();
+            ControlMessage configMsg = controlChannel.recv();
+            if (configMsg.getType() != ControlMessage.TYPE_CONFIG) {
+                throw new IOException("Premier message attendu : CONFIG (reçu type=" + configMsg.getType() + ")");
+            }
+            options.applyConfig(configMsg.getConfig());
+            Ln.initLogLevel(options.getLogLevel());
+
+            if (Build.VERSION.SDK_INT < AndroidVersions.API_29_ANDROID_10 && options.getNewDisplay() != null) {
+                Ln.e("New virtual display is not supported before Android 10");
+                throw new ConfigurationException("New virtual display is not supported");
+            }
+
+            boolean control = options.getControl();
+            boolean video = options.getVideo();
+            boolean audio = options.getAudio();
+
+            if (options.getCleanup()) {
+                cleanUp = CleanUp.start(options);
+            }
+
+            String startApp = options.getStartApp();
+            if (startApp != null) {
+                int startAppDisplayId = options.getDisplayId() != Device.DISPLAY_ID_NONE
+                        ? options.getDisplayId() : 0;
+                new Thread(() -> Device.startApp(startApp, startAppDisplayId), "start-app").start();
             }
 
             Controller controller = null;
 
             if (control) {
-                ControlChannel controlChannel = connection.getControlChannel();
                 controller = new Controller(controlChannel, cleanUp, options);
                 asyncProcessors.add(controller);
             }
@@ -116,7 +117,7 @@ public final class Server {
                 AudioCodec audioCodec = options.getAudioCodec();
                 AudioCapture audioCapture = new AudioDirectCapture(AudioSource.OUTPUT);
 
-                Streamer audioStreamer = new Streamer(connection.getAudioFd(), audioCodec, options.getSendStreamMeta(), options.getSendFrameMeta());
+                Streamer audioStreamer = new Streamer(connection.getMuxer(), Protocol.CHAN_AUDIO, audioCodec, options.getSendStreamMeta(), options.getSendFrameMeta());
                 AsyncProcessor audioRecorder;
                 if (audioCodec == AudioCodec.RAW) {
                     audioRecorder = new AudioRawRecorder(audioCapture, audioStreamer);
@@ -127,7 +128,7 @@ public final class Server {
             }
 
             if (video) {
-                Streamer videoStreamer = new Streamer(connection.getVideoFd(), options.getVideoCodec(), options.getSendStreamMeta(),
+                Streamer videoStreamer = new Streamer(connection.getMuxer(), Protocol.CHAN_VIDEO, options.getVideoCodec(), options.getSendStreamMeta(),
                         options.getSendFrameMeta());
                 SurfaceCapture surfaceCapture;
                 NewDisplay newDisplay = options.getNewDisplay();

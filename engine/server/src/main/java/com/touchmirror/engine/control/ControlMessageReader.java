@@ -25,6 +25,8 @@ public class ControlMessageReader {
     public ControlMessage read() throws IOException {
         int type = dis.readUnsignedByte();
         switch (type) {
+            case ControlMessage.TYPE_CONFIG:
+                return parseConfig();
             case ControlMessage.TYPE_INJECT_KEYCODE:
                 return parseInjectKeycode();
             case ControlMessage.TYPE_INJECT_TEXT:
@@ -59,6 +61,11 @@ public class ControlMessageReader {
             default:
                 throw new ControlProtocolException("Unknown event type: " + type);
         }
+    }
+
+    private ControlMessage parseConfig() throws IOException {
+        byte[] data = dis.readAllBytes();
+        return ControlMessage.createConfig(data);
     }
 
     private ControlMessage parseInjectKeycode() throws IOException {

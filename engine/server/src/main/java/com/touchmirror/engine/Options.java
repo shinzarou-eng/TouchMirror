@@ -2,19 +2,17 @@ package com.touchmirror.engine;
 
 import com.touchmirror.engine.audio.AudioCodec;
 import com.touchmirror.engine.device.Device;
-import com.touchmirror.engine.model.CodecOption;
 import com.touchmirror.engine.model.NewDisplay;
 import com.touchmirror.engine.model.Orientation;
 import com.touchmirror.engine.model.Size;
 import com.touchmirror.engine.util.Ln;
 import com.touchmirror.engine.video.VideoCodec;
-import com.touchmirror.engine.wrappers.WindowManager;
 
 import android.graphics.Rect;
-import android.util.Pair;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Locale;
 
 public class Options {
 
@@ -38,8 +36,6 @@ public class Options {
     private boolean stayAwake;
     private int screenOffTimeout = -1;
     private int displayImePolicy = -1;
-    private List<CodecOption> videoCodecOptions;
-    private List<CodecOption> audioCodecOptions;
 
     private String videoEncoder;
     private String audioEncoder;
@@ -147,14 +143,6 @@ public class Options {
         return displayImePolicy;
     }
 
-    public List<CodecOption> getVideoCodecOptions() {
-        return videoCodecOptions;
-    }
-
-    public List<CodecOption> getAudioCodecOptions() {
-        return audioCodecOptions;
-    }
-
     public String getVideoEncoder() {
         return videoEncoder;
     }
@@ -235,10 +223,9 @@ public class Options {
         return sendStreamMeta;
     }
 
-    @SuppressWarnings("MethodLength")
     public static Options parse(String... args) {
-        if (args.length < 1) {
-            throw new IllegalArgumentException("Missing client version");
+        if (args.length < 2) {
+            throw new IllegalArgumentException("Missing client version or scid");
         }
 
         String clientVersion = args[0];
@@ -248,293 +235,114 @@ public class Options {
         }
 
         Options options = new Options();
-
-        for (int i = 1; i < args.length; ++i) {
-            String arg = args[i];
-            int equalIndex = arg.indexOf('=');
-            if (equalIndex == -1) {
-                throw new IllegalArgumentException("Invalid key=value pair: \"" + arg + "\"");
-            }
-            String key = arg.substring(0, equalIndex);
-            String value = arg.substring(equalIndex + 1);
-            switch (key) {
-                case "scid":
-                    int scid = Integer.parseInt(value, 0x10);
-                    if (scid < -1) {
-                        throw new IllegalArgumentException("scid may not be negative (except -1 for 'none'): " + scid);
-                    }
-                    options.scid = scid;
-                    break;
-                case "log_level":
-                    options.logLevel = Ln.Level.valueOf(value.toUpperCase(Locale.ENGLISH));
-                    break;
-                case "video":
-                    options.video = Boolean.parseBoolean(value);
-                    break;
-                case "audio":
-                    options.audio = Boolean.parseBoolean(value);
-                    break;
-                case "video_codec":
-                    if ("auto".equals(value)) {
-                        VideoCodec auto = VideoCodec.pickAuto();
-                        Ln.i("Video codec auto: " + auto.getName());
-                        options.videoCodec = auto;
-                        break;
-                    }
-                    VideoCodec videoCodec = VideoCodec.findByName(value);
-                    if (videoCodec == null) {
-                        throw new IllegalArgumentException("Video codec " + value + " not supported");
-                    }
-                    options.videoCodec = videoCodec;
-                    break;
-                case "audio_codec":
-                    AudioCodec audioCodec = AudioCodec.findByName(value);
-                    if (audioCodec == null) {
-                        throw new IllegalArgumentException("Audio codec " + value + " not supported");
-                    }
-                    options.audioCodec = audioCodec;
-                    break;
-                case "max_size":
-                    options.maxSize = Integer.parseInt(value);
-                    break;
-                case "min_size_alignment":
-                    int align = Integer.parseInt(value);
-                    if (align < 1 || align > 16 || (align & (align - 1)) != 0) {
-                        throw new IllegalArgumentException("min_size_alignment (" + align + ") must be 1, 2, 4, 8 or 16");
-                    }
-                    options.minSizeAlignment = align;
-                    break;
-                case "video_bit_rate":
-                    options.videoBitRate = Integer.parseInt(value);
-                    break;
-                case "audio_bit_rate":
-                    options.audioBitRate = Integer.parseInt(value);
-                    break;
-                case "max_fps":
-                    options.maxFps = parseFloat("max_fps", value);
-                    break;
-                case "angle":
-                    options.angle = parseFloat("angle", value);
-                    break;
-                case "tunnel_forward":
-                    options.tunnelForward = Boolean.parseBoolean(value);
-                    break;
-                case "crop":
-                    if (!value.isEmpty()) {
-                        options.crop = parseCrop(value);
-                    }
-                    break;
-                case "control":
-                    options.control = Boolean.parseBoolean(value);
-                    break;
-                case "display_id":
-                    options.displayId = Integer.parseInt(value);
-                    break;
-                case "show_touches":
-                    options.showTouches = Boolean.parseBoolean(value);
-                    break;
-                case "stay_awake":
-                    options.stayAwake = Boolean.parseBoolean(value);
-                    break;
-                case "screen_off_timeout":
-                    options.screenOffTimeout = Integer.parseInt(value);
-                    if (options.screenOffTimeout < -1) {
-                        throw new IllegalArgumentException("Invalid screen off timeout: " + options.screenOffTimeout);
-                    }
-                    break;
-                case "video_codec_options":
-                    options.videoCodecOptions = CodecOption.parse(value);
-                    break;
-                case "audio_codec_options":
-                    options.audioCodecOptions = CodecOption.parse(value);
-                    break;
-                case "video_encoder":
-                    if (!value.isEmpty()) {
-                        options.videoEncoder = value;
-                    }
-                    break;
-                case "audio_encoder":
-                    if (!value.isEmpty()) {
-                        options.audioEncoder = value;
-                    }
-                    break;
-                case "power_off_on_close":
-                    options.powerOffScreenOnClose = Boolean.parseBoolean(value);
-                    break;
-                case "clipboard_autosync":
-                    options.clipboardAutosync = Boolean.parseBoolean(value);
-                    break;
-                case "downsize_on_error":
-                    options.downsizeOnError = Boolean.parseBoolean(value);
-                    break;
-                case "cleanup":
-                    options.cleanup = Boolean.parseBoolean(value);
-                    break;
-                case "power_on":
-                    options.powerOn = Boolean.parseBoolean(value);
-                    break;
-                case "start_app":
-                    if (value.isEmpty()) {
-                        throw new IllegalArgumentException("Missing app name for start_app");
-                    }
-                    options.startApp = value;
-                    break;
-                case "new_display":
-                    options.newDisplay = parseNewDisplay(value);
-                    break;
-                case "vd_destroy_content":
-                    options.vdDestroyContent = Boolean.parseBoolean(value);
-                    break;
-                case "vd_system_decorations":
-                    options.vdSystemDecorations = Boolean.parseBoolean(value);
-                    break;
-                case "flex_display":
-                    options.flexDisplay = Boolean.parseBoolean(value);
-                    break;
-                case "capture_orientation":
-                    Pair<Orientation.Lock, Orientation> pair = parseCaptureOrientation(value);
-                    options.captureOrientationLock = pair.first;
-                    options.captureOrientation = pair.second;
-                    break;
-                case "display_ime_policy":
-                    options.displayImePolicy = parseDisplayImePolicy(value);
-                    break;
-                case "keep_active":
-                    options.keepActive = Boolean.parseBoolean(value);
-                    break;
-                case "ignore_video_encoder_constraints":
-                    options.ignoreVideoEncoderConstraints = Boolean.parseBoolean(value);
-                    break;
-                case "send_device_meta":
-                    options.sendDeviceMeta = Boolean.parseBoolean(value);
-                    break;
-                case "send_frame_meta":
-                    options.sendFrameMeta = Boolean.parseBoolean(value);
-                    break;
-                case "send_dummy_byte":
-                    options.sendDummyByte = Boolean.parseBoolean(value);
-                    break;
-                case "send_stream_meta":
-                    options.sendStreamMeta = Boolean.parseBoolean(value);
-                    break;
-                case "raw_stream":
-                    boolean rawStream = Boolean.parseBoolean(value);
-                    if (rawStream) {
-                        options.sendDeviceMeta = false;
-                        options.sendFrameMeta = false;
-                        options.sendDummyByte = false;
-                        options.sendStreamMeta = false;
-                    }
-                    break;
-                default:
-                    Ln.w("Unknown server option: " + key);
-                    break;
-            }
+        options.scid = Integer.parseInt(args[1], 0x10);
+        if (options.scid < -1) {
+            throw new IllegalArgumentException("scid may not be negative (except -1 for 'none'): " + options.scid);
         }
-
-        if (options.newDisplay != null) {
-            assert options.displayId == 0 : "Must not set both displayId and newDisplay";
-            options.displayId = Device.DISPLAY_ID_NONE;
-        }
-
         return options;
     }
 
-    private static Rect parseCrop(String crop) {
-        String[] tokens = crop.split(":");
-        if (tokens.length != 4) {
-            throw new IllegalArgumentException("Crop must contains 4 values separated by colons: \"" + crop + "\"");
-        }
-        int width = Integer.parseInt(tokens[0]);
-        int height = Integer.parseInt(tokens[1]);
-        if (width <= 0 || height <= 0) {
-            throw new IllegalArgumentException("Invalid crop size: " + width + "x" + height);
-        }
-        int x = Integer.parseInt(tokens[2]);
-        int y = Integer.parseInt(tokens[3]);
-        if (x < 0 || y < 0) {
-            throw new IllegalArgumentException("Invalid crop offset: " + x + ":" + y);
-        }
-        return new Rect(x, y, x + width, y + height);
-    }
-
-    private static Size parseSize(String size) {
-        String[] tokens = size.split("x");
-        if (tokens.length != 2) {
-            throw new IllegalArgumentException("Invalid size format (expected <width>x<height>): \"" + size + "\"");
-        }
-        int width = Integer.parseInt(tokens[0]);
-        int height = Integer.parseInt(tokens[1]);
-        if (width <= 0 || height <= 0) {
-            throw new IllegalArgumentException("Invalid non-positive size dimension: \"" + size + "\"");
-        }
-        return new Size(width, height);
-    }
-
-    private static float parseFloat(String key, String value) {
-        try {
-            return Float.parseFloat(value);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid float value for " + key + ": \"" + value + "\"");
-        }
-    }
-
-    private static NewDisplay parseNewDisplay(String newDisplay) {
-        if (newDisplay.isEmpty()) {
-            return new NewDisplay();
-        }
-
-        String[] tokens = newDisplay.split("/");
-
-        Size size;
-        if (!tokens[0].isEmpty()) {
-            size = parseSize(tokens[0]);
-        } else {
-            size = null;
-        }
-
-        int dpi;
-        if (tokens.length >= 2) {
-            dpi = Integer.parseInt(tokens[1]);
-            if (dpi <= 0) {
-                throw new IllegalArgumentException("Invalid non-positive dpi: " + tokens[1]);
+    public void applyConfig(byte[] data) {
+        ByteBuffer buf = ByteBuffer.wrap(data);
+        while (buf.remaining() >= 2) {
+            int field = buf.get() & 0xff;
+            int len = buf.get() & 0xff;
+            if (len > buf.remaining()) {
+                throw new IllegalArgumentException("Truncated config field " + field);
             }
-        } else {
-            dpi = 0;
-        }
-
-        return new NewDisplay(size, dpi);
-    }
-
-    private static Pair<Orientation.Lock, Orientation> parseCaptureOrientation(String value) {
-        if (value.isEmpty()) {
-            throw new IllegalArgumentException("Empty capture orientation string");
-        }
-
-        Orientation.Lock lock;
-        if (value.charAt(0) == '@') {
-            value = value.substring(1);
-            if (value.isEmpty()) {
-                return Pair.create(Orientation.Lock.LockedInitial, Orientation.Orient0);
+            int end = buf.position() + len;
+            switch (field) {
+                case Protocol.CFG_AUDIO:
+                    audio = buf.get() != 0;
+                    break;
+                case Protocol.CFG_VIDEO_CODEC:
+                    videoCodec = decodeVideoCodec(buf.get() & 0xff);
+                    break;
+                case Protocol.CFG_AUDIO_CODEC:
+                    audioCodec = decodeAudioCodec(buf.get() & 0xff);
+                    break;
+                case Protocol.CFG_MAX_SIZE:
+                    maxSize = buf.getShort() & 0xffff;
+                    break;
+                case Protocol.CFG_MAX_FPS:
+                    maxFps = buf.get() & 0xff;
+                    break;
+                case Protocol.CFG_VIDEO_BIT_RATE:
+                    videoBitRate = buf.getInt();
+                    break;
+                case Protocol.CFG_FLAGS: {
+                    int f = buf.getShort() & 0xffff;
+                    video = (f & Protocol.FLAG_VIDEO) != 0;
+                    stayAwake = (f & Protocol.FLAG_STAY_AWAKE) != 0;
+                    powerOn = (f & Protocol.FLAG_POWER_ON) != 0;
+                    cleanup = (f & Protocol.FLAG_CLEANUP) != 0;
+                    downsizeOnError = (f & Protocol.FLAG_DOWNSIZE_ON_ERROR) != 0;
+                    clipboardAutosync = (f & Protocol.FLAG_CLIPBOARD_AUTOSYNC) != 0;
+                    break;
+                }
+                case Protocol.CFG_NEW_DISPLAY:
+                    newDisplay = new NewDisplay(new Size(buf.getShort() & 0xffff, buf.getShort() & 0xffff), buf.getShort() & 0xffff);
+                    displayId = Device.DISPLAY_ID_NONE;
+                    break;
+                case Protocol.CFG_START_APP: {
+                    byte[] utf = new byte[len];
+                    buf.get(utf);
+                    startApp = new String(utf, StandardCharsets.UTF_8);
+                    break;
+                }
+                case Protocol.CFG_LOG_LEVEL:
+                    logLevel = decodeLogLevel(buf.get() & 0xff);
+                    break;
+                default:
+                    break;
             }
-            lock = Orientation.Lock.LockedValue;
-        } else {
-            lock = Orientation.Lock.Unlocked;
+            buf.position(end);
         }
-
-        return Pair.create(lock, Orientation.getByName(value));
     }
 
-    private static int parseDisplayImePolicy(String value) {
-        switch (value) {
-            case "local":
-                return WindowManager.DISPLAY_IME_POLICY_LOCAL;
-            case "fallback":
-                return WindowManager.DISPLAY_IME_POLICY_FALLBACK_DISPLAY;
-            case "hide":
-                return WindowManager.DISPLAY_IME_POLICY_HIDE;
+    private static VideoCodec decodeVideoCodec(int id) {
+        switch (id) {
+            case 0:
+                VideoCodec auto = VideoCodec.pickAuto();
+                Ln.i("Video codec auto: " + auto.getName());
+                return auto;
+            case 1:
+                return VideoCodec.H264;
+            case 2:
+                return VideoCodec.H265;
+            case 3:
+                return VideoCodec.AV1;
             default:
-                throw new IllegalArgumentException("Invalid display IME policy: " + value);
+                throw new IllegalArgumentException("Video codec id " + id + " not supported");
         }
     }
+
+    private static AudioCodec decodeAudioCodec(int id) {
+        switch (id) {
+            case 0:
+                return AudioCodec.OPUS;
+            case 1:
+                return AudioCodec.AAC;
+            case 2:
+                return AudioCodec.FLAC;
+            case 3:
+                return AudioCodec.RAW;
+            default:
+                throw new IllegalArgumentException("Audio codec id " + id + " not supported");
+        }
+    }
+
+    private static Ln.Level decodeLogLevel(int id) {
+        Ln.Level[] levels = Ln.Level.values();
+        if (id < 0 || id >= levels.length) {
+            return Ln.Level.INFO;
+        }
+        return levels[id];
+    }
+
+
+
+
+
+
 }

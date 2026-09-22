@@ -5,8 +5,7 @@ import android.media.MediaCodec;
 public interface Codec {
 
     enum Type {
-        VIDEO,
-        AUDIO,
+        VIDEO, AUDIO
     }
 
     Type getType();

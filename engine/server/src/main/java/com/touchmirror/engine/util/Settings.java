@@ -12,26 +12,19 @@ public final class Settings {
     private Settings() {
     }
 
-    public static String getValue(String table, String key) throws SettingsException {
-        try (ContentProvider provider = ServiceManager.getActivityManager().createSettingsProvider()) {
-            return provider.getValue(table, key);
-        }
-    }
-
     public static void putValue(String table, String key, String value) throws SettingsException {
         try (ContentProvider provider = ServiceManager.getActivityManager().createSettingsProvider()) {
             provider.putValue(table, key, value);
         }
-
     }
 
     public static String getAndPutValue(String table, String key, String value) throws SettingsException {
         try (ContentProvider provider = ServiceManager.getActivityManager().createSettingsProvider()) {
-            String oldValue = provider.getValue(table, key);
-            if (!value.equals(oldValue)) {
+            String previous = provider.getValue(table, key);
+            if (!value.equals(previous)) {
                 provider.putValue(table, key, value);
             }
-            return oldValue;
+            return previous;
         }
     }
 }

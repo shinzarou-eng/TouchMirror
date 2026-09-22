@@ -1,11 +1,12 @@
 package com.touchmirror.engine.control;
 
+import com.touchmirror.engine.Protocol;
+import com.touchmirror.engine.device.Muxer;
 import com.touchmirror.engine.util.StringUtils;
 
-import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
 public class DeviceMessageWriter {
@@ -13,13 +14,16 @@ public class DeviceMessageWriter {
     private static final int MESSAGE_MAX_SIZE = 1 << 18;
     public static final int CLIPBOARD_TEXT_MAX_LENGTH = MESSAGE_MAX_SIZE - 5;
 
-    private final DataOutputStream dos;
+    private final Muxer muxer;
 
-    public DeviceMessageWriter(OutputStream rawOutputStream) {
-        dos = new DataOutputStream(new BufferedOutputStream(rawOutputStream));
+    public DeviceMessageWriter(Muxer muxer) {
+        this.muxer = muxer;
     }
 
     public void write(DeviceMessage msg) throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(bos);
+
         int type = msg.getType();
         dos.writeByte(type);
         switch (type) {
@@ -37,5 +41,7 @@ public class DeviceMessageWriter {
                 throw new ControlProtocolException("Unknown event type: " + type);
         }
         dos.flush();
+
+        muxer.write(Protocol.CHAN_DEVICE, bos.toByteArray());
     }
 }

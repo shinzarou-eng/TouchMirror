@@ -2,6 +2,7 @@ package com.touchmirror.engine.wrappers;
 
 import com.touchmirror.engine.AndroidVersions;
 import com.touchmirror.engine.util.Ln;
+import com.touchmirror.engine.util.Reflect;
 
 import android.annotation.SuppressLint;
 import android.graphics.Rect;
@@ -14,18 +15,10 @@ import java.lang.reflect.Method;
 @SuppressLint("PrivateApi")
 public final class SurfaceControl {
 
-    private static final Class<?> CLASS;
-
     public static final int POWER_MODE_OFF = 0;
     public static final int POWER_MODE_NORMAL = 2;
 
-    static {
-        try {
-            CLASS = Class.forName("android.view.SurfaceControl");
-        } catch (ClassNotFoundException e) {
-            throw new AssertionError(e);
-        }
-    }
+    private static final Class<?> CLASS = loadClass();
 
     private static Method getBuiltInDisplayMethod;
     private static Method setDisplayPowerModeMethod;
@@ -35,65 +28,63 @@ public final class SurfaceControl {
     private SurfaceControl() {
     }
 
-    public static void openTransaction() {
+    private static Class<?> loadClass() {
         try {
-            CLASS.getMethod("openTransaction").invoke(null);
+            return Class.forName("android.view.SurfaceControl");
+        } catch (ClassNotFoundException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private static Object callStatic(String name, Class<?>[] paramTypes, Object... args) {
+        try {
+            return CLASS.getMethod(name, paramTypes).invoke(null, args);
         } catch (Exception e) {
             throw new AssertionError(e);
         }
+    }
+
+    public static void openTransaction() {
+        callStatic("openTransaction", new Class<?>[0]);
     }
 
     public static void closeTransaction() {
-        try {
-            CLASS.getMethod("closeTransaction").invoke(null);
-        } catch (Exception e) {
-            throw new AssertionError(e);
-        }
+        callStatic("closeTransaction", new Class<?>[0]);
     }
 
     public static void setDisplayProjection(IBinder displayToken, int orientation, Rect layerStackRect, Rect displayRect) {
-        try {
-            CLASS.getMethod("setDisplayProjection", IBinder.class, int.class, Rect.class, Rect.class)
-                    .invoke(null, displayToken, orientation, layerStackRect, displayRect);
-        } catch (Exception e) {
-            throw new AssertionError(e);
-        }
+        callStatic("setDisplayProjection", new Class<?>[]{IBinder.class, int.class, Rect.class, Rect.class}, displayToken, orientation,
+                layerStackRect, displayRect);
     }
 
     public static void setDisplayLayerStack(IBinder displayToken, int layerStack) {
-        try {
-            CLASS.getMethod("setDisplayLayerStack", IBinder.class, int.class).invoke(null, displayToken, layerStack);
-        } catch (Exception e) {
-            throw new AssertionError(e);
-        }
+        callStatic("setDisplayLayerStack", new Class<?>[]{IBinder.class, int.class}, displayToken, layerStack);
     }
 
     public static void setDisplaySurface(IBinder displayToken, Surface surface) {
-        try {
-            CLASS.getMethod("setDisplaySurface", IBinder.class, Surface.class).invoke(null, displayToken, surface);
-        } catch (Exception e) {
-            throw new AssertionError(e);
-        }
+        callStatic("setDisplaySurface", new Class<?>[]{IBinder.class, Surface.class}, displayToken, surface);
     }
 
     public static IBinder createDisplay(String name, boolean secure) throws Exception {
         return (IBinder) CLASS.getMethod("createDisplay", String.class, boolean.class).invoke(null, name, secure);
     }
 
-    private static Method getGetBuiltInDisplayMethod() throws NoSuchMethodException {
+    public static void destroyDisplay(IBinder displayToken) {
+        callStatic("destroyDisplay", new Class<?>[]{IBinder.class}, displayToken);
+    }
+
+    private static Method resolveGetBuiltInDisplay() throws NoSuchMethodException {
         if (getBuiltInDisplayMethod == null) {
-            if (Build.VERSION.SDK_INT < AndroidVersions.API_29_ANDROID_10) {
-                getBuiltInDisplayMethod = CLASS.getMethod("getBuiltInDisplay", int.class);
-            } else {
-                getBuiltInDisplayMethod = CLASS.getMethod("getInternalDisplayToken");
-            }
+            getBuiltInDisplayMethod = Build.VERSION.SDK_INT < AndroidVersions.API_29_ANDROID_10
+                    ? Reflect.lookupOrThrow(CLASS, "getBuiltInDisplay", int.class)
+                    : Reflect.lookupOrThrow(CLASS, "getInternalDisplayToken");
         }
         return getBuiltInDisplayMethod;
     }
 
     public static boolean hasGetBuildInDisplayMethod() {
         try {
-            getGetBuiltInDisplayMethod();
+            resolveGetBuiltInDisplay();
             return true;
         } catch (NoSuchMethodException e) {
             return false;
@@ -102,45 +93,41 @@ public final class SurfaceControl {
 
     public static IBinder getBuiltInDisplay() {
         try {
-            Method method = getGetBuiltInDisplayMethod();
-            if (Build.VERSION.SDK_INT < AndroidVersions.API_29_ANDROID_10) {
-                return (IBinder) method.invoke(null, 0);
-            }
-
-            return (IBinder) method.invoke(null);
+            Method method = resolveGetBuiltInDisplay();
+            Object result = Build.VERSION.SDK_INT < AndroidVersions.API_29_ANDROID_10 ? method.invoke(null, 0) : method.invoke(null);
+            return (IBinder) result;
         } catch (ReflectiveOperationException e) {
             Ln.e("Could not invoke method", e);
             return null;
         }
     }
 
-    private static Method getGetPhysicalDisplayTokenMethod() throws NoSuchMethodException {
+    private static Method resolveGetPhysicalDisplayToken() throws NoSuchMethodException {
         if (getPhysicalDisplayTokenMethod == null) {
-            getPhysicalDisplayTokenMethod = CLASS.getMethod("getPhysicalDisplayToken", long.class);
+            getPhysicalDisplayTokenMethod = Reflect.lookupOrThrow(CLASS, "getPhysicalDisplayToken", long.class);
         }
         return getPhysicalDisplayTokenMethod;
     }
 
     public static IBinder getPhysicalDisplayToken(long physicalDisplayId) {
         try {
-            Method method = getGetPhysicalDisplayTokenMethod();
-            return (IBinder) method.invoke(null, physicalDisplayId);
+            return (IBinder) resolveGetPhysicalDisplayToken().invoke(null, physicalDisplayId);
         } catch (ReflectiveOperationException e) {
             Ln.e("Could not invoke method", e);
             return null;
         }
     }
 
-    private static Method getGetPhysicalDisplayIdsMethod() throws NoSuchMethodException {
+    private static Method resolveGetPhysicalDisplayIds() throws NoSuchMethodException {
         if (getPhysicalDisplayIdsMethod == null) {
-            getPhysicalDisplayIdsMethod = CLASS.getMethod("getPhysicalDisplayIds");
+            getPhysicalDisplayIdsMethod = Reflect.lookupOrThrow(CLASS, "getPhysicalDisplayIds");
         }
         return getPhysicalDisplayIdsMethod;
     }
 
     public static boolean hasGetPhysicalDisplayIdsMethod() {
         try {
-            getGetPhysicalDisplayIdsMethod();
+            resolveGetPhysicalDisplayIds();
             return true;
         } catch (NoSuchMethodException e) {
             return false;
@@ -149,37 +136,23 @@ public final class SurfaceControl {
 
     public static long[] getPhysicalDisplayIds() {
         try {
-            Method method = getGetPhysicalDisplayIdsMethod();
-            return (long[]) method.invoke(null);
+            return (long[]) resolveGetPhysicalDisplayIds().invoke(null);
         } catch (ReflectiveOperationException e) {
             Ln.e("Could not invoke method", e);
             return null;
         }
     }
 
-    private static Method getSetDisplayPowerModeMethod() throws NoSuchMethodException {
-        if (setDisplayPowerModeMethod == null) {
-            setDisplayPowerModeMethod = CLASS.getMethod("setDisplayPowerMode", IBinder.class, int.class);
-        }
-        return setDisplayPowerModeMethod;
-    }
-
     public static boolean setDisplayPowerMode(IBinder displayToken, int mode) {
         try {
-            Method method = getSetDisplayPowerModeMethod();
-            method.invoke(null, displayToken, mode);
+            if (setDisplayPowerModeMethod == null) {
+                setDisplayPowerModeMethod = Reflect.lookupOrThrow(CLASS, "setDisplayPowerMode", IBinder.class, int.class);
+            }
+            setDisplayPowerModeMethod.invoke(null, displayToken, mode);
             return true;
         } catch (ReflectiveOperationException e) {
             Ln.e("Could not invoke method", e);
             return false;
-        }
-    }
-
-    public static void destroyDisplay(IBinder displayToken) {
-        try {
-            CLASS.getMethod("destroyDisplay", IBinder.class).invoke(null, displayToken);
-        } catch (Exception e) {
-            throw new AssertionError(e);
         }
     }
 }

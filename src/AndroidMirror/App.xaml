@@ -7,8 +7,9 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ui:ThemesDictionary Theme="Dark" />
+                <ui:ThemesDictionary Theme="Light" />
                 <ui:ControlsDictionary />
+                <ResourceDictionary Source="Themes/Icons.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <sys:Double x:Key="FsCaption">10.5</sys:Double>
@@ -17,67 +18,259 @@
             <sys:Double x:Key="FsSection">15</sys:Double>
             <sys:Double x:Key="FsTitle">18</sys:Double>
             <sys:Double x:Key="FsPage">22</sys:Double>
-            <CornerRadius x:Key="RadiusBadge">3</CornerRadius>
-            <CornerRadius x:Key="RadiusControl">6</CornerRadius>
+            <sys:Double x:Key="IconSm">12</sys:Double>
+            <sys:Double x:Key="IconMd">14</sys:Double>
+            <sys:Double x:Key="IconLg">16</sys:Double>
+            <sys:Double x:Key="IconXl">20</sys:Double>
+            <CornerRadius x:Key="RadiusBadge">4</CornerRadius>
+            <CornerRadius x:Key="RadiusControl">7</CornerRadius>
             <CornerRadius x:Key="RadiusPanel">10</CornerRadius>
 
-            <SolidColorBrush x:Key="DofusAccentBrush" Color="#4EC98E" />
-            <SolidColorBrush x:Key="DofusAccentDimBrush" Color="#3A9A6F" />
-            <SolidColorBrush x:Key="SystemAccentColorPrimaryBrush" Color="#4EC98E" />
-            <SolidColorBrush x:Key="SystemAccentColorSecondaryBrush" Color="#6FD9AB" />
-            <SolidColorBrush x:Key="SystemAccentColorTertiaryBrush" Color="#2F8A62" />
-            <SolidColorBrush x:Key="TextOnAccentFillColorPrimaryBrush" Color="#07130D" />
-            <SolidColorBrush x:Key="AccentButtonBackground" Color="#4EC98E" />
-            <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="#66D9A6" />
-            <SolidColorBrush x:Key="AccentButtonBackgroundPressed" Color="#3FAF7E" />
-            <SolidColorBrush x:Key="AccentButtonForeground" Color="#07130D" />
-            <SolidColorBrush x:Key="AccentButtonBorderBrush" Color="#0A2A1D" />
-            <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="#4EC98E" />
-            <SolidColorBrush x:Key="AccentFillColorSecondaryBrush" Color="#994EC98E" />
-            <SolidColorBrush x:Key="AccentFillColorTertiaryBrush" Color="#664EC98E" />
-            <SolidColorBrush x:Key="AccentTextFillColorPrimaryBrush" Color="#66D9A6" />
-            <SolidColorBrush x:Key="AccentTextFillColorSecondaryBrush" Color="#66D9A6" />
-            <SolidColorBrush x:Key="AccentTextFillColorTertiaryBrush" Color="#4EC98E" />
-            <SolidColorBrush x:Key="AccentSubtleBrush" Color="#1F4EC98E" />
-            <SolidColorBrush x:Key="AccentBorderBrush" Color="#404EC98E" />
+            <SolidColorBrush x:Key="DofusAccentBrush" Color="#C9D1D9" />
+            <SolidColorBrush x:Key="DofusAccentDimBrush" Color="#8B95A1" />
+            <SolidColorBrush x:Key="OnDarkTextBrush" Color="#E9EAED" />
+            <SolidColorBrush x:Key="OnDarkTextDimBrush" Color="#9AA1AC" />
+            <SolidColorBrush x:Key="AppModalSolidBrush" Color="#D8101319" />
+            <SolidColorBrush x:Key="AppScrimBrush" Color="#E6101216" />
 
-            <SolidColorBrush x:Key="AppWindowBrush" Color="#0A0B0F" />
-            <SolidColorBrush x:Key="AppSurfaceBrush" Color="#111218" />
-            <SolidColorBrush x:Key="AppSurfaceAltBrush" Color="#171923" />
-            <SolidColorBrush x:Key="AppCardBrush" Color="#1B1D25" />
-            <SolidColorBrush x:Key="AppModalBrush" Color="#F50E1015" />
-            <SolidColorBrush x:Key="AppGlassWindowBrush" Color="#D80A0B0F" />
-            <SolidColorBrush x:Key="AppGlassSurfaceBrush" Color="#B8111218" />
-            <SolidColorBrush x:Key="AppGlassAltBrush" Color="#C8171923" />
-            <SolidColorBrush x:Key="AppModalSolidBrush" Color="#FF0E1015" />
-            <SolidColorBrush x:Key="AppBorderBrush" Color="#14FFFFFF" />
-            <SolidColorBrush x:Key="AppBorderSubtleBrush" Color="#0AFFFFFF" />
-            <SolidColorBrush x:Key="AppBorderStrongBrush" Color="#24FFFFFF" />
-            <SolidColorBrush x:Key="SurfaceFaintBrush" Color="#09FFFFFF" />
-            <SolidColorBrush x:Key="CodeBackgroundBrush" Color="#0D000000" />
+            <Style x:Key="Ic" TargetType="Path">
+                <Setter Property="Width" Value="16" />
+                <Setter Property="Height" Value="16" />
+                <Setter Property="Stretch" Value="Uniform" />
+                <Setter Property="SnapsToDevicePixels" Value="True" />
+                <Setter Property="Fill" Value="{Binding Path=(TextElement.Foreground), RelativeSource={RelativeSource Self}}" />
+            </Style>
 
-            <SolidColorBrush x:Key="TextFillColorPrimaryBrush" Color="#E8E9EC" />
-            <SolidColorBrush x:Key="TextFillColorSecondaryBrush" Color="#A7ADB8" />
-            <SolidColorBrush x:Key="TextFillColorTertiaryBrush" Color="#7B818C" />
-            <SolidColorBrush x:Key="TextFillColorDisabledBrush" Color="#575C66" />
-            <SolidColorBrush x:Key="ControlFillColorDefaultBrush" Color="#12FFFFFF" />
-            <SolidColorBrush x:Key="ControlFillColorSecondaryBrush" Color="#19FFFFFF" />
-            <SolidColorBrush x:Key="ControlFillColorTertiaryBrush" Color="#0CFFFFFF" />
-            <SolidColorBrush x:Key="ControlFillColorDisabledBrush" Color="#08FFFFFF" />
-            <SolidColorBrush x:Key="ControlFillColorInputActiveBrush" Color="#1CFFFFFF" />
-            <SolidColorBrush x:Key="ControlStrokeColorDefaultBrush" Color="#1FFFFFFF" />
-            <SolidColorBrush x:Key="ControlStrokeColorSecondaryBrush" Color="#33FFFFFF" />
-            <SolidColorBrush x:Key="SubtleFillColorSecondaryBrush" Color="#12FFFFFF" />
-            <SolidColorBrush x:Key="SubtleFillColorTertiaryBrush" Color="#0CFFFFFF" />
+            <Style TargetType="ui:ToggleSwitch">
+                <Setter Property="MinWidth" Value="38" />
+                <Setter Property="MinHeight" Value="20" />
+                <Setter Property="Padding" Value="46,0,0,0" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ui:ToggleSwitch">
+                            <Grid>
+                                <Border x:Name="trackOff" Width="38" Height="20" CornerRadius="10"
+                                        HorizontalAlignment="Left" VerticalAlignment="Center"
+                                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        BorderBrush="{DynamicResource AppBorderStrongBrush}" BorderThickness="1" />
+                                <Border x:Name="trackOn" Width="38" Height="20" CornerRadius="10"
+                                        HorizontalAlignment="Left" VerticalAlignment="Center"
+                                        Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                        BorderBrush="{DynamicResource AccentButtonBorderBrush}" BorderThickness="1" Opacity="0" />
+                                <Ellipse x:Name="knob" Width="14" Height="14"
+                                         HorizontalAlignment="Left" VerticalAlignment="Center" Margin="4,0,0,0"
+                                         Fill="{DynamicResource TextFillColorSecondaryBrush}" Stroke="#33000000" StrokeThickness="1">
+                                    <Ellipse.RenderTransform>
+                                        <TranslateTransform X="0" />
+                                    </Ellipse.RenderTransform>
+                                </Ellipse>
+                                <ContentPresenter Margin="{TemplateBinding Padding}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="knob" Property="Fill" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                                    <Trigger.EnterActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="knob"
+                                                    Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                    To="18" Duration="0:0:0.16">
+                                                    <DoubleAnimation.EasingFunction>
+                                                        <CubicEase EasingMode="EaseOut" />
+                                                    </DoubleAnimation.EasingFunction>
+                                                </DoubleAnimation>
+                                                <DoubleAnimation Storyboard.TargetName="trackOn"
+                                                    Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.16" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.EnterActions>
+                                    <Trigger.ExitActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="knob"
+                                                    Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                    To="0" Duration="0:0:0.16">
+                                                    <DoubleAnimation.EasingFunction>
+                                                        <CubicEase EasingMode="EaseOut" />
+                                                    </DoubleAnimation.EasingFunction>
+                                                </DoubleAnimation>
+                                                <DoubleAnimation Storyboard.TargetName="trackOn"
+                                                    Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.16" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.ExitActions>
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="trackOff" Property="Background"
+                                            Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.4" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
 
-            <SolidColorBrush x:Key="WarnBrush" Color="#E0A24C" />
-            <SolidColorBrush x:Key="WarnBorderBrush" Color="#40E0A24C" />
-            <SolidColorBrush x:Key="DangerBrush" Color="#E05B4C" />
-            <SolidColorBrush x:Key="DangerSubtleBrush" Color="#26E05B4C" />
-            <SolidColorBrush x:Key="GoldBrush" Color="#E8C14A" />
-            <SolidColorBrush x:Key="GoldBorderBrush" Color="#40E8C14A" />
-            <SolidColorBrush x:Key="InfoBrush" Color="#5B9BD5" />
-            <SolidColorBrush x:Key="MutedBrush" Color="#666C77" />
+            <Style TargetType="Slider">
+                <Setter Property="MinHeight" Value="24" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Slider">
+                            <Grid VerticalAlignment="Center">
+                                <Border Height="3" CornerRadius="1.5" VerticalAlignment="Center"
+                                        Background="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                <Track x:Name="PART_Track">
+                                    <Track.DecreaseRepeatButton>
+                                        <RepeatButton Command="{x:Static Slider.DecreaseLarge}">
+                                            <RepeatButton.Template>
+                                                <ControlTemplate TargetType="RepeatButton">
+                                                    <Border Height="3" CornerRadius="1.5" VerticalAlignment="Center"
+                                                            Background="{DynamicResource AccentFillColorDefaultBrush}" />
+                                                </ControlTemplate>
+                                            </RepeatButton.Template>
+                                        </RepeatButton>
+                                    </Track.DecreaseRepeatButton>
+                                    <Track.IncreaseRepeatButton>
+                                        <RepeatButton Command="{x:Static Slider.IncreaseLarge}">
+                                            <RepeatButton.Template>
+                                                <ControlTemplate TargetType="RepeatButton">
+                                                    <Border Background="Transparent" />
+                                                </ControlTemplate>
+                                            </RepeatButton.Template>
+                                        </RepeatButton>
+                                    </Track.IncreaseRepeatButton>
+                                    <Track.Thumb>
+                                        <Thumb Width="14" Height="14">
+                                            <Thumb.Template>
+                                                <ControlTemplate TargetType="Thumb">
+                                                    <Ellipse Fill="#FFFFFF" Stroke="#29000000" StrokeThickness="1" />
+                                                </ControlTemplate>
+                                            </Thumb.Template>
+                                        </Thumb>
+                                    </Track.Thumb>
+                                </Track>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style TargetType="ToolTip">
+                <Setter Property="Background" Value="{DynamicResource AppModalBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                <Setter Property="FontSize" Value="{StaticResource FsCaption}" />
+                <Setter Property="Padding" Value="9,6" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ToolTip">
+                            <Border Background="{TemplateBinding Background}"
+                                    BorderBrush="{DynamicResource AppBorderStrongBrush}" BorderThickness="1"
+                                    CornerRadius="{StaticResource RadiusControl}" Padding="{TemplateBinding Padding}">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="#000000" BlurRadius="16" ShadowDepth="0" Opacity="0.45" />
+                                </Border.Effect>
+                                <ContentPresenter />
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style TargetType="ContextMenu">
+                <Setter Property="Background" Value="{DynamicResource AppModalBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                <Setter Property="FontSize" Value="{StaticResource FsMeta}" />
+                <Setter Property="Padding" Value="5" />
+                <Setter Property="MinWidth" Value="160" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ContextMenu">
+                            <Border Background="{TemplateBinding Background}"
+                                    BorderBrush="{DynamicResource AppBorderStrongBrush}" BorderThickness="1"
+                                    CornerRadius="10" Padding="{TemplateBinding Padding}"
+                                    SnapsToDevicePixels="True">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="#000000" BlurRadius="26" ShadowDepth="0" Opacity="0.55" />
+                                </Border.Effect>
+                                <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style TargetType="Separator">
+                <Setter Property="Margin" Value="9,5" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Separator">
+                            <Border Height="1" Background="{DynamicResource AppBorderSubtleBrush}" />
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style TargetType="MenuItem">
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                <Setter Property="FontSize" Value="{StaticResource FsMeta}" />
+                <Setter Property="MinHeight" Value="30" />
+                <Setter Property="Padding" Value="11,0" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="MenuItem">
+                            <Grid>
+                                <Border x:Name="bd" Background="Transparent" CornerRadius="6"
+                                        Padding="{TemplateBinding Padding}"
+                                        MinHeight="{TemplateBinding MinHeight}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <ContentPresenter ContentSource="Header" VerticalAlignment="Center"
+                                                          RecognizesAccessKey="True" />
+                                        <Path x:Name="Arrow" Grid.Column="1" Data="M0,0 L4.5,4.5 L0,9"
+                                              Stretch="Uniform" Stroke="{TemplateBinding Foreground}"
+                                              StrokeThickness="1.5" Width="5" Height="9"
+                                              VerticalAlignment="Center" Margin="12,0,0,0"
+                                              Visibility="Collapsed" />
+                                    </Grid>
+                                </Border>
+                                <Popup x:Name="PART_Popup" AllowsTransparency="True" Focusable="False"
+                                       IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                                       Placement="Right" HorizontalOffset="-3" VerticalOffset="-5"
+                                       PopupAnimation="Fade">
+                                    <Border Background="{DynamicResource AppModalBrush}"
+                                            BorderBrush="{DynamicResource AppBorderStrongBrush}" BorderThickness="1"
+                                            CornerRadius="10" Padding="5" MinWidth="150">
+                                        <Border.Effect>
+                                            <DropShadowEffect Color="#000000" BlurRadius="26" ShadowDepth="0" Opacity="0.55" />
+                                        </Border.Effect>
+                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle" />
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsHighlighted" Value="True">
+                                    <Setter TargetName="bd" Property="Background"
+                                            Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                </Trigger>
+                                <Trigger Property="HasItems" Value="True">
+                                    <Setter TargetName="Arrow" Property="Visibility" Value="Visible" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
 
             <Style TargetType="ScrollBar">
                 <Setter Property="Width" Value="8" />
@@ -93,11 +286,11 @@
                                             <Thumb.Template>
                                                 <ControlTemplate TargetType="Thumb">
                                                     <Border x:Name="thumb" CornerRadius="4"
-                                                            Background="#2EFFFFFF"
+                                                            Background="{DynamicResource ScrollbarThumbBrush}"
                                                             Margin="3,1" />
                                                     <ControlTemplate.Triggers>
                                                         <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="thumb" Property="Background" Value="#52FFFFFF" />
+                                                            <Setter TargetName="thumb" Property="Background" Value="{DynamicResource ScrollbarThumbHoverBrush}" />
                                                         </Trigger>
                                                     </ControlTemplate.Triggers>
                                                 </ControlTemplate>

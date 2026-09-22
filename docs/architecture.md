@@ -4,7 +4,7 @@ Notes de conception pour celles et ceux qui contribuent ou auditent le code.
 
 ## Control-plane uniquement
 
-L'API locale (`LocalApi`) et les plugins (`PluginHost`) pilotent **l'application**, jamais le jeu : aucune route ni aucun appel plugin n'envoie de tactile, de clavier, de texte ou de presse-papiers vers Android. Le `ControlChannel` scrcpy (touches, texte, tactile) n'est atteignable que depuis `MirrorView` — les interactions humaines directes.
+L'API locale (`LocalApi`) et les plugins (`PluginHost`) pilotent **l'application**, jamais le jeu : aucune route ni aucun appel plugin n'envoie de tactile, de clavier, de texte ou de presse-papiers vers Android. Le `ControlChannel` du moteur (touches, texte, tactile) n'est atteignable que depuis `MirrorView` — les interactions humaines directes.
 
 Deux exceptions assumées, équivalentes à un branchement manuel : `connect` peut lancer l'app configurée (`StartApp`) et réveiller l'écran (`KEYCODE_WAKEUP`) si l'option « écran atténué » est active. Ce sont des actions de session, pas des inputs de jeu.
 

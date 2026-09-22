@@ -5,9 +5,9 @@ import com.touchmirror.engine.model.Size;
 
 public class AffineMatrix {
 
-    private final double a, b, c, d, e, f;
-
     public static final AffineMatrix IDENTITY = new AffineMatrix(1, 0, 0, 1, 0, 0);
+
+    private final double a, b, c, d, e, f;
 
     public AffineMatrix(double a, double b, double c, double d, double e, double f) {
         this.a = a;
@@ -18,85 +18,65 @@ public class AffineMatrix {
         this.f = f;
     }
 
-    @Override
-    public String toString() {
-        return "[" + a + ", " + c + ", " + e + "; " + b + ", " + d + ", " + f + "]";
-    }
-
     public static AffineMatrix ndcFromPixels(Size size) {
-        double w = size.getWidth();
-        double h = size.getHeight();
-        return new AffineMatrix(1 / w, 0, 0, -1 / h, 0, 1);
+        return new AffineMatrix(1d / size.getWidth(), 0, 0, -1d / size.getHeight(), 0, 1);
     }
 
     public static AffineMatrix ndcToPixels(Size size) {
-        double w = size.getWidth();
-        double h = size.getHeight();
-        return new AffineMatrix(w, 0, 0, -h, 0, h);
+        return new AffineMatrix(size.getWidth(), 0, 0, -size.getHeight(), 0, size.getHeight());
     }
 
     public Point apply(Point point) {
-        int x = point.getX();
-        int y = point.getY();
-        int xx = (int) (a * x + c * y + e);
-        int yy = (int) (b * x + d * y + f);
-        return new Point(xx, yy);
+        int x = (int) (a * point.getX() + c * point.getY() + e);
+        int y = (int) (b * point.getX() + d * point.getY() + f);
+        return new Point(x, y);
     }
 
     public AffineMatrix multiply(AffineMatrix rhs) {
         if (rhs == null) {
             return this;
         }
-
-        double aa = this.a * rhs.a + this.c * rhs.b;
-        double bb = this.b * rhs.a + this.d * rhs.b;
-        double cc = this.a * rhs.c + this.c * rhs.d;
-        double dd = this.b * rhs.c + this.d * rhs.d;
-        double ee = this.a * rhs.e + this.c * rhs.f + this.e;
-        double ff = this.b * rhs.e + this.d * rhs.f + this.f;
-        return new AffineMatrix(aa, bb, cc, dd, ee, ff);
+        return new AffineMatrix(
+                a * rhs.a + c * rhs.b,
+                b * rhs.a + d * rhs.b,
+                a * rhs.c + c * rhs.d,
+                b * rhs.c + d * rhs.d,
+                a * rhs.e + c * rhs.f + e,
+                b * rhs.e + d * rhs.f + f);
     }
 
     public static AffineMatrix multiplyAll(AffineMatrix... matrices) {
         AffineMatrix result = null;
         for (AffineMatrix matrix : matrices) {
-            if (result == null) {
-                result = matrix;
-            } else {
-                result = result.multiply(matrix);
-            }
+            result = result == null ? matrix : result.multiply(matrix);
         }
         return result;
     }
 
     public AffineMatrix invert() {
-
         double det = a * d - c * b;
         if (det == 0) {
             return null;
         }
-
-        double aa = d / det;
-        double bb = -b / det;
-        double cc = -c / det;
-        double dd = a / det;
-        double ee = (c * f - d * e) / det;
-        double ff = (b * e - a * f) / det;
-
-        return new AffineMatrix(aa, bb, cc, dd, ee, ff);
+        return new AffineMatrix(
+                d / det,
+                -b / det,
+                -c / det,
+                a / det,
+                (c * f - d * e) / det,
+                (b * e - a * f) / det);
     }
 
     public AffineMatrix fromCenter() {
         return translate(0.5, 0.5).multiply(this).multiply(translate(-0.5, -0.5));
     }
 
-    public AffineMatrix withAspectRatio(double ar) {
-        return scale(1 / ar, 1).multiply(this).multiply(scale(ar, 1));
+    public AffineMatrix withAspectRatio(double aspectRatio) {
+        return scale(1 / aspectRatio, 1).multiply(this).multiply(scale(aspectRatio, 1));
     }
 
     public AffineMatrix withAspectRatio(Size size) {
-        double ar = (double) size.getWidth() / size.getHeight();
-        return withAspectRatio(ar);
+        return withAspectRatio((double) size.getWidth() / size.getHeight());
     }
 
     public static AffineMatrix translate(double x, double y) {
@@ -108,9 +88,7 @@ public class AffineMatrix {
     }
 
     public static AffineMatrix scale(Size from, Size to) {
-        double scaleX = (double) to.getWidth() / from.getWidth();
-        double scaleY = (double) to.getHeight() / from.getHeight();
-        return scale(scaleX, scaleY);
+        return scale((double) to.getWidth() / from.getWidth(), (double) to.getHeight() / from.getHeight());
     }
 
     public static AffineMatrix reframe(double x, double y, double w, double h) {
@@ -151,22 +129,18 @@ public class AffineMatrix {
     }
 
     public void to4x4(float[] matrix) {
-
         matrix[0] = (float) a;
         matrix[1] = (float) b;
         matrix[2] = 0;
         matrix[3] = 0;
-
         matrix[4] = (float) c;
         matrix[5] = (float) d;
         matrix[6] = 0;
         matrix[7] = 0;
-
         matrix[8] = 0;
         matrix[9] = 0;
         matrix[10] = 1;
         matrix[11] = 0;
-
         matrix[12] = (float) e;
         matrix[13] = (float) f;
         matrix[14] = 0;
@@ -177,5 +151,10 @@ public class AffineMatrix {
         float[] matrix = new float[16];
         to4x4(matrix);
         return matrix;
+    }
+
+    @Override
+    public String toString() {
+        return "[" + a + ", " + c + ", " + e + "; " + b + ", " + d + ", " + f + "]";
     }
 }

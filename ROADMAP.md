@@ -124,7 +124,7 @@ La vérification repose sur des empreintes SHA-256 embarquées, pas sur une sign
 
 **Résultat attendu :** TouchMirror sur Linux puis macOS, sans renoncer à la qualité du pipeline Windows.
 
-Le cœur est déjà portable : protocole scrcpy, adb, FFmpeg, API locale, plugins Jint, marketplace. Le travail porte sur la couche plateforme — interface WPF → Avalonia, pipeline GPU D3D11/D3D9Ex → VAAPI ou Metal (ou repli CPU), audio NAudio → backend portable, BLE iPhone → BlueZ / Core Bluetooth.
+Le cœur est déjà portable : protocole maison, adb, FFmpeg, API locale, plugins Jint, marketplace. Le travail porte sur la couche plateforme — interface WPF → Avalonia, pipeline GPU D3D11/D3D9Ex → VAAPI ou Metal (ou repli CPU), audio NAudio → backend portable, BLE iPhone → BlueZ / Core Bluetooth.
 
 - [ ] Évaluer Avalonia pour l'interface : réutilisation maximale des vues, des modèles et de la logique existante.
 - [ ] Chiffrer un premier portage Linux en décodage CPU (bitmap logiciel) avant d'étudier le GPU (VAAPI/GL, puis Metal/VideoToolbox sur macOS).

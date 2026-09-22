@@ -57,16 +57,16 @@ public final class Device {
         return displayId == 0 || Build.VERSION.SDK_INT >= AndroidVersions.API_29_ANDROID_10;
     }
 
-    public static boolean injectEvent(InputEvent inputEvent, int displayId, int injectMode) {
+    public static boolean injectEvent(InputEvent event, int displayId, int injectMode) {
         if (!supportsInputEvents(displayId)) {
             throw new AssertionError("Could not inject input event if !supportsInputEvents()");
         }
 
-        if (displayId != 0 && !InputManager.setDisplayId(inputEvent, displayId)) {
+        if (displayId != 0 && !InputManager.setDisplayId(event, displayId)) {
             return false;
         }
 
-        return ServiceManager.getInputManager().injectInputEvent(inputEvent, injectMode);
+        return ServiceManager.getInputManager().injectInputEvent(event, injectMode);
     }
 
     public static boolean injectKeyEvent(int action, int keyCode, int repeat, int metaState, int displayId, int injectMode) {
@@ -104,96 +104,83 @@ public final class Device {
     }
 
     public static String getClipboardText() {
-        ClipboardManager clipboardManager = ServiceManager.getClipboardManager();
-        if (clipboardManager == null) {
+        ClipboardManager clipboard = ServiceManager.getClipboardManager();
+        if (clipboard == null) {
             return null;
         }
-        CharSequence s = clipboardManager.getText();
-        if (s == null) {
-            return null;
-        }
-        return s.toString();
+        CharSequence text = clipboard.getText();
+        return text == null ? null : text.toString();
     }
 
     public static boolean setClipboardText(String text) {
-        ClipboardManager clipboardManager = ServiceManager.getClipboardManager();
-        if (clipboardManager == null) {
+        ClipboardManager clipboard = ServiceManager.getClipboardManager();
+        if (clipboard == null) {
             return false;
         }
 
-        String currentClipboard = getClipboardText();
-        if (currentClipboard != null && currentClipboard.equals(text)) {
+        String current = getClipboardText();
+        if (current != null && current.equals(text)) {
             return false;
         }
 
-        return clipboardManager.setText(text);
+        return clipboard.setText(text);
     }
 
     public static boolean setDisplayPower(int displayId, boolean on) {
-        assert displayId != Device.DISPLAY_ID_NONE;
+        assert displayId != DISPLAY_ID_NONE;
 
         if (USE_ANDROID_15_DISPLAY_POWER && Build.VERSION.SDK_INT >= AndroidVersions.API_35_ANDROID_15) {
             return ServiceManager.getDisplayManager().requestDisplayPower(displayId, on);
         }
 
-        boolean applyToMultiPhysicalDisplays = Build.VERSION.SDK_INT >= AndroidVersions.API_29_ANDROID_10;
-
-        if (applyToMultiPhysicalDisplays
-                && Build.VERSION.SDK_INT >= AndroidVersions.API_34_ANDROID_14
-                && Build.BRAND.equalsIgnoreCase("honor")
+        boolean multiDisplay = Build.VERSION.SDK_INT >= AndroidVersions.API_29_ANDROID_10;
+        if (multiDisplay && Build.VERSION.SDK_INT >= AndroidVersions.API_34_ANDROID_14 && Build.BRAND.equalsIgnoreCase("honor")
                 && SurfaceControl.hasGetBuildInDisplayMethod()) {
-            applyToMultiPhysicalDisplays = false;
+            multiDisplay = false;
         }
 
         int mode = on ? POWER_MODE_NORMAL : POWER_MODE_OFF;
-        if (applyToMultiPhysicalDisplays) {
+        if (multiDisplay) {
             boolean useDisplayControl =
                     Build.VERSION.SDK_INT >= AndroidVersions.API_34_ANDROID_14 && !SurfaceControl.hasGetPhysicalDisplayIdsMethod();
 
-            long[] physicalDisplayIds = useDisplayControl ? DisplayControl.getPhysicalDisplayIds() : SurfaceControl.getPhysicalDisplayIds();
-            if (physicalDisplayIds == null) {
+            long[] displayIds = useDisplayControl ? DisplayControl.getPhysicalDisplayIds() : SurfaceControl.getPhysicalDisplayIds();
+            if (displayIds == null) {
                 Ln.e("Could not get physical display ids");
                 return false;
             }
 
             boolean allOk = true;
-            for (long physicalDisplayId : physicalDisplayIds) {
-                IBinder binder = useDisplayControl ? DisplayControl.getPhysicalDisplayToken(
-                        physicalDisplayId) : SurfaceControl.getPhysicalDisplayToken(physicalDisplayId);
-                allOk &= SurfaceControl.setDisplayPowerMode(binder, mode);
+            for (long physicalDisplayId : displayIds) {
+                IBinder token = useDisplayControl
+                        ? DisplayControl.getPhysicalDisplayToken(physicalDisplayId)
+                        : SurfaceControl.getPhysicalDisplayToken(physicalDisplayId);
+                allOk &= SurfaceControl.setDisplayPowerMode(token, mode);
             }
             return allOk;
         }
 
-        IBinder d = SurfaceControl.getBuiltInDisplay();
-        if (d == null) {
+        IBinder token = SurfaceControl.getBuiltInDisplay();
+        if (token == null) {
             Ln.e("Could not get built-in display");
             return false;
         }
-        return SurfaceControl.setDisplayPowerMode(d, mode);
+        return SurfaceControl.setDisplayPowerMode(token, mode);
     }
 
     public static boolean powerOffScreen(int displayId) {
         assert displayId != DISPLAY_ID_NONE;
-
-        if (!isScreenOn(displayId)) {
-            return true;
-        }
-        return pressReleaseKeycode(KeyEvent.KEYCODE_POWER, displayId, Device.INJECT_MODE_ASYNC);
+        return !isScreenOn(displayId) || pressReleaseKeycode(KeyEvent.KEYCODE_POWER, displayId, INJECT_MODE_ASYNC);
     }
 
     public static void rotateDevice(int displayId) {
         assert displayId != DISPLAY_ID_NONE;
 
         WindowManager wm = ServiceManager.getWindowManager();
-
         boolean accelerometerRotation = !wm.isRotationFrozen(displayId);
 
-        int currentRotation = getCurrentRotation(displayId);
-        int newRotation = (currentRotation & 1) ^ 1;
-        String newRotationString = newRotation == 0 ? "portrait" : "landscape";
-
-        Ln.i("Device rotation requested: " + newRotationString);
+        int newRotation = (getCurrentRotation(displayId) & 1) ^ 1;
+        Ln.i("Device rotation requested: " + (newRotation == 0 ? "portrait" : "landscape"));
         wm.freezeRotation(displayId, newRotation);
 
         if (accelerometerRotation) {
@@ -208,45 +195,37 @@ public final class Device {
             return ServiceManager.getWindowManager().getRotation();
         }
 
-        DisplayInfo displayInfo = ServiceManager.getDisplayManager().getDisplayInfo(displayId);
-        return displayInfo.getRotation();
+        return ServiceManager.getDisplayManager().getDisplayInfo(displayId).getRotation();
     }
 
     public static List<DeviceApp> listApps() {
-        List<DeviceApp> apps = new ArrayList<>();
         PackageManager pm = FakeContext.get().getPackageManager();
+        List<DeviceApp> apps = new ArrayList<>();
         for (ApplicationInfo appInfo : getLaunchableApps(pm)) {
             apps.add(toApp(pm, appInfo));
         }
-
         return apps;
     }
 
     @SuppressLint("QueryPermissionsNeeded")
     private static List<ApplicationInfo> getLaunchableApps(PackageManager pm) {
-        List<ApplicationInfo> result = new ArrayList<>();
+        List<ApplicationInfo> apps = new ArrayList<>();
         for (ApplicationInfo appInfo : pm.getInstalledApplications(PackageManager.GET_META_DATA)) {
             if (appInfo.enabled && getLaunchIntent(pm, appInfo.packageName) != null) {
-                result.add(appInfo);
+                apps.add(appInfo);
             }
         }
-
-        return result;
+        return apps;
     }
 
     public static Intent getLaunchIntent(PackageManager pm, String packageName) {
-        Intent launchIntent = pm.getLaunchIntentForPackage(packageName);
-        if (launchIntent != null) {
-            return launchIntent;
-        }
-
-        return pm.getLeanbackLaunchIntentForPackage(packageName);
+        Intent intent = pm.getLaunchIntentForPackage(packageName);
+        return intent != null ? intent : pm.getLeanbackLaunchIntentForPackage(packageName);
     }
 
     private static DeviceApp toApp(PackageManager pm, ApplicationInfo appInfo) {
-        String name = pm.getApplicationLabel(appInfo).toString();
-        boolean system = (appInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
-        return new DeviceApp(appInfo.packageName, name, system);
+        return new DeviceApp(appInfo.packageName, pm.getApplicationLabel(appInfo).toString(),
+                (appInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0);
     }
 
     @SuppressLint("QueryPermissionsNeeded")
@@ -257,25 +236,21 @@ public final class Device {
                 return toApp(pm, appInfo);
             }
         }
-
         return null;
     }
 
     @SuppressLint("QueryPermissionsNeeded")
     public static List<DeviceApp> findByName(String searchName) {
-        List<DeviceApp> result = new ArrayList<>();
-        searchName = searchName.toLowerCase(Locale.getDefault());
-
+        String search = searchName.toLowerCase(Locale.getDefault());
         PackageManager pm = FakeContext.get().getPackageManager();
+        List<DeviceApp> apps = new ArrayList<>();
         for (ApplicationInfo appInfo : getLaunchableApps(pm)) {
             String name = pm.getApplicationLabel(appInfo).toString();
-            if (name.toLowerCase(Locale.getDefault()).startsWith(searchName)) {
-                boolean system = (appInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
-                result.add(new DeviceApp(appInfo.packageName, name, system));
+            if (name.toLowerCase(Locale.getDefault()).startsWith(search)) {
+                apps.add(toApp(pm, appInfo));
             }
         }
-
-        return result;
+        return apps;
     }
 
     public static void startApp(String spec, int displayId) {
@@ -328,7 +303,6 @@ public final class Device {
 
     public static void startApp(String packageName, int displayId, boolean forceStop) {
         PackageManager pm = FakeContext.get().getPackageManager();
-
         Intent launchIntent = getLaunchIntent(pm, packageName);
         if (launchIntent == null) {
             Ln.w("Cannot create launch intent for app " + packageName);
@@ -367,15 +341,15 @@ public final class Device {
     }
 
     private static String resolveLauncherComponent(String packageName, int userId) {
-        String out = exec("cmd", "package", "resolve-activity", "--brief", "--user", String.valueOf(userId),
-                "-a", Intent.ACTION_MAIN, "-c", Intent.CATEGORY_LAUNCHER, packageName);
-        if (out == null) {
+        String output = exec("cmd", "package", "resolve-activity", "--brief", "--user", String.valueOf(userId), "-a", Intent.ACTION_MAIN,
+                "-c", Intent.CATEGORY_LAUNCHER, packageName);
+        if (output == null) {
             return null;
         }
-        for (String line : out.split("\\R")) {
-            line = line.trim();
-            if (line.contains("/")) {
-                return line;
+        for (String line : output.split("\\R")) {
+            String trimmed = line.trim();
+            if (trimmed.contains("/")) {
+                return trimmed;
             }
         }
         return null;
@@ -384,7 +358,7 @@ public final class Device {
     private static String exec(String... command) {
         try {
             Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
-            String output = IO.toString(process.getInputStream());
+            String output = IO.readAll(process.getInputStream());
             process.waitFor();
             return output;
         } catch (Exception e) {

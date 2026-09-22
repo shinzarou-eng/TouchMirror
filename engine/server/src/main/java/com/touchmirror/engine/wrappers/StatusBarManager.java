@@ -1,6 +1,7 @@
 package com.touchmirror.engine.wrappers;
 
 import com.touchmirror.engine.util.Ln;
+import com.touchmirror.engine.util.Reflect;
 
 import android.os.IInterface;
 
@@ -9,56 +10,48 @@ import java.lang.reflect.Method;
 public final class StatusBarManager {
 
     private final IInterface manager;
+
     private Method expandNotificationsPanelMethod;
-    private boolean expandNotificationPanelMethodCustomVersion;
+    private boolean expandNotificationsPanelTakesInt;
     private Method expandSettingsPanelMethod;
-    private boolean expandSettingsPanelMethodNewVersion = true;
+    private boolean expandSettingsPanelTakesString;
     private Method collapsePanelsMethod;
 
     static StatusBarManager create() {
-        IInterface manager = ServiceManager.getService("statusbar", "com.android.internal.statusbar.IStatusBarService");
-        return new StatusBarManager(manager);
+        return new StatusBarManager(ServiceManager.getService("statusbar", "com.android.internal.statusbar.IStatusBarService"));
     }
 
     private StatusBarManager(IInterface manager) {
         this.manager = manager;
     }
 
-    private Method getExpandNotificationsPanelMethod() throws NoSuchMethodException {
+    private Method resolveExpandNotificationsPanel() throws NoSuchMethodException {
         if (expandNotificationsPanelMethod == null) {
-            try {
-                expandNotificationsPanelMethod = manager.getClass().getMethod("expandNotificationsPanel");
-            } catch (NoSuchMethodException e) {
-                expandNotificationsPanelMethod = manager.getClass().getMethod("expandNotificationsPanel", int.class);
-                expandNotificationPanelMethodCustomVersion = true;
+            expandNotificationsPanelMethod = Reflect.lookup(manager.getClass(), "expandNotificationsPanel");
+            if (expandNotificationsPanelMethod == null) {
+                expandNotificationsPanelMethod = Reflect.lookupOrThrow(manager.getClass(), "expandNotificationsPanel", int.class);
+                expandNotificationsPanelTakesInt = true;
             }
         }
         return expandNotificationsPanelMethod;
     }
 
-    private Method getExpandSettingsPanel() throws NoSuchMethodException {
+    private Method resolveExpandSettingsPanel() throws NoSuchMethodException {
         if (expandSettingsPanelMethod == null) {
-            try {
-                expandSettingsPanelMethod = manager.getClass().getMethod("expandSettingsPanel", String.class);
-            } catch (NoSuchMethodException e) {
-                expandSettingsPanelMethod = manager.getClass().getMethod("expandSettingsPanel");
-                expandSettingsPanelMethodNewVersion = false;
+            expandSettingsPanelMethod = Reflect.lookup(manager.getClass(), "expandSettingsPanel", String.class);
+            if (expandSettingsPanelMethod == null) {
+                expandSettingsPanelMethod = Reflect.lookupOrThrow(manager.getClass(), "expandSettingsPanel");
+            } else {
+                expandSettingsPanelTakesString = true;
             }
         }
         return expandSettingsPanelMethod;
     }
 
-    private Method getCollapsePanelsMethod() throws NoSuchMethodException {
-        if (collapsePanelsMethod == null) {
-            collapsePanelsMethod = manager.getClass().getMethod("collapsePanels");
-        }
-        return collapsePanelsMethod;
-    }
-
     public void expandNotificationsPanel() {
         try {
-            Method method = getExpandNotificationsPanelMethod();
-            if (expandNotificationPanelMethodCustomVersion) {
+            Method method = resolveExpandNotificationsPanel();
+            if (expandNotificationsPanelTakesInt) {
                 method.invoke(manager, 0);
             } else {
                 method.invoke(manager);
@@ -70,8 +63,8 @@ public final class StatusBarManager {
 
     public void expandSettingsPanel() {
         try {
-            Method method = getExpandSettingsPanel();
-            if (expandSettingsPanelMethodNewVersion) {
+            Method method = resolveExpandSettingsPanel();
+            if (expandSettingsPanelTakesString) {
                 method.invoke(manager, (Object) null);
             } else {
                 method.invoke(manager);
@@ -83,8 +76,10 @@ public final class StatusBarManager {
 
     public void collapsePanels() {
         try {
-            Method method = getCollapsePanelsMethod();
-            method.invoke(manager);
+            if (collapsePanelsMethod == null) {
+                collapsePanelsMethod = Reflect.lookupOrThrow(manager.getClass(), "collapsePanels");
+            }
+            collapsePanelsMethod.invoke(manager);
         } catch (ReflectiveOperationException e) {
             Ln.e("Could not invoke method", e);
         }

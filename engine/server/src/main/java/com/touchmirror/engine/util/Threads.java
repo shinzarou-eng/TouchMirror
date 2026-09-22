@@ -10,31 +10,30 @@ public final class Threads {
     }
 
     public static <T> T executeSynchronouslyOn(Handler handler, Callable<T> callable) throws Throwable {
-        final Semaphore sem = new Semaphore(0);
+        Semaphore done = new Semaphore(0);
         @SuppressWarnings("unchecked")
-        T[] resultRef = (T[]) new Object[1];
-        Throwable[] throwableRef = new Throwable[1];
+        T[] result = (T[]) new Object[1];
+        Throwable[] failure = new Throwable[1];
 
         handler.post(() -> {
             try {
-                resultRef[0] = callable.call();
-            } catch (Throwable throwable) {
-                throwableRef[0] = throwable;
+                result[0] = callable.call();
+            } catch (Throwable t) {
+                failure[0] = t;
             } finally {
-                sem.release();
+                done.release();
             }
         });
 
         try {
-            sem.acquire();
+            done.acquire();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
 
-        if (throwableRef[0] != null) {
-            throw throwableRef[0];
+        if (failure[0] != null) {
+            throw failure[0];
         }
-
-        return resultRef[0];
+        return result[0];
     }
 }

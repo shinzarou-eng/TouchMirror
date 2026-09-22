@@ -20,17 +20,8 @@ public final class ContentProvider implements Closeable {
     public static final String TABLE_SECURE = "secure";
     public static final String TABLE_GLOBAL = "global";
 
-    private static final String CALL_METHOD_GET_SYSTEM = "GET_system";
-    private static final String CALL_METHOD_GET_SECURE = "GET_secure";
-    private static final String CALL_METHOD_GET_GLOBAL = "GET_global";
-
-    private static final String CALL_METHOD_PUT_SYSTEM = "PUT_system";
-    private static final String CALL_METHOD_PUT_SECURE = "PUT_secure";
-    private static final String CALL_METHOD_PUT_GLOBAL = "PUT_global";
-
-    private static final String CALL_METHOD_USER_KEY = "_user";
-
-    private static final String NAME_VALUE_TABLE_VALUE = "value";
+    private static final String USER_KEY = "_user";
+    private static final String VALUE_KEY = "value";
 
     private final ActivityManager manager;
     private final Object provider;
@@ -38,7 +29,7 @@ public final class ContentProvider implements Closeable {
     private final IBinder token;
 
     private Method callMethod;
-    private int callMethodVersion;
+    private int callVariant = -1;
 
     ContentProvider(ActivityManager manager, Object provider, String name, IBinder token) {
         this.manager = manager;
@@ -48,23 +39,23 @@ public final class ContentProvider implements Closeable {
     }
 
     @SuppressLint("PrivateApi")
-    private Method getCallMethod() throws NoSuchMethodException {
+    private Method resolveCall() throws NoSuchMethodException {
         if (callMethod == null) {
+            Class<?> cls = provider.getClass();
             if (Build.VERSION.SDK_INT >= AndroidVersions.API_31_ANDROID_12) {
-                callMethod = provider.getClass().getMethod("call", AttributionSource.class, String.class, String.class, String.class, Bundle.class);
-                callMethodVersion = 0;
+                callMethod = cls.getMethod("call", AttributionSource.class, String.class, String.class, String.class, Bundle.class);
+                callVariant = 0;
             } else {
                 try {
-                    callMethod = provider.getClass()
-                            .getMethod("call", String.class, String.class, String.class, String.class, String.class, Bundle.class);
-                    callMethodVersion = 1;
+                    callMethod = cls.getMethod("call", String.class, String.class, String.class, String.class, String.class, Bundle.class);
+                    callVariant = 1;
                 } catch (NoSuchMethodException e1) {
                     try {
-                        callMethod = provider.getClass().getMethod("call", String.class, String.class, String.class, String.class, Bundle.class);
-                        callMethodVersion = 2;
+                        callMethod = cls.getMethod("call", String.class, String.class, String.class, String.class, Bundle.class);
+                        callVariant = 2;
                     } catch (NoSuchMethodException e2) {
-                        callMethod = provider.getClass().getMethod("call", String.class, String.class, String.class, Bundle.class);
-                        callMethodVersion = 3;
+                        callMethod = cls.getMethod("call", String.class, String.class, String.class, Bundle.class);
+                        callVariant = 3;
                     }
                 }
             }
@@ -72,86 +63,79 @@ public final class ContentProvider implements Closeable {
         return callMethod;
     }
 
-    private Bundle call(String callMethod, String arg, Bundle extras) throws ReflectiveOperationException {
+    private Bundle call(String method, String key, Bundle extras) throws ReflectiveOperationException {
         try {
-            Method method = getCallMethod();
+            Method resolved = resolveCall();
             Object[] args;
-
-            if (Build.VERSION.SDK_INT >= AndroidVersions.API_31_ANDROID_12 && callMethodVersion == 0) {
-                args = new Object[]{FakeContext.get().getAttributionSource(), "settings", callMethod, arg, extras};
-            } else {
-                switch (callMethodVersion) {
-                    case 1:
-                        args = new Object[]{FakeContext.PACKAGE_NAME, null, "settings", callMethod, arg, extras};
-                        break;
-                    case 2:
-                        args = new Object[]{FakeContext.PACKAGE_NAME, "settings", callMethod, arg, extras};
-                        break;
-                    default:
-                        args = new Object[]{FakeContext.PACKAGE_NAME, callMethod, arg, extras};
-                        break;
-                }
+            switch (callVariant) {
+                case 0:
+                    args = new Object[]{FakeContext.get().getAttributionSource(), "settings", method, key, extras};
+                    break;
+                case 1:
+                    args = new Object[]{FakeContext.PACKAGE_NAME, null, "settings", method, key, extras};
+                    break;
+                case 2:
+                    args = new Object[]{FakeContext.PACKAGE_NAME, "settings", method, key, extras};
+                    break;
+                default:
+                    args = new Object[]{FakeContext.PACKAGE_NAME, method, key, extras};
+                    break;
             }
-            return (Bundle) method.invoke(provider, args);
+            return (Bundle) resolved.invoke(provider, args);
         } catch (ReflectiveOperationException e) {
             Ln.e("Could not invoke method", e);
             throw e;
         }
     }
 
+    @Override
     public void close() {
         manager.removeContentProviderExternal(name, token);
     }
 
-    private static String getGetMethod(String table) {
+    private static String getMethod(String table) {
         switch (table) {
             case TABLE_SECURE:
-                return CALL_METHOD_GET_SECURE;
+                return "GET_secure";
             case TABLE_SYSTEM:
-                return CALL_METHOD_GET_SYSTEM;
+                return "GET_system";
             case TABLE_GLOBAL:
-                return CALL_METHOD_GET_GLOBAL;
+                return "GET_global";
             default:
                 throw new IllegalArgumentException("Invalid table: " + table);
         }
     }
 
-    private static String getPutMethod(String table) {
+    private static String putMethod(String table) {
         switch (table) {
             case TABLE_SECURE:
-                return CALL_METHOD_PUT_SECURE;
+                return "PUT_secure";
             case TABLE_SYSTEM:
-                return CALL_METHOD_PUT_SYSTEM;
+                return "PUT_system";
             case TABLE_GLOBAL:
-                return CALL_METHOD_PUT_GLOBAL;
+                return "PUT_global";
             default:
                 throw new IllegalArgumentException("Invalid table: " + table);
         }
     }
 
     public String getValue(String table, String key) throws SettingsException {
-        String method = getGetMethod(table);
-        Bundle arg = new Bundle();
-        arg.putInt(CALL_METHOD_USER_KEY, FakeContext.ROOT_UID);
+        Bundle extras = new Bundle();
+        extras.putInt(USER_KEY, FakeContext.ROOT_UID);
         try {
-            Bundle bundle = call(method, key, arg);
-            if (bundle == null) {
-                return null;
-            }
-            return bundle.getString("value");
+            Bundle bundle = call(getMethod(table), key, extras);
+            return bundle == null ? null : bundle.getString(VALUE_KEY);
         } catch (Exception e) {
             throw new SettingsException(table, "get", key, null, e);
         }
-
     }
 
     public void putValue(String table, String key, String value) throws SettingsException {
-        String method = getPutMethod(table);
-        Bundle arg = new Bundle();
-        arg.putInt(CALL_METHOD_USER_KEY, FakeContext.ROOT_UID);
-        arg.putString(NAME_VALUE_TABLE_VALUE, value);
+        Bundle extras = new Bundle();
+        extras.putInt(USER_KEY, FakeContext.ROOT_UID);
+        extras.putString(VALUE_KEY, value);
         try {
-            call(method, key, arg);
+            call(putMethod(table), key, extras);
         } catch (Exception e) {
             throw new SettingsException(table, "put", key, value, e);
         }

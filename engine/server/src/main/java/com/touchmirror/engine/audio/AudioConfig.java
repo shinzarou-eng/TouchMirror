@@ -3,6 +3,7 @@ package com.touchmirror.engine.audio;
 import android.media.AudioFormat;
 
 public final class AudioConfig {
+
     public static final int SAMPLE_RATE = 48000;
     public static final int CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_STEREO;
     public static final int CHANNELS = 2;
@@ -16,10 +17,10 @@ public final class AudioConfig {
     }
 
     public static AudioFormat createAudioFormat() {
-        AudioFormat.Builder builder = new AudioFormat.Builder();
-        builder.setEncoding(ENCODING);
-        builder.setSampleRate(SAMPLE_RATE);
-        builder.setChannelMask(CHANNEL_CONFIG);
-        return builder.build();
+        return new AudioFormat.Builder()
+                .setEncoding(ENCODING)
+                .setSampleRate(SAMPLE_RATE)
+                .setChannelMask(CHANNEL_CONFIG)
+                .build();
     }
 }

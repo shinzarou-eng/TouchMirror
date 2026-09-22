@@ -1,7 +1,6 @@
 package com.touchmirror.engine.util;
 
 import com.touchmirror.engine.AndroidVersions;
-import com.touchmirror.engine.BuildConfig;
 
 import android.os.Build;
 import android.system.ErrnoException;
@@ -18,10 +17,10 @@ public final class IO {
     private IO() {
     }
 
-    private static int write(FileDescriptor fd, ByteBuffer from) throws IOException {
+    private static int writeRetryOnInterrupt(FileDescriptor fd, ByteBuffer buffer) throws IOException {
         while (true) {
             try {
-                return Os.write(fd, from);
+                return Os.write(fd, buffer);
             } catch (ErrnoException e) {
                 if (e.errno != OsConstants.EINTR) {
                     throw new IOException(e);
@@ -30,23 +29,21 @@ public final class IO {
         }
     }
 
-    public static void writeFully(FileDescriptor fd, ByteBuffer from) throws IOException {
+    public static void writeFully(FileDescriptor fd, ByteBuffer buffer) throws IOException {
         if (Build.VERSION.SDK_INT >= AndroidVersions.API_23_ANDROID_6_0) {
-            while (from.hasRemaining()) {
-                write(fd, from);
+            while (buffer.hasRemaining()) {
+                writeRetryOnInterrupt(fd, buffer);
             }
-        } else {
-            int position = from.position();
-            int remaining = from.remaining();
-            while (remaining > 0) {
-                int w = write(fd, from);
-                if (BuildConfig.DEBUG && w < 0) {
-                    throw new AssertionError("Os.write() returned a negative value (" + w + ")");
-                }
-                remaining -= w;
-                position += w;
-                from.position(position);
-            }
+            return;
+        }
+
+        int position = buffer.position();
+        int remaining = buffer.remaining();
+        while (remaining > 0) {
+            int written = writeRetryOnInterrupt(fd, buffer);
+            remaining -= written;
+            position += written;
+            buffer.position(position);
         }
     }
 
@@ -54,9 +51,9 @@ public final class IO {
         writeFully(fd, ByteBuffer.wrap(buffer, offset, len));
     }
 
-    public static String toString(InputStream inputStream) {
+    public static String readAll(InputStream stream) {
         StringBuilder builder = new StringBuilder();
-        Scanner scanner = new Scanner(inputStream);
+        Scanner scanner = new Scanner(stream);
         while (scanner.hasNextLine()) {
             builder.append(scanner.nextLine()).append('\n');
         }

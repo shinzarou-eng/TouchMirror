@@ -51,7 +51,7 @@ public static class FirewallHelper
             var exe = i.Exe.Replace("'", "''");
             var name = i.Name.Replace("'", "''");
             sb.AppendLine($"netsh advfirewall firewall delete rule name=all program='{exe}' | Out-Null");
-            sb.AppendLine($"netsh advfirewall firewall add rule name='{name}' dir=in action=allow program='{exe}' enable=yes profile=any | Out-Null");
+            sb.AppendLine($"netsh advfirewall firewall add rule name='{name}' dir=in action=allow program='{exe}' enable=yes profile=any remoteip=localsubnet | Out-Null");
         }
         var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(sb.ToString()));
         try

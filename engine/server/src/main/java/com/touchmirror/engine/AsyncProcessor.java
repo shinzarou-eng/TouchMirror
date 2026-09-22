@@ -1,6 +1,7 @@
 package com.touchmirror.engine;
 
 public interface AsyncProcessor {
+
     interface TerminationListener {
         void onTerminated(boolean fatalError);
     }

@@ -3,6 +3,7 @@ package com.touchmirror.engine.model;
 import java.util.Objects;
 
 public class Position {
+
     private final Point point;
     private final Size screenSize;
 
@@ -41,7 +42,7 @@ public class Position {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
+        if (!(o instanceof Position)) {
             return false;
         }
         Position position = (Position) o;
@@ -57,5 +58,4 @@ public class Position {
     public String toString() {
         return "Position{" + "point=" + point + ", screenSize=" + screenSize + '}';
     }
-
 }

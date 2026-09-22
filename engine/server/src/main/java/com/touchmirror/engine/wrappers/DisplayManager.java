@@ -6,6 +6,7 @@ import com.touchmirror.engine.display.DisplayInfo;
 import com.touchmirror.engine.model.Size;
 import com.touchmirror.engine.util.Command;
 import com.touchmirror.engine.util.Ln;
+import com.touchmirror.engine.util.Reflect;
 
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
@@ -32,23 +33,23 @@ public final class DisplayManager {
     }
 
     public static final class DisplayListenerHandle {
-        private final Object displayListenerProxy;
-        private DisplayListenerHandle(Object displayListenerProxy) {
-            this.displayListenerProxy = displayListenerProxy;
+        private final Object proxy;
+
+        private DisplayListenerHandle(Object proxy) {
+            this.proxy = proxy;
         }
     }
 
     private final Object manager;
+
     private Method getDisplayInfoMethod;
     private Method createVirtualDisplayMethod;
     private Method requestDisplayPowerMethod;
 
     static DisplayManager create() {
         try {
-            Class<?> clazz = Class.forName("android.hardware.display.DisplayManagerGlobal");
-            Method getInstanceMethod = clazz.getDeclaredMethod("getInstance");
-            Object dmg = getInstanceMethod.invoke(null);
-            return new DisplayManager(dmg);
+            Object global = Class.forName("android.hardware.display.DisplayManagerGlobal").getDeclaredMethod("getInstance").invoke(null);
+            return new DisplayManager(global);
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }
@@ -59,28 +60,28 @@ public final class DisplayManager {
     }
 
     public static DisplayInfo parseDisplayInfo(String dumpsysDisplayOutput, int displayId) {
-        Pattern regex = Pattern.compile(
+        Pattern pattern = Pattern.compile(
                 "^    mOverrideDisplayInfo=DisplayInfo\\{\".*?, displayId " + displayId + ".*?(, FLAG_.*)?, real ([0-9]+) x ([0-9]+).*?, "
                         + "rotation ([0-9]+).*?, density ([0-9]+).*?, layerStack ([0-9]+)",
                 Pattern.MULTILINE);
-        Matcher m = regex.matcher(dumpsysDisplayOutput);
-        if (!m.find()) {
+        Matcher matcher = pattern.matcher(dumpsysDisplayOutput);
+        if (!matcher.find()) {
             return null;
         }
-        int flags = parseDisplayFlags(m.group(1));
-        int width = Integer.parseInt(m.group(2));
-        int height = Integer.parseInt(m.group(3));
-        int rotation = Integer.parseInt(m.group(4));
-        int density = Integer.parseInt(m.group(5));
-        int layerStack = Integer.parseInt(m.group(6));
+
+        int flags = parseDisplayFlags(matcher.group(1));
+        int width = Integer.parseInt(matcher.group(2));
+        int height = Integer.parseInt(matcher.group(3));
+        int rotation = Integer.parseInt(matcher.group(4));
+        int density = Integer.parseInt(matcher.group(5));
+        int layerStack = Integer.parseInt(matcher.group(6));
 
         return new DisplayInfo(displayId, new Size(width, height), rotation, layerStack, flags, density, null);
     }
 
-    private static DisplayInfo getDisplayInfoFromDumpsysDisplay(int displayId) {
+    private static DisplayInfo getDisplayInfoFromDumpsys(int displayId) {
         try {
-            String dumpsysDisplayOutput = Command.execReadOutput("dumpsys", "display");
-            return parseDisplayInfo(dumpsysDisplayOutput, displayId);
+            return parseDisplayInfo(Command.execReadOutput("dumpsys", "display"), displayId);
         } catch (Exception e) {
             Ln.e("Could not get display info from \"dumpsys display\" output", e);
             return null;
@@ -93,33 +94,27 @@ public final class DisplayManager {
         }
 
         int flags = 0;
-        Pattern regex = Pattern.compile("FLAG_[A-Z_]+");
-        Matcher m = regex.matcher(text);
-        while (m.find()) {
-            String flagString = m.group();
+        Matcher matcher = Pattern.compile("FLAG_[A-Z_]+").matcher(text);
+        while (matcher.find()) {
             try {
-                Field filed = Display.class.getDeclaredField(flagString);
-                flags |= filed.getInt(null);
+                Field field = Display.class.getDeclaredField(matcher.group());
+                flags |= field.getInt(null);
             } catch (ReflectiveOperationException e) {
             }
         }
         return flags;
     }
 
-    private synchronized Method getGetDisplayInfoMethod() throws NoSuchMethodException {
-        if (getDisplayInfoMethod == null) {
-            getDisplayInfoMethod = manager.getClass().getMethod("getDisplayInfo", int.class);
-        }
-        return getDisplayInfoMethod;
-    }
-
     public DisplayInfo getDisplayInfo(int displayId) {
         try {
-            Method method = getGetDisplayInfoMethod();
-            Object displayInfo = method.invoke(manager, displayId);
-            if (displayInfo == null) {
-                return getDisplayInfoFromDumpsysDisplay(displayId);
+            if (getDisplayInfoMethod == null) {
+                getDisplayInfoMethod = Reflect.lookupOrThrow(manager.getClass(), "getDisplayInfo", int.class);
             }
+            Object displayInfo = getDisplayInfoMethod.invoke(manager, displayId);
+            if (displayInfo == null) {
+                return getDisplayInfoFromDumpsys(displayId);
+            }
+
             Class<?> cls = displayInfo.getClass();
             int width = cls.getDeclaredField("logicalWidth").getInt(displayInfo);
             int height = cls.getDeclaredField("logicalHeight").getInt(displayInfo);
@@ -147,39 +142,29 @@ public final class DisplayManager {
         }
     }
 
-    private Method getCreateVirtualDisplayMethod() throws NoSuchMethodException {
-        if (createVirtualDisplayMethod == null) {
-            createVirtualDisplayMethod = android.hardware.display.DisplayManager.class
-                    .getMethod("createVirtualDisplay", String.class, int.class, int.class, int.class, Surface.class);
-        }
-        return createVirtualDisplayMethod;
-    }
-
     public VirtualDisplay createVirtualDisplay(String name, int width, int height, int displayIdToMirror, Surface surface) throws Exception {
-        Method method = getCreateVirtualDisplayMethod();
-        return (VirtualDisplay) method.invoke(null, name, width, height, displayIdToMirror, surface);
+        if (createVirtualDisplayMethod == null) {
+            createVirtualDisplayMethod = Reflect.lookupOrThrow(android.hardware.display.DisplayManager.class, "createVirtualDisplay",
+                    String.class, int.class, int.class, int.class, Surface.class);
+        }
+        return (VirtualDisplay) createVirtualDisplayMethod.invoke(null, name, width, height, displayIdToMirror, surface);
     }
 
     public VirtualDisplay createNewVirtualDisplay(String name, int width, int height, int dpi, Surface surface, int flags) throws Exception {
-        Constructor<android.hardware.display.DisplayManager> ctor = android.hardware.display.DisplayManager.class.getDeclaredConstructor(
-                Context.class);
+        Constructor<android.hardware.display.DisplayManager> ctor =
+                android.hardware.display.DisplayManager.class.getDeclaredConstructor(Context.class);
         ctor.setAccessible(true);
-        android.hardware.display.DisplayManager dm = ctor.newInstance(FakeContext.get());
-        return dm.createVirtualDisplay(name, width, height, dpi, surface, flags);
-    }
-
-    private Method getRequestDisplayPowerMethod() throws NoSuchMethodException {
-        if (requestDisplayPowerMethod == null) {
-            requestDisplayPowerMethod = manager.getClass().getMethod("requestDisplayPower", int.class, boolean.class);
-        }
-        return requestDisplayPowerMethod;
+        return ctor.newInstance(FakeContext.get()).createVirtualDisplay(name, width, height, dpi, surface, flags);
     }
 
     @TargetApi(AndroidVersions.API_35_ANDROID_15)
     public boolean requestDisplayPower(int displayId, boolean on) {
         try {
-            Method method = getRequestDisplayPowerMethod();
-            return (boolean) method.invoke(manager, displayId, on);
+            if (requestDisplayPowerMethod == null) {
+                requestDisplayPowerMethod = Reflect.lookupOrThrow(manager.getClass(), "requestDisplayPower", int.class, boolean.class);
+            }
+            Object result = requestDisplayPowerMethod.invoke(manager, displayId, on);
+            return result != null && (boolean) result;
         } catch (ReflectiveOperationException e) {
             Ln.e("Could not invoke method", e);
             return false;
@@ -188,47 +173,38 @@ public final class DisplayManager {
 
     public DisplayListenerHandle registerDisplayListener(DisplayListener listener, Handler handler) {
         try {
-            Class<?> displayListenerClass = Class.forName("android.hardware.display.DisplayManager$DisplayListener");
-            Object displayListenerProxy = Proxy.newProxyInstance(
-                    ClassLoader.getSystemClassLoader(),
-                    new Class[] {displayListenerClass},
-                    (proxy, method, args) -> {
-                        if ("onDisplayChanged".equals(method.getName())) {
-                            listener.onDisplayChanged((int) args[0]);
-                        }
-                        if ("toString".equals(method.getName())) {
-                            return "DisplayListener";
-                        }
-                        return null;
-                    });
-            try {
-                manager.getClass()
-                        .getMethod("registerDisplayListener", displayListenerClass, Handler.class, long.class, String.class)
-                        .invoke(manager, displayListenerProxy, handler, EVENT_FLAG_DISPLAY_CHANGED, FakeContext.PACKAGE_NAME);
-            } catch (NoSuchMethodException e) {
-                try {
-                    manager.getClass()
-                            .getMethod("registerDisplayListener", displayListenerClass, Handler.class, long.class)
-                            .invoke(manager, displayListenerProxy, handler, EVENT_FLAG_DISPLAY_CHANGED);
-                } catch (NoSuchMethodException e2) {
-                    manager.getClass()
-                            .getMethod("registerDisplayListener", displayListenerClass, Handler.class)
-                            .invoke(manager, displayListenerProxy, handler);
+            Class<?> listenerClass = Class.forName("android.hardware.display.DisplayManager$DisplayListener");
+            Object proxy = Proxy.newProxyInstance(ClassLoader.getSystemClassLoader(), new Class<?>[]{listenerClass}, (p, method, args) -> {
+                if ("onDisplayChanged".equals(method.getName())) {
+                    listener.onDisplayChanged((int) args[0]);
                 }
+                if ("toString".equals(method.getName())) {
+                    return "DisplayListener";
+                }
+                return null;
+            });
+
+            Class<?> cls = manager.getClass();
+            Method register = Reflect.lookup(cls, "registerDisplayListener", listenerClass, Handler.class, long.class, String.class);
+            if (register != null) {
+                register.invoke(manager, proxy, handler, EVENT_FLAG_DISPLAY_CHANGED, FakeContext.PACKAGE_NAME);
+            } else if ((register = Reflect.lookup(cls, "registerDisplayListener", listenerClass, Handler.class, long.class)) != null) {
+                register.invoke(manager, proxy, handler, EVENT_FLAG_DISPLAY_CHANGED);
+            } else {
+                Reflect.lookupOrThrow(cls, "registerDisplayListener", listenerClass, Handler.class).invoke(manager, proxy, handler);
             }
 
-            return new DisplayListenerHandle(displayListenerProxy);
+            return new DisplayListenerHandle(proxy);
         } catch (Exception e) {
             Ln.e("Could not register display listener", e);
+            return null;
         }
-
-        return null;
     }
 
-    public void unregisterDisplayListener(DisplayListenerHandle listener) {
+    public void unregisterDisplayListener(DisplayListenerHandle handle) {
         try {
-            Class<?> displayListenerClass = Class.forName("android.hardware.display.DisplayManager$DisplayListener");
-            manager.getClass().getMethod("unregisterDisplayListener", displayListenerClass).invoke(manager, listener.displayListenerProxy);
+            Class<?> listenerClass = Class.forName("android.hardware.display.DisplayManager$DisplayListener");
+            manager.getClass().getMethod("unregisterDisplayListener", listenerClass).invoke(manager, handle.proxy);
         } catch (Exception e) {
             Ln.e("Could not unregister display listener", e);
         }

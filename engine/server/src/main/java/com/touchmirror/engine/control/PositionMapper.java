@@ -16,14 +16,10 @@ public final class PositionMapper {
     }
 
     public static PositionMapper create(Size videoSize, AffineMatrix filterTransform, Size targetSize) {
-        boolean convertToPixels = !videoSize.equals(targetSize) || filterTransform != null;
         AffineMatrix transform = filterTransform;
-        if (convertToPixels) {
-            AffineMatrix inputTransform = AffineMatrix.ndcFromPixels(videoSize);
-            AffineMatrix outputTransform = AffineMatrix.ndcToPixels(targetSize);
-            transform = outputTransform.multiply(transform).multiply(inputTransform);
+        if (!videoSize.equals(targetSize) || filterTransform != null) {
+            transform = AffineMatrix.ndcToPixels(targetSize).multiply(transform).multiply(AffineMatrix.ndcFromPixels(videoSize));
         }
-
         return new PositionMapper(videoSize, transform);
     }
 
@@ -32,15 +28,11 @@ public final class PositionMapper {
     }
 
     public Point map(Position position) {
-        Size clientVideoSize = position.getScreenSize();
-        if (!videoSize.equals(clientVideoSize)) {
+        if (!videoSize.equals(position.getScreenSize())) {
             return null;
         }
 
         Point point = position.getPoint();
-        if (videoToDeviceMatrix != null) {
-            point = videoToDeviceMatrix.apply(point);
-        }
-        return point;
+        return videoToDeviceMatrix != null ? videoToDeviceMatrix.apply(point) : point;
     }
 }

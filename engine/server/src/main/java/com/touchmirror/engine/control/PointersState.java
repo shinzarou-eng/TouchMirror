@@ -15,27 +15,23 @@ public class PointersState {
 
     private int indexOf(long id) {
         for (int i = 0; i < pointers.size(); ++i) {
-            Pointer pointer = pointers.get(i);
-            if (pointer.getId() == id) {
+            if (pointers.get(i).getId() == id) {
                 return i;
             }
         }
         return -1;
     }
 
-    private boolean isLocalIdAvailable(int localId) {
-        for (int i = 0; i < pointers.size(); ++i) {
-            Pointer pointer = pointers.get(i);
-            if (pointer.getLocalId() == localId) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     private int nextUnusedLocalId() {
         for (int localId = 0; localId < MAX_POINTERS; ++localId) {
-            if (isLocalIdAvailable(localId)) {
+            boolean taken = false;
+            for (Pointer pointer : pointers) {
+                if (pointer.getLocalId() == localId) {
+                    taken = true;
+                    break;
+                }
+            }
+            if (!taken) {
                 return localId;
             }
         }
@@ -56,10 +52,9 @@ public class PointersState {
         }
         int localId = nextUnusedLocalId();
         if (localId == -1) {
-            throw new AssertionError("pointers.size() < maxFingers implies that a local id is available");
+            throw new AssertionError("pointers.size() < MAX_POINTERS implies that a local id is available");
         }
-        Pointer pointer = new Pointer(id, localId);
-        pointers.add(pointer);
+        pointers.add(new Pointer(id, localId));
         return pointers.size() - 1;
     }
 
@@ -67,22 +62,19 @@ public class PointersState {
         int count = pointers.size();
         for (int i = 0; i < count; ++i) {
             Pointer pointer = pointers.get(i);
-
             props[i].id = pointer.getLocalId();
-
             Point point = pointer.getPoint();
             coords[i].x = point.getX();
             coords[i].y = point.getY();
             coords[i].pressure = pointer.getPressure();
         }
-        cleanUp();
+        removeReleased();
         return count;
     }
 
-    private void cleanUp() {
+    private void removeReleased() {
         for (int i = pointers.size() - 1; i >= 0; --i) {
-            Pointer pointer = pointers.get(i);
-            if (pointer.isUp()) {
+            if (pointers.get(i).isUp()) {
                 pointers.remove(i);
             }
         }

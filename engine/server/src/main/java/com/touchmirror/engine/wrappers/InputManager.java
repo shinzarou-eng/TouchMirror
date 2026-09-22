@@ -1,11 +1,10 @@
 package com.touchmirror.engine.wrappers;
 
-import com.touchmirror.engine.AndroidVersions;
 import com.touchmirror.engine.FakeContext;
 import com.touchmirror.engine.util.Ln;
+import com.touchmirror.engine.util.Reflect;
 
 import android.annotation.SuppressLint;
-import android.annotation.TargetApi;
 import android.view.InputEvent;
 import android.view.MotionEvent;
 
@@ -19,18 +18,17 @@ public final class InputManager {
     public static final int INJECT_INPUT_EVENT_MODE_WAIT_FOR_RESULT = 1;
     public static final int INJECT_INPUT_EVENT_MODE_WAIT_FOR_FINISH = 2;
 
-    private final android.hardware.input.InputManager manager;
-    private long lastPermissionLogDate;
-
     private static Method injectInputEventMethod;
     private static Method setDisplayIdMethod;
     private static Method setActionButtonMethod;
-    private static Method addUniqueIdAssociationByPortMethod;
-    private static Method removeUniqueIdAssociationByPortMethod;
+
+    private final android.hardware.input.InputManager manager;
+
+    private long lastPermissionLogTime;
 
     static InputManager create() {
-        android.hardware.input.InputManager manager = (android.hardware.input.InputManager) FakeContext.get()
-                .getSystemService(FakeContext.INPUT_SERVICE);
+        android.hardware.input.InputManager manager =
+                (android.hardware.input.InputManager) FakeContext.get().getSystemService(FakeContext.INPUT_SERVICE);
         return new InputManager(manager);
     }
 
@@ -38,31 +36,28 @@ public final class InputManager {
         this.manager = manager;
     }
 
-    private static Method getInjectInputEventMethod() throws NoSuchMethodException {
+    private static Method resolveInjectInputEvent() throws NoSuchMethodException {
         if (injectInputEventMethod == null) {
-            injectInputEventMethod = android.hardware.input.InputManager.class.getMethod("injectInputEvent", InputEvent.class, int.class);
+            injectInputEventMethod = Reflect.lookupOrThrow(android.hardware.input.InputManager.class, "injectInputEvent", InputEvent.class,
+                    int.class);
         }
         return injectInputEventMethod;
     }
 
-    public boolean injectInputEvent(InputEvent inputEvent, int mode) {
+    public boolean injectInputEvent(InputEvent event, int mode) {
         try {
-            Method method = getInjectInputEventMethod();
-            return (boolean) method.invoke(manager, inputEvent, mode);
+            return (boolean) resolveInjectInputEvent().invoke(manager, event, mode);
         } catch (ReflectiveOperationException e) {
-            if (e instanceof InvocationTargetException) {
-                Throwable cause = e.getCause();
-                if (cause instanceof SecurityException) {
-                    String message = e.getCause().getMessage();
-                    if (message != null && message.contains("INJECT_EVENTS permission")) {
-                        long now = System.currentTimeMillis();
-                        if (lastPermissionLogDate <= now - 3000) {
-                            Ln.e(message);
-                            Ln.e("Make sure you have enabled \"USB debugging (Security Settings)\" and then rebooted your device.");
-                            lastPermissionLogDate = now;
-                        }
-                        return false;
+            if (e instanceof InvocationTargetException && e.getCause() instanceof SecurityException) {
+                String message = e.getCause().getMessage();
+                if (message != null && message.contains("INJECT_EVENTS permission")) {
+                    long now = System.currentTimeMillis();
+                    if (now - lastPermissionLogTime > 3000) {
+                        Ln.e(message);
+                        Ln.e("Make sure you have enabled \"USB debugging (Security Settings)\" and then rebooted your device.");
+                        lastPermissionLogTime = now;
                     }
+                    return false;
                 }
             }
             Ln.e("Could not invoke method", e);
@@ -70,17 +65,16 @@ public final class InputManager {
         }
     }
 
-    private static Method getSetDisplayIdMethod() throws NoSuchMethodException {
+    private static Method resolveSetDisplayId() throws NoSuchMethodException {
         if (setDisplayIdMethod == null) {
-            setDisplayIdMethod = InputEvent.class.getMethod("setDisplayId", int.class);
+            setDisplayIdMethod = Reflect.lookupOrThrow(InputEvent.class, "setDisplayId", int.class);
         }
         return setDisplayIdMethod;
     }
 
-    public static boolean setDisplayId(InputEvent inputEvent, int displayId) {
+    public static boolean setDisplayId(InputEvent event, int displayId) {
         try {
-            Method method = getSetDisplayIdMethod();
-            method.invoke(inputEvent, displayId);
+            resolveSetDisplayId().invoke(event, displayId);
             return true;
         } catch (ReflectiveOperationException e) {
             Ln.e("Cannot associate a display id to the input event", e);
@@ -88,57 +82,20 @@ public final class InputManager {
         }
     }
 
-    private static Method getSetActionButtonMethod() throws NoSuchMethodException {
+    private static Method resolveSetActionButton() throws NoSuchMethodException {
         if (setActionButtonMethod == null) {
-            setActionButtonMethod = MotionEvent.class.getMethod("setActionButton", int.class);
+            setActionButtonMethod = Reflect.lookupOrThrow(MotionEvent.class, "setActionButton", int.class);
         }
         return setActionButtonMethod;
     }
 
-    public static boolean setActionButton(MotionEvent motionEvent, int actionButton) {
+    public static boolean setActionButton(MotionEvent event, int actionButton) {
         try {
-            Method method = getSetActionButtonMethod();
-            method.invoke(motionEvent, actionButton);
+            resolveSetActionButton().invoke(event, actionButton);
             return true;
         } catch (ReflectiveOperationException e) {
             Ln.e("Cannot set action button on MotionEvent", e);
             return false;
-        }
-    }
-
-    private static Method getAddUniqueIdAssociationByPortMethod() throws NoSuchMethodException {
-        if (addUniqueIdAssociationByPortMethod == null) {
-            addUniqueIdAssociationByPortMethod = android.hardware.input.InputManager.class.getMethod(
-                    "addUniqueIdAssociationByPort", String.class, String.class);
-        }
-        return addUniqueIdAssociationByPortMethod;
-    }
-
-    @TargetApi(AndroidVersions.API_35_ANDROID_15)
-    public void addUniqueIdAssociationByPort(String inputPort, String uniqueId) {
-        try {
-            Method method = getAddUniqueIdAssociationByPortMethod();
-            method.invoke(manager, inputPort, uniqueId);
-        } catch (ReflectiveOperationException e) {
-            Ln.e("Cannot add unique id association by port", e);
-        }
-    }
-
-    private static Method getRemoveUniqueIdAssociationByPortMethod() throws NoSuchMethodException {
-        if (removeUniqueIdAssociationByPortMethod == null) {
-            removeUniqueIdAssociationByPortMethod = android.hardware.input.InputManager.class.getMethod(
-                    "removeUniqueIdAssociationByPort", String.class);
-        }
-        return removeUniqueIdAssociationByPortMethod;
-    }
-
-    @TargetApi(AndroidVersions.API_35_ANDROID_15)
-    public void removeUniqueIdAssociationByPort(String inputPort) {
-        try {
-            Method method = getRemoveUniqueIdAssociationByPortMethod();
-            method.invoke(manager, inputPort);
-        } catch (ReflectiveOperationException e) {
-            Ln.e("Cannot remove unique id association by port", e);
         }
     }
 }

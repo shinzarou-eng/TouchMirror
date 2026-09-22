@@ -24,34 +24,22 @@ public class VideoFilter {
     }
 
     public AffineMatrix getInverseTransform() {
-        if (transform == null) {
-            return null;
-        }
-        return transform.invert();
-    }
-
-    private static Rect transposeRect(Rect rect) {
-        return new Rect(rect.top, rect.left, rect.bottom, rect.right);
+        return transform != null ? transform.invert() : null;
     }
 
     public void addCrop(Rect crop, boolean transposed) {
         if (transposed) {
-            crop = transposeRect(crop);
+            crop = new Rect(crop.top, crop.left, crop.bottom, crop.right);
         }
 
         double inputWidth = size.getWidth();
         double inputHeight = size.getHeight();
-
         if (crop.left < 0 || crop.top < 0 || crop.right > inputWidth || crop.bottom > inputHeight) {
             throw new IllegalArgumentException("Crop " + crop + " exceeds the input area (" + size + ")");
         }
 
-        double x = crop.left / inputWidth;
-        double y = 1 - (crop.bottom / inputHeight);
-        double w = crop.width() / inputWidth;
-        double h = crop.height() / inputHeight;
-
-        transform = AffineMatrix.reframe(x, y, w, h).multiply(transform);
+        transform = AffineMatrix.reframe(crop.left / inputWidth, 1 - crop.bottom / inputHeight, crop.width() / inputWidth,
+                crop.height() / inputHeight).multiply(transform);
         size = new Size(crop.width(), crop.height());
     }
 
@@ -70,14 +58,12 @@ public class VideoFilter {
         if (captureOrientation.isFlipped()) {
             transform = AffineMatrix.hflip().multiply(transform);
         }
-        int ccwRotation = (4 - captureOrientation.getRotation()) % 4;
-        addRotation(ccwRotation);
+        addRotation((4 - captureOrientation.getRotation()) % 4);
     }
 
     public void addOrientation(int displayRotation, boolean locked, Orientation captureOrientation) {
         if (locked) {
-            int reverseDisplayRotation = (4 - displayRotation) % 4;
-            addRotation(reverseDisplayRotation);
+            addRotation((4 - displayRotation) % 4);
         }
         addOrientation(captureOrientation);
     }
@@ -86,8 +72,7 @@ public class VideoFilter {
         if (cwAngle == 0) {
             return;
         }
-        double ccwAngle = -cwAngle;
-        transform = AffineMatrix.rotate(ccwAngle).withAspectRatio(size).fromCenter().multiply(transform);
+        transform = AffineMatrix.rotate(-cwAngle).withAspectRatio(size).fromCenter().multiply(transform);
     }
 
     public void addResize(Size targetSize) {

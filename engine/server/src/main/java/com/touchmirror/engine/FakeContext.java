@@ -27,27 +27,27 @@ public final class FakeContext extends ContextWrapper {
 
     private final ContentResolver contentResolver = new ContentResolver(this) {
         @SuppressWarnings({"unused", "ProtectedMemberInFinalClass"})
-        protected IContentProvider acquireProvider(Context c, String name) {
+        protected IContentProvider acquireProvider(Context context, String name) {
             return ServiceManager.getActivityManager().getContentProviderExternal(name, new Binder());
         }
 
         @SuppressWarnings("unused")
-        public boolean releaseProvider(IContentProvider icp) {
+        public boolean releaseProvider(IContentProvider provider) {
             return false;
         }
 
         @SuppressWarnings({"unused", "ProtectedMemberInFinalClass"})
-        protected IContentProvider acquireUnstableProvider(Context c, String name) {
+        protected IContentProvider acquireUnstableProvider(Context context, String name) {
             return null;
         }
 
         @SuppressWarnings("unused")
-        public boolean releaseUnstableProvider(IContentProvider icp) {
+        public boolean releaseUnstableProvider(IContentProvider provider) {
             return false;
         }
 
         @SuppressWarnings("unused")
-        public void unstableProviderDied(IContentProvider icp) {
+        public void unstableProviderDied(IContentProvider provider) {
         }
     };
 
@@ -68,9 +68,7 @@ public final class FakeContext extends ContextWrapper {
     @TargetApi(AndroidVersions.API_31_ANDROID_12)
     @Override
     public AttributionSource getAttributionSource() {
-        AttributionSource.Builder builder = new AttributionSource.Builder(Process.SHELL_UID);
-        builder.setPackageName(PACKAGE_NAME);
-        return builder.build();
+        return new AttributionSource.Builder(Process.SHELL_UID).setPackageName(PACKAGE_NAME).build();
     }
 
     @SuppressWarnings("unused")

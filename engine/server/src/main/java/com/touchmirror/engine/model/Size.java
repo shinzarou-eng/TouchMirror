@@ -11,6 +11,7 @@ import android.util.Range;
 import java.util.Objects;
 
 public final class Size {
+
     private final int width;
     private final int height;
 
@@ -49,29 +50,7 @@ public final class Size {
         assert (alignment & (alignment - 1)) == 0 : "Alignment must be a power-of-two";
 
         if (caps == null) {
-            int w, h;
-            if (maxSize > 0 && (width > maxSize || height > maxSize)) {
-                if (preserveAspectRatio) {
-                    if (width > height) {
-                        w = maxSize;
-                        h = height * maxSize / width;
-                    } else {
-                        w = width * maxSize / height;
-                        h = maxSize;
-                    }
-                } else {
-                    w = Math.min(width, maxSize);
-                    h = Math.min(height, maxSize);
-                }
-            } else {
-                w = width;
-                h = height;
-            }
-
-            w = Math.max(align(w, alignment), alignment);
-            h = Math.max(align(h, alignment), alignment);
-
-            return new Size(w, h);
+            return constrainWithoutCapabilities(maxSize, alignment, preserveAspectRatio);
         }
 
         boolean landscape = width >= height;
@@ -79,25 +58,18 @@ public final class Size {
         int minor = landscape ? height : width;
 
         Range<Integer> majorRange = landscape ? caps.getSupportedWidths() : caps.getSupportedHeights();
-        int minMajor = majorRange.getLower();
-        int maxMajor = majorRange.getUpper();
-        if (maxMajor > major) {
-            maxMajor = major;
-        }
-        if (maxSize > 0 && maxMajor > maxSize) {
-            maxMajor = maxSize;
+        int maxMajor = Math.min(majorRange.getUpper(), major);
+        if (maxSize > 0) {
+            maxMajor = Math.min(maxMajor, maxSize);
         }
 
-        int minBlock = (minMajor + alignment - 1) / alignment;
+        int minBlock = (majorRange.getLower() + alignment - 1) / alignment;
         int maxBlock = maxMajor / alignment;
 
-        int bestBlock = BinarySearch.findHighestTrue(
-                minBlock, maxBlock, block -> {
-                    int pixels = block * alignment;
-                    int w = align(width * pixels / major, alignment);
-                    int h = align(height * pixels / major, alignment);
-                    return caps.isSizeSupported(w, h);
-                });
+        int bestBlock = BinarySearch.findHighestTrue(minBlock, maxBlock, block -> {
+            int pixels = block * alignment;
+            return caps.isSizeSupported(align(width * pixels / major, alignment), align(height * pixels / major, alignment));
+        });
 
         if (bestBlock < minBlock) {
             Ln.d("No matching size found, ignore encoder size validation");
@@ -111,34 +83,24 @@ public final class Size {
             bestMinor = align(minor * bestMajor / major, alignment);
         } else {
             int maxMinor = landscape ? caps.getSupportedHeightsFor(bestMajor).getUpper() : caps.getSupportedWidthsFor(bestMajor).getUpper();
-            if (maxMinor > minor) {
-                maxMinor = minor;
-            }
-            if (maxSize > 0 && maxMinor > maxSize) {
-                maxMinor = maxSize;
+            maxMinor = Math.min(maxMinor, minor);
+            if (maxSize > 0) {
+                maxMinor = Math.min(maxMinor, maxSize);
             }
             bestMinor = align(maxMinor, alignment);
 
             maxMajor = landscape ? caps.getSupportedWidthsFor(bestMinor).getUpper() : caps.getSupportedHeightsFor(bestMinor).getUpper();
-            if (maxMajor > major) {
-                maxMajor = major;
-            }
-            if (maxSize > 0 && maxMajor > maxSize) {
-                maxMajor = maxSize;
+            maxMajor = Math.min(maxMajor, major);
+            if (maxSize > 0) {
+                maxMajor = Math.min(maxMajor, maxSize);
             }
             bestMajor = align(maxMajor, alignment);
         }
 
-        minMajor = alignUp(minMajor, alignment);
-        if (bestMajor < minMajor) {
-            bestMajor = minMajor;
-        }
+        bestMajor = Math.max(bestMajor, alignUp(majorRange.getLower(), alignment));
 
         int minMinor = landscape ? caps.getSupportedHeights().getLower() : caps.getSupportedWidths().getLower();
-        minMinor = alignUp(minMinor, alignment);
-        if (bestMinor < minMinor) {
-            bestMinor = minMinor;
-        }
+        bestMinor = Math.max(bestMinor, alignUp(minMinor, alignment));
 
         int w = landscape ? bestMajor : bestMinor;
         int h = landscape ? bestMinor : bestMajor;
@@ -149,13 +111,30 @@ public final class Size {
         return new Size(w, h);
     }
 
+    private Size constrainWithoutCapabilities(int maxSize, int alignment, boolean preserveAspectRatio) {
+        int w = width;
+        int h = height;
+        if (maxSize > 0 && (width > maxSize || height > maxSize)) {
+            if (preserveAspectRatio) {
+                if (width > height) {
+                    w = maxSize;
+                    h = height * maxSize / width;
+                } else {
+                    w = width * maxSize / height;
+                    h = maxSize;
+                }
+            } else {
+                w = Math.min(width, maxSize);
+                h = Math.min(height, maxSize);
+            }
+        }
+        return new Size(Math.max(align(w, alignment), alignment), Math.max(align(h, alignment), alignment));
+    }
+
     public Size align(int alignment) {
         int w = align(width, alignment);
         int h = align(height, alignment);
-        if (w == width && h == height) {
-            return this;
-        }
-        return new Size(w, h);
+        return w == width && h == height ? this : new Size(w, h);
     }
 
     private static int align(int value, int alignment) {
@@ -175,7 +154,7 @@ public final class Size {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
+        if (!(o instanceof Size)) {
             return false;
         }
         Size size = (Size) o;

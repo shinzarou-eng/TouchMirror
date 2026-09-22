@@ -5,7 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
-using TouchMirror.Scrcpy;
+using TouchMirror.Engine;
 using TouchMirror.Services;
 using TouchMirror.Video;
 using TouchMirror.Views;
@@ -18,7 +18,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public AdbDevice Device { get; }
     public MirrorView View { get; } = new();
 
-    public ScrcpySession? Session { get; private set; }
+    public EngineSession? Session { get; private set; }
     public VideoDecoder? Decoder { get; private set; }
     public AudioPlayer? Audio { get; private set; }
     private GpuPresenter? _presenter;
@@ -45,6 +45,18 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public string IdentityKey => AccountUserId is { } id ? $"{Device.DeviceKey}#{id}" : Device.DeviceKey;
 
     public bool ManualDisconnect { get; set; }
+    public bool UnexpectedDeath { get; private set; }
+    public string LastDeviceState { get; private set; } = "unknown";
+    [ObservableProperty] private bool _isReconnecting;
+    [ObservableProperty] private string? _reconnectStatus;
+    private EngineOptions? _lastOptions;
+    private int _reconnectAttempts;
+    private long _connectedAt;
+    private readonly CancellationTokenSource _lifetime = new();
+    private readonly SemaphoreSlim _sessionGate = new(1, 1);
+    private Task? _disconnectTask;
+    private bool _stopping;
+    private bool _disposed;
 
     public ObservableCollection<KeybindItem> Keybinds { get; } = new();
     [ObservableProperty] private bool _keybindEditMode;
@@ -102,6 +114,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     private readonly object _recorderLock = new();
     private string? _recordPath;
     public DateTime? RecordingSince { get; private set; }
+    public DateTime? ConnectedSince { get; private set; }
     private readonly object _decoderLock = new();
     private readonly object _audioLock = new();
     private bool _screenDimmed;
@@ -122,6 +135,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     {
         Device = device;
         DeviceName = device.DisplayName;
+        View.DataContext = this;
         View.BindKeybinds(Keybinds);
         View.EditModeExitRequested += () => EditModeExitRequested?.Invoke();
         View.OverlayLineClicked += (id, idx) => OverlayLineClicked?.Invoke(this, id, idx);
@@ -145,9 +159,26 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             RaiseKeybindsChanged();
     }
 
-    public async Task StartAsync(ScrcpyOptions options)
+    public async Task StartAsync(EngineOptions options)
     {
-        var session = new ScrcpySession(Device, options);
+        await _sessionGate.WaitAsync(_lifetime.Token);
+        try
+        {
+            _lastOptions = options;
+            await StartSessionAsync(options);
+        }
+        catch
+        {
+            await ClearSessionAsync();
+            throw;
+        }
+        finally { _sessionGate.Release(); }
+    }
+
+    private async Task StartSessionAsync(EngineOptions options)
+    {
+        _lifetime.Token.ThrowIfCancellationRequested();
+        var session = new EngineSession(Device, options, _lifetime.Token);
         Session = session;
         _videoBitRate = options.VideoBitRate;
         _currentBitRate = options.VideoBitRate;
@@ -158,7 +189,11 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         _adaptWatch.Restart();
         session.ServerLog += m => Log?.Invoke(m);
         session.VideoSizeChanged += (w, h) =>
-            View.Dispatcher.Invoke(() => View.OnVideoSize(w, h));
+            View.Dispatcher.BeginInvoke(() =>
+            {
+                if (ReferenceEquals(Session, session))
+                    View.OnVideoSize(w, h);
+            });
         session.DeviceClipboard += text =>
         {
             if (ShouldSyncClipboard?.Invoke() == false)
@@ -167,7 +202,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         };
         session.Disconnected += () =>
         {
-            try { Application.Current.Dispatcher.Invoke(() => AppLogger.Forget(DisconnectAsync())); }
+            try { View.Dispatcher.BeginInvoke(() => AppLogger.Forget(OnSessionLostAsync(session))); }
             catch (InvalidOperationException) { }
         };
 
@@ -187,8 +222,11 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                             {
                                 presenter = new GpuPresenter();
                                 presenter.Sharpness = options.VideoSharpen ? GpuPresenter.DefaultSharpness : 0f;
+                                presenter.Fxaa = options.VideoFxaa;
                                 presenter.SetColorAdjust((float)options.VideoBrightness,
                                     (float)options.VideoContrast, (float)options.VideoSaturation);
+                                presenter.SetEffects((float)options.VideoVibrance,
+                                    (float)options.VideoVignette, (float)options.VideoGamma);
                             }
                             catch (Exception ex) { Log?.Invoke($"gpu presenter: {ex.Message}"); }
                         }
@@ -261,12 +299,19 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         };
 
         await session.StartAsync();
+        _lifetime.Token.ThrowIfCancellationRequested();
+        if (session.HasEnded)
+            throw new IOException("Stream ended during startup");
 
         IsConnected = true;
+        ConnectedSince = DateTime.Now;
+        _connectedAt = Environment.TickCount64;
         DeviceName = AccountName != null
             ? $"{Device.CustomName ?? session.DeviceName ?? Device.ShortName} · {AccountName}"
             : Device.CustomName ?? session.DeviceName ?? Device.DisplayName;
         View.Dispatcher.Invoke(() => View.AttachControl(session.Control!));
+        if (_videoHidden)
+            session.Control?.SetVideoParams(ThrottleBitRate, suspend: true);
         Connected?.Invoke(this);
 
         if (options.TurnScreenOff)
@@ -275,7 +320,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
 
     public async Task SetScreenDimmedAsync(bool dimmed)
     {
-        if (Session == null)
+        if (dimmed && (Session == null || _stopping))
             return;
         try
         {
@@ -468,12 +513,36 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         }
     }
 
-    public virtual async Task DisconnectAsync()
+    public virtual Task DisconnectAsync()
     {
-        if (_screenDimmed)
-            await SetScreenDimmedAsync(false);
+        _stopping = true;
+        _lifetime.Cancel();
+        return _disconnectTask ??= DisconnectCoreAsync();
+    }
+
+    private async Task DisconnectCoreAsync()
+    {
+        await _sessionGate.WaitAsync();
+        try
+        {
+            if (_screenDimmed)
+                await SetScreenDimmedAsync(false);
+            await ClearSessionAsync();
+            IsReconnecting = false;
+            ReconnectStatus = null;
+            Disconnected?.Invoke(this);
+        }
+        finally { _sessionGate.Release(); }
+    }
+
+    private async Task ClearSessionAsync()
+    {
         var session = Session;
         Session = null;
+        IsConnected = false;
+        ConnectedSince = null;
+        CodecBadge = null;
+        View.Dispatcher.Invoke(View.Detach);
         if (session != null)
             await session.DisposeAsync();
         lock (_decoderLock)
@@ -490,10 +559,74 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         }
         StopRecordingInternal();
         IsRecording = false;
-        IsConnected = false;
-        CodecBadge = null;
-        View.Dispatcher.Invoke(View.Detach);
-        Disconnected?.Invoke(this);
+    }
+
+    private async Task<string> WaitForDeviceAsync()
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        var state = "unknown";
+        try
+        {
+            do
+            {
+                state = await AdbService.GetDeviceStateAsync(Device.Serial, timeout.Token);
+                if (state is "device" or "unauthorized")
+                    return state;
+                await Task.Delay(500, timeout.Token);
+            } while (true);
+        }
+        catch (OperationCanceledException) when (!_lifetime.IsCancellationRequested) { return state; }
+    }
+
+    private async Task OnSessionLostAsync(EngineSession session)
+    {
+        await _sessionGate.WaitAsync();
+        var exhausted = false;
+        try
+        {
+            if (!ReferenceEquals(Session, session) || _stopping || ManualDisconnect || _disposed || _lastOptions == null)
+                return;
+            if (_connectedAt != 0 && Environment.TickCount64 - _connectedAt > 30_000)
+                _reconnectAttempts = 0;
+            IsReconnecting = true;
+            if (IsRecording)
+                RaiseLog(L("log.recording_interrupted"));
+            await ClearSessionAsync();
+            while (_reconnectAttempts < 3 && !_stopping && !ManualDisconnect)
+            {
+                ReconnectStatus = string.Format(L("log.session_retry"), ++_reconnectAttempts);
+                RaiseLog(ReconnectStatus);
+                try
+                {
+                    await Task.Delay(800 * _reconnectAttempts, _lifetime.Token);
+                    LastDeviceState = await WaitForDeviceAsync();
+                    RaiseLog($"reconnect: adb state={LastDeviceState}");
+                    if (LastDeviceState == "unauthorized")
+                        break;
+                    if (LastDeviceState != "device")
+                        continue;
+                    await StartSessionAsync(_lastOptions);
+                    return;
+                }
+                catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return; }
+                catch (Exception ex)
+                {
+                    RaiseLog($"reconnect: {ex.Message}");
+                    await ClearSessionAsync();
+                }
+            }
+            exhausted = !_stopping && !ManualDisconnect;
+            UnexpectedDeath = exhausted;
+        }
+        finally
+        {
+            IsReconnecting = false;
+            ReconnectStatus = null;
+            _sessionGate.Release();
+        }
+        if (exhausted)
+            await DisconnectAsync();
     }
 
     public async Task HandleFileDropAsync(IReadOnlyList<string> paths)
@@ -526,5 +659,9 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         }
     }
 
-    public void Dispose() => AppLogger.Forget(DisconnectAsync());
+    public void Dispose()
+    {
+        _disposed = true;
+        AppLogger.Forget(DisconnectAsync());
+    }
 }

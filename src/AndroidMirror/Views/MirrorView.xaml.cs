@@ -10,7 +10,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
-using TouchMirror.Scrcpy;
+using TouchMirror.Engine;
 using TouchMirror.Services;
 using TouchMirror.Video;
 using TouchMirror.ViewModels;
@@ -243,7 +243,7 @@ public partial class MirrorView : UserControl
 
     private void AddKeybindVisual(KeybindItem kb)
     {
-        var accent = Color.FromRgb(0x3E, 0xCF, 0x8E);
+        var accent = Color.FromRgb(0xC9, 0xD1, 0xD9);
         var label = new TextBlock
         {
             FontWeight = FontWeights.SemiBold,
@@ -300,7 +300,7 @@ public partial class MirrorView : UserControl
             Value = true
         };
         trig.Setters.Add(new Setter(Border.BorderBrushProperty,
-            new SolidColorBrush(Color.FromRgb(0xE8, 0xA3, 0x3D))));
+            new SolidColorBrush(Color.FromRgb(0xE0, 0xA2, 0x4C))));
         trig.Setters.Add(new Setter(Border.OpacityProperty, 1.0));
         style.Triggers.Add(trig);
         el.Style = style;
@@ -311,7 +311,7 @@ public partial class MirrorView : UserControl
             Value = true
         };
         labelTrig.Setters.Add(new Setter(TextBlock.ForegroundProperty,
-            new SolidColorBrush(Color.FromRgb(0xE8, 0xA3, 0x3D))));
+            new SolidColorBrush(Color.FromRgb(0xE0, 0xA2, 0x4C))));
         labelStyle.Triggers.Add(labelTrig);
         label.Style = labelStyle;
 
@@ -1066,6 +1066,11 @@ public partial class MirrorView : UserControl
     {
         _decoder = null;
         _control = null;
+        _pressedButtons = 0;
+        _mouseCaptured = false;
+        _hasPendingMove = _iosPendingMove = false;
+        _lastSentMoveX = _lastSentMoveY = -1;
+        InputSurface.ReleaseMouseCapture();
         _presenter = null;
         _gpuImage = null;
         _bitmap = null;

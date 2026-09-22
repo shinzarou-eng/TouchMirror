@@ -31,8 +31,8 @@ public final class AudioRawRecorder implements AsyncProcessor {
             return;
         }
 
-        final ByteBuffer buffer = ByteBuffer.allocateDirect(AudioConfig.MAX_READ_SIZE);
-        final MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
+        ByteBuffer buffer = ByteBuffer.allocateDirect(AudioConfig.MAX_READ_SIZE);
+        MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
 
         try {
             try {
@@ -45,12 +45,11 @@ public final class AudioRawRecorder implements AsyncProcessor {
             streamer.writeAudioHeader();
             while (!Thread.currentThread().isInterrupted()) {
                 buffer.position(0);
-                int r = capture.read(buffer, bufferInfo);
-                if (r < 0) {
-                    throw new IOException("Could not read audio: " + r);
+                int size = capture.read(buffer, bufferInfo);
+                if (size < 0) {
+                    throw new IOException("Could not read audio: " + size);
                 }
-                buffer.limit(r);
-
+                buffer.limit(size);
                 streamer.writePacket(buffer, bufferInfo);
             }
         } catch (IOException e) {

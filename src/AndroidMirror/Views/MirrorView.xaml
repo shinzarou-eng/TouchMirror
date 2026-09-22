@@ -27,26 +27,26 @@
 
         <Border x:Name="KeybindHint"
                 VerticalAlignment="Top" HorizontalAlignment="Center"
-                Margin="0,12,0,0" Padding="14,10" CornerRadius="6"
-                Background="#F214181F" BorderBrush="#3ECF8E" BorderThickness="1"
+                Margin="0,12,0,0" Padding="14,10" CornerRadius="{StaticResource RadiusControl}"
+                Background="{DynamicResource AppSurfaceBrush}" BorderBrush="{DynamicResource DofusAccentBrush}" BorderThickness="1"
                 Visibility="Collapsed" IsHitTestVisible="False">
             <StackPanel>
-                <TextBlock FontSize="11.5" Foreground="#9AA6B5" HorizontalAlignment="Center"
+                <TextBlock FontSize="{StaticResource FsMeta}" Foreground="{DynamicResource OnDarkTextDimBrush}" HorizontalAlignment="Center"
                            Text="{loc:Loc clic_placer_touche_assigner_glisser_deplacer_cli}" />
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
-                    <TextBlock Text="{loc:Loc style}" FontSize="11.5" Foreground="#9AA6B5" VerticalAlignment="Center" />
+                    <TextBlock Text="{loc:Loc style}" FontSize="{StaticResource FsMeta}" Foreground="{DynamicResource OnDarkTextDimBrush}" VerticalAlignment="Center" />
                     <ComboBox SelectedIndex="{Binding KeybindStyle}" Width="92" Height="24"
-                              FontSize="12" Margin="6,0,14,0" VerticalContentAlignment="Center"
+                              FontSize="{StaticResource FsMeta}" Margin="6,0,14,0" VerticalContentAlignment="Center"
                               Focusable="False">
                         <ComboBoxItem Content="{loc:Loc pastille}" />
                         <ComboBoxItem Content="{loc:Loc cercle}" />
                         <ComboBoxItem Content="{loc:Loc minimal}" />
                     </ComboBox>
-                    <TextBlock Text="{loc:Loc opacite}" FontSize="11.5" Foreground="#9AA6B5" VerticalAlignment="Center" />
+                    <TextBlock Text="{loc:Loc opacite}" FontSize="{StaticResource FsMeta}" Foreground="{DynamicResource OnDarkTextDimBrush}" VerticalAlignment="Center" />
                     <Slider Value="{Binding KeybindOpacity}" Minimum="0.3" Maximum="1"
                             Width="72" Margin="6,0,14,0" VerticalAlignment="Center"
                             Focusable="False" />
-                    <TextBlock Text="{loc:Loc taille}" FontSize="11.5" Foreground="#9AA6B5" VerticalAlignment="Center" />
+                    <TextBlock Text="{loc:Loc taille}" FontSize="{StaticResource FsMeta}" Foreground="{DynamicResource OnDarkTextDimBrush}" VerticalAlignment="Center" />
                     <Slider Value="{Binding KeybindSize}" Minimum="22" Maximum="44"
                             Width="72" Margin="6,0,0,0" VerticalAlignment="Center"
                             Focusable="False" />
@@ -56,30 +56,30 @@
 
         <Border x:Name="IosBadge"
                 Padding="10,5"
-                CornerRadius="8"
-                Background="#B3161616"
+                CornerRadius="{StaticResource RadiusControl}"
+                Background="{DynamicResource AppModalSolidBrush}"
                 BorderThickness="1"
-                BorderBrush="#3A5A8A"
+                BorderBrush="{DynamicResource AppBorderBrush}"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Top"
                 Margin="12,40,0,0"
                 Visibility="Collapsed">
             <StackPanel Orientation="Horizontal">
-                <ui:SymbolIcon Symbol="Phone24" FontSize="12"
-                               Foreground="#8AB4E8" Margin="0,0,7,0" />
+                <Path Style="{StaticResource Ic}" Data="{StaticResource IcPhone24}" Width="12" Height="12"
+                               Fill="{DynamicResource OnDarkTextBrush}" Margin="0,0,7,0" />
                 <TextBlock Text="{loc:Loc ios_affichage_seul}"
-                           Foreground="#8AB4E8"
-                           FontSize="11.5"
+                           Foreground="{DynamicResource OnDarkTextBrush}"
+                           FontSize="{StaticResource FsMeta}"
                            FontWeight="SemiBold" />
             </StackPanel>
         </Border>
 
         <Border x:Name="ZoomBadge"
                 Padding="10,5"
-                CornerRadius="8"
-                Background="#B3161616"
+                CornerRadius="{StaticResource RadiusControl}"
+                Background="{DynamicResource AppModalSolidBrush}"
                 BorderThickness="1"
-                BorderBrush="#3A5A8A"
+                BorderBrush="{DynamicResource AppBorderBrush}"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Top"
                 Margin="0,40,12,0"
@@ -87,41 +87,41 @@
                 IsHitTestVisible="False"
                 ToolTip="{loc:Loc alt_molette_zoom_alt_glisser_deplacer_alt}">
             <TextBlock x:Name="ZoomText"
-                       Foreground="#8AB4E8"
-                       FontSize="11.5"
+                       Foreground="{DynamicResource OnDarkTextBrush}"
+                       FontSize="{StaticResource FsMeta}"
                        FontWeight="SemiBold" />
         </Border>
 
         <Grid x:Name="WaitingOverlay"
-              Background="#E6101014"
+              Background="{DynamicResource AppScrimBrush}"
               Visibility="Collapsed">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                <ui:SymbolIcon Symbol="PhoneScreenTime24" FontSize="40"
-                               Foreground="#5A7FA8"
+                <Path Style="{StaticResource Ic}" Data="{StaticResource IcPhoneScreenTime24}" Width="40" Height="40"
+                               Fill="{DynamicResource OnDarkTextDimBrush}"
                                HorizontalAlignment="Center" />
                 <TextBlock Text="{loc:Loc en_attente_d_un_iphone}"
-                           FontSize="16" FontWeight="SemiBold"
-                           Foreground="#DDE6F0"
+                           FontSize="{StaticResource FsTitle}" FontWeight="SemiBold"
+                           Foreground="{DynamicResource OnDarkTextBrush}"
                            HorizontalAlignment="Center"
                            Margin="0,16,0,6" />
                 <TextBlock Text="{loc:Loc centre_de_controle_recopie_de_l_ecran_touchmirro}"
-                           FontSize="12.5"
-                           Foreground="#9FB2C8"
+                           FontSize="{StaticResource FsBody}"
+                           Foreground="{DynamicResource OnDarkTextDimBrush}"
                            HorizontalAlignment="Center" />
                 <TextBlock Text="{loc:Loc meme_reseau_wi_fi_affichage_seul_sans_le_control}"
-                           FontSize="12"
-                           Foreground="#6E7E92"
+                           FontSize="{StaticResource FsMeta}"
+                           Foreground="{DynamicResource OnDarkTextDimBrush}"
                            HorizontalAlignment="Center"
                            Margin="0,8,0,0" />
                 <TextBlock Text="{loc:Loc controle_tactile_bouton_iphone_dans_la_barre_d_o}"
-                           FontSize="11.5"
-                           Foreground="#5E7A95"
+                           FontSize="{StaticResource FsMeta}"
+                           Foreground="{DynamicResource OnDarkTextDimBrush}"
                            HorizontalAlignment="Center"
                            TextWrapping="Wrap" MaxWidth="420" TextAlignment="Center"
                            Margin="0,6,0,0" />
                 <TextBlock x:Name="WaitingHint"
-                           FontSize="12.5"
-                           Foreground="#D8A04C"
+                           FontSize="{StaticResource FsBody}"
+                           Foreground="{DynamicResource WarnBrush}"
                            HorizontalAlignment="Center"
                            TextWrapping="Wrap" MaxWidth="420" TextAlignment="Center"
                            Margin="0,14,0,0"
@@ -129,5 +129,20 @@
             </StackPanel>
         </Grid>
 
+        <Border Background="{DynamicResource AppScrimBrush}" IsHitTestVisible="False">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsReconnecting}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <TextBlock Text="{Binding ReconnectStatus}" TextWrapping="Wrap" TextAlignment="Center"
+                       Margin="16" VerticalAlignment="Center" FontSize="{StaticResource FsBody}"
+                       Foreground="{DynamicResource OnDarkTextBrush}" />
+        </Border>
     </Grid>
 </UserControl>

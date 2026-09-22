@@ -13,11 +13,11 @@ public final class Binary {
     }
 
     public static float u16FixedPointToFloat(short value) {
-        int unsignedShort = Binary.toUnsigned(value);
-        return unsignedShort == 0xffff ? 1f : (unsignedShort / 0x1p16f);
+        int v = toUnsigned(value);
+        return v == 0xffff ? 1f : v / 65536f;
     }
 
     public static float i16FixedPointToFloat(short value) {
-        return value == 0x7fff ? 1f : (value / 0x1p15f);
+        return value == 0x7fff ? 1f : value / 32768f;
     }
 }

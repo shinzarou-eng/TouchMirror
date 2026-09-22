@@ -95,12 +95,10 @@ public class ScreenCapture extends SurfaceCapture {
         VideoFilter filter = new VideoFilter(displaySize);
 
         if (crop != null) {
-            boolean transposed = (displayRotation % 2) != 0;
-            filter.addCrop(crop, transposed);
+            filter.addCrop(crop, (displayRotation % 2) != 0);
         }
 
-        boolean locked = captureOrientationLock != Orientation.Lock.Unlocked;
-        filter.addOrientation(displayRotation, locked, captureOrientation);
+        filter.addOrientation(displayRotation, captureOrientationLock != Orientation.Lock.Unlocked, captureOrientation);
         filter.addAngle(angle);
 
         transform = filter.getInverseTransform();
@@ -148,8 +146,7 @@ public class ScreenCapture extends SurfaceCapture {
                     display = createDisplay();
 
                     Size deviceSize = displayInfo.getSize();
-                    int layerStack = displayInfo.getLayerStack();
-                    setDisplaySurface(display, surface, deviceSize.toRect(), inputSize.toRect(), layerStack);
+                    setDisplaySurface(display, surface, deviceSize.toRect(), inputSize.toRect(), displayInfo.getLayerStack());
                     Ln.d("Display: using SurfaceControl API");
                 } catch (Exception surfaceControlException) {
                     Ln.e("Could not create display using DisplayManager", displayManagerException);
@@ -163,8 +160,7 @@ public class ScreenCapture extends SurfaceCapture {
             int virtualDisplayId;
             PositionMapper positionMapper;
             if (virtualDisplay == null || displayId == 0) {
-                Size deviceSize = displayInfo.getSize();
-                positionMapper = PositionMapper.create(videoSize, transform, deviceSize);
+                positionMapper = PositionMapper.create(videoSize, transform, displayInfo.getSize());
                 virtualDisplayId = displayId;
             } else {
                 positionMapper = PositionMapper.create(videoSize, transform, inputSize);
@@ -193,8 +189,7 @@ public class ScreenCapture extends SurfaceCapture {
                         SurfaceControl.closeTransaction();
                     }
                 } else if (boundSurface != null) {
-                    Size deviceSize = displayInfo.getSize();
-                    setDisplaySurface(display, boundSurface, deviceSize.toRect(), boundInputSize.toRect(), displayInfo.getLayerStack());
+                    setDisplaySurface(display, boundSurface, displayInfo.getSize().toRect(), boundInputSize.toRect(), displayInfo.getLayerStack());
                 }
             }
         } catch (Throwable t) {

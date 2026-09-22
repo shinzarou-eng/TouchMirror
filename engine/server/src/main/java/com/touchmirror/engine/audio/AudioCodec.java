@@ -5,10 +5,11 @@ import com.touchmirror.engine.model.Codec;
 import android.media.MediaFormat;
 
 public enum AudioCodec implements Codec {
-    OPUS(0x6f_70_75_73, "opus", MediaFormat.MIMETYPE_AUDIO_OPUS),
-    AAC(0x00_61_61_63, "aac", MediaFormat.MIMETYPE_AUDIO_AAC),
-    FLAC(0x66_6c_61_63, "flac", MediaFormat.MIMETYPE_AUDIO_FLAC),
-    RAW(0x00_72_61_77, "raw", MediaFormat.MIMETYPE_AUDIO_RAW);
+
+    OPUS(0x6f707573, "opus", MediaFormat.MIMETYPE_AUDIO_OPUS),
+    AAC(0x00616163, "aac", MediaFormat.MIMETYPE_AUDIO_AAC),
+    FLAC(0x666c6163, "flac", MediaFormat.MIMETYPE_AUDIO_FLAC),
+    RAW(0x00726177, "raw", MediaFormat.MIMETYPE_AUDIO_RAW);
 
     private final int id;
     private final String name;
@@ -38,14 +39,5 @@ public enum AudioCodec implements Codec {
     @Override
     public String getMimeType() {
         return mimeType;
-    }
-
-    public static AudioCodec findByName(String name) {
-        for (AudioCodec codec : values()) {
-            if (codec.name.equals(name)) {
-                return codec;
-            }
-        }
-        return null;
     }
 }

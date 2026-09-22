@@ -101,7 +101,7 @@ public sealed class AirPlayAdvertiser : IDisposable
     {
         var macCompact = DeviceId.Replace(":", "").ToUpperInvariant();
 
-        _sd = new ServiceDiscovery();
+        _sd = new ServiceDiscovery(MdnsHost.Instance);
 
         var pk = Convert.ToHexString(AirPlaySession.PairingIdentity.PublicKey).ToLowerInvariant();
         var pi = AirPlaySession.PairingIdentity.PairingId;

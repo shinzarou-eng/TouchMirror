@@ -3,6 +3,7 @@ package com.touchmirror.engine.opengl;
 import java.io.IOException;
 
 public class OpenGLException extends IOException {
+
     public OpenGLException(String message) {
         super(message);
     }

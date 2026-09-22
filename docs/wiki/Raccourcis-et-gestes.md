@@ -25,19 +25,21 @@
 | Raccourci | Action |
 |---|---|
 | `F11` | Basculer le plein écran |
+| `Échap` | Referme ce qui est ouvert : boîte de confirmation, panneau latéral, hub, plein écran |
+| `Ctrl` + `Tab` | Miroir suivant / précédent (`+Shift`) |
+| `Ctrl` + `1…9` | Activer directement le miroir N |
+| `Ctrl` + `Maj` + `1…9` | Basculer vers l'espace de travail N |
 | Survol du bord haut (en plein écran) | Barre de contrôle : ← retour, ⌂ accueil, ▢ récents, quitter |
 
-## Toolbar
+## Barre de commande
 
-| Bouton | Action |
+La barre flottante apparaît au survol du bord haut du miroir. Elle regroupe les actions par blocs :
+
+| Bloc | Contenu |
 |---|---|
-| 📖 (à gauche) | Panneau d'aide — sites Dofus Touch |
-| **Dofus** | Lance le jeu sur le téléphone |
-| 📷 | Capture PNG |
-| ⏺ | Enregistrement MP4 |
-| ↻ | Rotation de l'affichage |
-| ⛶ | Plein écran |
-| ⏻ | Déconnecter |
-| ⋯ | Options : WiFi, mode capture… |
+| Identité | Nom de l'appareil (renommable à l'entrée), badge codec, pastille REC |
+| Navigation Android | ← retour, ⌂ accueil, ▢ récents |
+| Raccourcis écran | ⌨ mode édition, sélecteur de profil, `+` / `−` |
+| Actions | Grille (retour au hub des miroirs), manette (lance Dofus Touch), comptes secondaires, captures (PNG / MP4 / dossier), affichage (plein écran, rotations, épinglage), ⋯ (WiFi, écran du tel, options) |
 
 > TouchMirror n'ajoute **aucun raccourci tactile ni macro** — chaque action correspond à un geste humain, conformément aux règles Ankama.

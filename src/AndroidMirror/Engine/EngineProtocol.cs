@@ -2,34 +2,35 @@ using System.Buffers.Binary;
 using System.Net.Sockets;
 using System.Text;
 
-namespace TouchMirror.Scrcpy;
+namespace TouchMirror.Engine;
 
 public enum ControlMsgType : byte
 {
-    InjectKeycode = 0,
-    InjectText = 1,
-    InjectTouchEvent = 2,
-    InjectScrollEvent = 3,
-    BackOrScreenOn = 4,
-    ExpandNotificationPanel = 5,
-    ExpandSettingsPanel = 6,
-    CollapsePanels = 7,
-    GetClipboard = 8,
-    SetClipboard = 9,
-    SetDisplayPower = 10,
-    RotateDevice = 11,
-    OpenHardKeyboardSettings = 15,
-    StartApp = 16,
-    ResetVideo = 17,
-    ResizeDisplay = 21,
-    ScanFile = 22,
-    SetVideoParams = 23,
+    Config = 0x01,
+    InjectKeycode = 0x10,
+    InjectText = 0x11,
+    InjectTouchEvent = 0x12,
+    InjectScrollEvent = 0x13,
+    BackOrScreenOn = 0x20,
+    ExpandNotificationPanel = 0x21,
+    ExpandSettingsPanel = 0x22,
+    CollapsePanels = 0x23,
+    SetDisplayPower = 0x24,
+    RotateDevice = 0x25,
+    OpenHardKeyboardSettings = 0x26,
+    StartApp = 0x27,
+    ScanFile = 0x28,
+    ResetVideo = 0x30,
+    ResizeDisplay = 0x31,
+    SetVideoParams = 0x32,
+    GetClipboard = 0x40,
+    SetClipboard = 0x41,
 }
 
 public enum DeviceMsgType : byte
 {
-    Clipboard = 0,
-    AckClipboard = 1,
+    Clipboard = 0x50,
+    AckClipboard = 0x51,
 }
 
 public static class AndroidMotionEvent
@@ -88,34 +89,148 @@ public static class AndroidKeyCode
 
 public sealed class ControlChannel : IDisposable
 {
+    private const byte ChanControl = 3;
+
     private readonly Socket _socket;
     private readonly CancellationTokenSource _cts = new();
-    private readonly System.Collections.Concurrent.BlockingCollection<byte[]> _sendQueue = new(1024);
+    private readonly System.Threading.Channels.Channel<byte[]> _sendQueue =
+        System.Threading.Channels.Channel.CreateBounded<byte[]>(1024);
+    private readonly object _sendGate = new();
+    private volatile bool _disposed;
 
     public event Action<string>? ClipboardReceived;
 
     public ControlChannel(Socket socket)
     {
         _socket = socket;
-        Task.Run(ReadLoopAsync);
         Task.Run(SendLoop);
     }
 
     private void Send(ReadOnlySpan<byte> msg)
     {
-        if (_sendQueue.IsAddingCompleted)
+        if (_disposed)
             return;
-        try { _sendQueue.TryAdd(msg.ToArray()); } catch { }
+        var frame = new byte[5 + msg.Length];
+        frame[0] = ChanControl;
+        BinaryPrimitives.WriteUInt32BigEndian(frame.AsSpan(1), (uint)msg.Length);
+        msg.CopyTo(frame.AsSpan(5));
+        _sendQueue.Writer.TryWrite(frame);
     }
 
-    private void SendLoop()
+    private async Task SendLoop()
     {
         try
         {
-            foreach (var msg in _sendQueue.GetConsumingEnumerable())
-                _socket.Send(msg);
+            await foreach (var frame in _sendQueue.Reader.ReadAllAsync(_cts.Token))
+            {
+                var off = 0;
+                while (off < frame.Length)
+                {
+                    var sent = await _socket.SendAsync(frame.AsMemory(off), SocketFlags.None, _cts.Token);
+                    if (sent == 0)
+                        return;
+                    off += sent;
+                }
+            }
         }
-        catch { }
+        catch (Exception ex) when (ex is OperationCanceledException or SocketException or ObjectDisposedException) { }
+        finally
+        {
+            lock (_sendGate)
+            {
+                _disposed = true;
+                _sendQueue.Writer.TryComplete();
+                _cts.Dispose();
+            }
+        }
+    }
+
+    public void Feed(ReadOnlySpan<byte> payload)
+    {
+        if (payload.Length < 1)
+            return;
+        var type = (DeviceMsgType)payload[0];
+        switch (type)
+        {
+            case DeviceMsgType.Clipboard:
+                if (payload.Length < 5)
+                    return;
+                var len = BinaryPrimitives.ReadUInt32BigEndian(payload.Slice(1));
+                if (len > (uint)(payload.Length - 5))
+                    return;
+                ClipboardReceived?.Invoke(Encoding.UTF8.GetString(payload.Slice(5, (int)len)));
+                break;
+            case DeviceMsgType.AckClipboard:
+                break;
+        }
+    }
+
+    public void SendConfig(EngineOptions o)
+    {
+        var cfg = new System.IO.MemoryStream(64);
+        void Field(byte id, ReadOnlySpan<byte> v)
+        {
+            cfg.WriteByte(id);
+            cfg.WriteByte((byte)v.Length);
+            cfg.Write(v);
+        }
+        void U8(byte id, byte v) => Field(id, new[] { v });
+        void U16(byte id, ushort v)
+        {
+            Span<byte> b = stackalloc byte[2];
+            BinaryPrimitives.WriteUInt16BigEndian(b, v);
+            Field(id, b);
+        }
+        void U32(byte id, uint v)
+        {
+            Span<byte> b = stackalloc byte[4];
+            BinaryPrimitives.WriteUInt32BigEndian(b, v);
+            Field(id, b);
+        }
+
+        U8(0x01, (byte)(o.Audio ? 1 : 0));
+        U8(0x02, o.VideoCodec switch
+        {
+            "h264" => (byte)1,
+            "h265" => (byte)2,
+            "av1" => (byte)3,
+            _ => (byte)0,
+        });
+        U8(0x03, 0);
+        if (o.MaxSize > 0) U16(0x04, (ushort)Math.Min(o.MaxSize, 0xFFFF));
+        if (o.MaxFps > 0) U8(0x05, (byte)Math.Min(o.MaxFps, 0xFF));
+        if (o.VideoBitRate > 0) U32(0x06, (uint)o.VideoBitRate);
+        var flags = (ushort)((o.StayAwake ? 2 : 0) | 4 | 8 | 16 | (o.ClipboardAutosync ? 32 : 0) | 1);
+        U16(0x07, flags);
+        if (o.NewDisplay != null && TryParseDisplaySpec(o.NewDisplay, out var dw, out var dh, out var dd))
+        {
+            Span<byte> nd = stackalloc byte[6];
+            BinaryPrimitives.WriteUInt16BigEndian(nd, dw);
+            BinaryPrimitives.WriteUInt16BigEndian(nd.Slice(2), dh);
+            BinaryPrimitives.WriteUInt16BigEndian(nd.Slice(4), dd);
+            Field(0x08, nd);
+        }
+        if (!string.IsNullOrWhiteSpace(o.AutoLaunchPackage))
+            Field(0x09, Encoding.UTF8.GetBytes(o.AutoLaunchPackage));
+        U8(0x0A, 2);
+
+        var tlv = cfg.ToArray();
+        var msg = new byte[1 + tlv.Length];
+        msg[0] = (byte)ControlMsgType.Config;
+        tlv.CopyTo(msg, 1);
+        Send(msg);
+    }
+
+    private static bool TryParseDisplaySpec(string spec, out ushort w, out ushort h, out ushort dpi)
+    {
+        w = h = dpi = 0;
+        var slash = spec.Split('/');
+        var dims = slash[0].Split('x');
+        if (dims.Length != 2 || !ushort.TryParse(dims[0], out w) || !ushort.TryParse(dims[1], out h))
+            return false;
+        if (slash.Length > 1)
+            ushort.TryParse(slash[1], out dpi);
+        return w > 0 && h > 0;
     }
 
     public void InjectTouch(byte action, ulong pointerId, uint x, uint y, ushort w, ushort h,
@@ -173,6 +288,8 @@ public sealed class ControlChannel : IDisposable
         {
             var end = 300;
             while (end > 0 && (bytes[end - 1] & 0xC0) == 0x80)
+                end--;
+            if (end > 0 && (bytes[end - 1] & 0x80) != 0)
                 end--;
             bytes = bytes[..end];
         }
@@ -282,54 +399,15 @@ public sealed class ControlChannel : IDisposable
     private static short EncodeScroll(float v)
         => (short)Math.Clamp((int)MathF.Round(Math.Clamp(v, -16f, 16f) * 2048f), short.MinValue, short.MaxValue);
 
-    private async Task ReadLoopAsync()
-    {
-        var header = new byte[16];
-        try
-        {
-            while (!_cts.IsCancellationRequested)
-            {
-                if (!await ReadExactAsync(header.AsMemory(0, 1)))
-                    break;
-                var type = (DeviceMsgType)header[0];
-                switch (type)
-                {
-                    case DeviceMsgType.Clipboard:
-                        if (!await ReadExactAsync(header.AsMemory(0, 4))) return;
-                        var len = BinaryPrimitives.ReadUInt32BigEndian(header);
-                        var textBuf = new byte[len];
-                        if (!await ReadExactAsync(textBuf)) return;
-                        ClipboardReceived?.Invoke(Encoding.UTF8.GetString(textBuf));
-                        break;
-                    case DeviceMsgType.AckClipboard:
-                        if (!await ReadExactAsync(header.AsMemory(0, 8))) return;
-                        break;
-                    default:
-                        return;
-                }
-            }
-        }
-        catch { }
-    }
-
-    private async Task<bool> ReadExactAsync(Memory<byte> buffer)
-    {
-        var total = 0;
-        while (total < buffer.Length)
-        {
-            var n = await _socket.ReceiveAsync(buffer.Slice(total), SocketFlags.None, _cts.Token);
-            if (n == 0) return false;
-            total += n;
-        }
-        return true;
-    }
-
     public void Dispose()
     {
-        _cts.Cancel();
-        try { _sendQueue.CompleteAdding(); } catch { }
-        try { _socket.Dispose(); } catch { }
-        _cts.Dispose();
-        _sendQueue.Dispose();
+        lock (_sendGate)
+        {
+            if (_disposed)
+                return;
+            _disposed = true;
+            _sendQueue.Writer.TryComplete();
+            _cts.Cancel();
+        }
     }
 }

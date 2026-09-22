@@ -7,7 +7,7 @@ using System.Windows.Data;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using TouchMirror.Scrcpy;
+using TouchMirror.Engine;
 using TouchMirror.Services;
 
 namespace TouchMirror.ViewModels;
@@ -134,12 +134,20 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<WorkspaceItem> Workspaces { get; } = new();
     [ObservableProperty] private WorkspaceItem? _activeWorkspace;
     public ObservableCollection<MissingDeviceItem> MissingDevices { get; } = new();
+    public ObservableCollection<ActivityEntry> ActivityLog { get; } = new();
     public bool HasMissingDevices => MissingDevices.Count > 0;
     public bool HasStripContent => HasInactiveMirrors || HasMissingDevices;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasDeviceScope))]
+    private bool _settingsScopeGlobal;
+
+    public bool HasDeviceScope => ActiveMirror?.Prefs != null;
     public string ActiveSettingsScope =>
-        ActiveMirror?.Prefs != null
-            ? string.Format(L("st.settings_of"), ActiveMirror.DeviceName)
+        ActivePrefs() != null
+            ? string.Format(L("st.settings_of"), ActiveMirror!.DeviceName)
             : L("st.global_settings");
+
+    partial void OnSettingsScopeGlobalChanged(bool value) => LoadEffectiveSettings();
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActiveMirrorName))]
@@ -189,18 +197,47 @@ public partial class MainViewModel : ObservableObject
 
     public bool IsConnected => Mirrors.Count > 0;
     public bool IsDisconnected => !IsConnected;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowMirrorSurface))]
+    [NotifyPropertyChangedFor(nameof(ShowHubSurface))]
+    private bool _showHub;
+
+    public bool ShowMirrorSurface => Mirrors.Count > 0 && !ShowHub;
+    public bool ShowHubSurface => Mirrors.Count == 0 || ShowHub;
+
+    [RelayCommand]
+    private void ToggleHub() => ShowHub = !ShowHub;
     public bool CanConnect => !IsBusy && SelectedDevice is { IsReady: true };
     public string ActiveMirrorName => ActiveMirror?.DeviceName ?? "";
+
+    public string CodecShort => VideoCodec switch
+    {
+        "h265" => "H.265",
+        "h264" => "H.264",
+        "av1" => "AV1",
+        _ => "Auto",
+    };
+
+    public string QualityShort =>
+        $"{(MaxSize == 0 ? L("opt.natif_max") : MaxSize + "p")} · {MaxFps} fps";
+
+    public string BitRateShort => $"{VideoBitRate / 1_000_000} Mbps";
 
     public Visibility RecordingVisibility =>
         ActiveMirror?.IsRecording == true ? Visibility.Visible : Visibility.Collapsed;
 
     [ObservableProperty] private string _recordingElapsed = "REC";
+    [ObservableProperty] private string _sessionElapsed = "00:00:00";
+    [ObservableProperty] private string _sessionStats = "";
+
+    public bool StepPluggedDone => Devices.Any(d => !d.IsRememberedOnly);
+    public bool StepAuthDone => Devices.Any(d => d.IsReady);
 
     private readonly DispatcherTimer _recTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer _saveTimer = new() { Interval = TimeSpan.FromMilliseconds(600) };
     private readonly DispatcherTimer _pollTimer = new() { Interval = TimeSpan.FromSeconds(5) };
-    private bool _refreshing;
+    [ObservableProperty] private bool _refreshing;
     private readonly AppSettings _settings;
     private static string L(string key) => LocalizationService.Get(key);
     private bool _suppressSave;
@@ -212,22 +249,33 @@ public partial class MainViewModel : ObservableObject
     {
         CatalogView = CollectionViewSource.GetDefaultView(Catalog);
         CatalogView.Filter = CatalogPredicate;
+        PluginsView = CollectionViewSource.GetDefaultView(Plugins);
+        PluginsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(PluginInstance.GroupLabel)));
+        PluginsView.SortDescriptions.Add(new SortDescription(nameof(PluginInstance.GroupIndex), ListSortDirection.Ascending));
+        PluginsView.SortDescriptions.Add(new SortDescription(nameof(PluginInstance.Name), ListSortDirection.Ascending));
         _recTimer.Tick += (_, _) =>
         {
             var since = ActiveMirror?.RecordingSince;
             RecordingElapsed = since.HasValue ? $"REC {(DateTime.Now - since.Value):m\\:ss}" : "REC";
+            var cs = ActiveMirror?.ConnectedSince;
+            SessionElapsed = cs.HasValue ? (DateTime.Now - cs.Value).ToString(@"hh\:mm\:ss") : "00:00:00";
+            var view = ActiveMirror?.View;
+            SessionStats = view != null && view.VideoWidth > 0
+                ? $"{view.VideoWidth}×{view.VideoHeight} · {view.CurrentFps:0} fps · {BitRateShort} · {CodecShort}"
+                : $"{QualityShort} · {BitRateShort} · {CodecShort}";
         };
         _recTimer.Start();
         _saveTimer.Tick += (_, _) => { _saveTimer.Stop(); SaveNow(); };
         _pollTimer.Tick += async (_, _) =>
         {
-            if (!IsBusy && !_refreshing)
+            if (!IsBusy && !Refreshing)
                 await RefreshDevicesAsync();
         };
 
         _settings = SettingsStore.Load();
         LocalizationService.Instance.Load(_settings.Language);
         Status = L("st.select_device");
+        DeviceThumbs.IsBusy = d => Mirrors.Any(m => m.Device.SharesIdentity(d));
         _settings.EnabledPlugins = _settings.EnabledPlugins
             .Select(e => e.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase)
                 ? Path.GetFileNameWithoutExtension(e) : e).ToList();
@@ -246,9 +294,13 @@ public partial class MainViewModel : ObservableObject
         VideoCodec = _settings.VideoCodec;
         VideoDecoder = _settings.VideoDecoder;
         VideoSharpen = _settings.VideoSharpen;
+        VideoFxaa = _settings.VideoFxaa;
         VideoBrightness = _settings.VideoBrightness;
         VideoContrast = _settings.VideoContrast;
         VideoSaturation = _settings.VideoSaturation;
+        VideoVibrance = _settings.VideoVibrance;
+        VideoVignette = _settings.VideoVignette;
+        VideoGamma = _settings.VideoGamma;
         StayAwake = _settings.StayAwake;
         EnableAudio = _settings.EnableAudio;
         AutoFullscreen = _settings.AutoFullscreen;
@@ -286,20 +338,24 @@ public partial class MainViewModel : ObservableObject
     public void SaveNow()
     {
         _saveTimer.Stop();
-        if (ActiveWorkspace == null)
+        if (ActivePrefs() == null)
         {
             _settings.MaxSize = MaxSize;
             _settings.MaxFps = MaxFps;
             _settings.VideoBitRate = VideoBitRate;
             _settings.VideoCodec = VideoCodec;
             _settings.VideoDecoder = VideoDecoder;
-            _settings.VideoSharpen = VideoSharpen;
-            _settings.VideoBrightness = VideoBrightness;
-            _settings.VideoContrast = VideoContrast;
-            _settings.VideoSaturation = VideoSaturation;
             _settings.EnableAudio = EnableAudio;
             _settings.TurnScreenOff = TurnScreenOff;
         }
+        _settings.VideoSharpen = VideoSharpen;
+        _settings.VideoFxaa = VideoFxaa;
+        _settings.VideoBrightness = VideoBrightness;
+        _settings.VideoContrast = VideoContrast;
+        _settings.VideoSaturation = VideoSaturation;
+        _settings.VideoVibrance = VideoVibrance;
+        _settings.VideoVignette = VideoVignette;
+        _settings.VideoGamma = VideoGamma;
         _settings.AutoLaunchDofus = AutoLaunchDofus;
         _settings.StayAwake = StayAwake;
         _settings.AutoFullscreen = AutoFullscreen;
@@ -315,20 +371,53 @@ public partial class MainViewModel : ObservableObject
         _settings.Workspaces = Workspaces.Select(w => w.Model).ToList();
         _settings.ActiveWorkspaceId = ActiveWorkspace?.Id;
         SyncActiveWorkspace();
+        foreach (var m in Mirrors)
+        {
+            if (m.Prefs is { } wd && ActiveWorkspace?.Model.Devices.Contains(wd) != true)
+            {
+                if (!_settings.Devices.TryGetValue(m.IdentityKey, out var dp))
+                    _settings.Devices[m.IdentityKey] = dp = new DevicePrefs();
+                dp.MaxSize = wd.MaxSize;
+                dp.MaxFps = wd.MaxFps;
+                dp.VideoBitRate = wd.VideoBitRate;
+                dp.VideoCodec = wd.VideoCodec;
+                dp.VideoDecoder = wd.VideoDecoder;
+                dp.EnableAudio = wd.EnableAudio;
+                dp.TurnScreenOff = wd.TurnScreenOff;
+                dp.NewDisplay = wd.NewDisplay;
+                dp.AdaptiveBitrate = wd.AdaptiveBitrate;
+            }
+        }
         SettingsStore.Save(_settings);
         if (LocalApiEnabled && _apiServer is { Port: { } p } && p != LocalApiPort)
             AppLogger.Forget(RestartApiAsync());
     }
 
-    [ObservableProperty] private int _maxSize = 0;
-    [ObservableProperty] private int _maxFps = 60;
-    [ObservableProperty] private int _videoBitRate = 16_000_000;
-    [ObservableProperty] private string _videoCodec = "auto";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(QualityShort))]
+    [NotifyPropertyChangedFor(nameof(SessionStats))]
+    private int _maxSize = 0;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(QualityShort))]
+    [NotifyPropertyChangedFor(nameof(SessionStats))]
+    private int _maxFps = 60;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BitRateShort))]
+    [NotifyPropertyChangedFor(nameof(SessionStats))]
+    private int _videoBitRate = 16_000_000;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CodecShort))]
+    [NotifyPropertyChangedFor(nameof(SessionStats))]
+    private string _videoCodec = "auto";
     [ObservableProperty] private string _videoDecoder = "gpu";
     [ObservableProperty] private bool _videoSharpen;
+    [ObservableProperty] private bool _videoFxaa;
     [ObservableProperty] private double _videoBrightness;
     [ObservableProperty] private double _videoContrast = 1;
     [ObservableProperty] private double _videoSaturation = 1;
+    [ObservableProperty] private double _videoVibrance;
+    [ObservableProperty] private double _videoVignette;
+    [ObservableProperty] private double _videoGamma = 1;
     [ObservableProperty] private bool _stayAwake;
     [ObservableProperty] private bool _enableAudio = true;
     [ObservableProperty] private bool _autoFullscreen;
@@ -357,8 +446,10 @@ public partial class MainViewModel : ObservableObject
 
     private bool _hasError;
     public System.Windows.Media.Brush StatusDotColor => _hasError
-        ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xF4, 0x43, 0x36))
-        : IsConnected ? System.Windows.Media.Brushes.LimeGreen : System.Windows.Media.Brushes.Gray;
+        ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xC4, 0x2B, 0x1C))
+        : IsConnected
+            ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3A, 0x9A, 0x6F))
+            : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x8A, 0x8A, 0x8A));
 
     public event Action<MirrorInstance>? MirrorAdded;
     public event Func<MirrorInstance, string?>? ScreenshotRequested;
@@ -368,6 +459,7 @@ public partial class MainViewModel : ObservableObject
     {
         InactiveMirrors.Remove(instance);
         ActiveMirror = instance;
+        ShowHub = false;
         foreach (var m in Mirrors)
         {
             m.IsActive = m == instance;
@@ -541,6 +633,28 @@ public partial class MainViewModel : ObservableObject
             || (accountUserId == null && d.LastSerial != null && device.MatchesSerial(d.LastSerial)));
     }
 
+    private WorkspaceDevice DetachedPrefs(AdbDevice device, int? accountUserId)
+    {
+        var key = IdentityKeyOf(device, accountUserId);
+        _settings.Devices.TryGetValue(key, out var dp);
+        return new WorkspaceDevice
+        {
+            DeviceKey = key,
+            Model = device.Model,
+            LastSerial = device.Serial,
+            AccountUserId = accountUserId,
+            MaxSize = dp?.MaxSize,
+            MaxFps = dp?.MaxFps,
+            VideoBitRate = dp?.VideoBitRate,
+            VideoCodec = dp?.VideoCodec,
+            VideoDecoder = dp?.VideoDecoder,
+            EnableAudio = dp?.EnableAudio,
+            TurnScreenOff = dp?.TurnScreenOff,
+            NewDisplay = dp?.NewDisplay,
+            AdaptiveBitrate = dp?.AdaptiveBitrate
+        };
+    }
+
     private void SyncActiveWorkspace()
     {
         var item = ActiveWorkspace;
@@ -561,13 +675,23 @@ public partial class MainViewModel : ObservableObject
             }
             else
             {
+                var prev = m.Prefs;
                 next.Add(new WorkspaceDevice
                 {
                     DeviceKey = m.IdentityKey,
                     Model = m.Device.Model,
                     LastSerial = m.Device.Serial,
                     AccountUserId = m.AccountUserId,
-                    AccountName = m.AccountName
+                    AccountName = m.AccountName,
+                    MaxSize = prev?.MaxSize,
+                    MaxFps = prev?.MaxFps,
+                    VideoBitRate = prev?.VideoBitRate,
+                    VideoCodec = prev?.VideoCodec,
+                    VideoDecoder = prev?.VideoDecoder,
+                    EnableAudio = prev?.EnableAudio,
+                    TurnScreenOff = prev?.TurnScreenOff,
+                    NewDisplay = prev?.NewDisplay,
+                    AdaptiveBitrate = prev?.AdaptiveBitrate
                 });
             }
             m.Prefs = next[^1];
@@ -764,7 +888,7 @@ public partial class MainViewModel : ObservableObject
                 var dev = Devices.FirstOrDefault(d => d.DeviceKey == baseKey
                     || (wd.LastSerial != null && d.MatchesSerial(wd.LastSerial)));
                 if (dev is { IsReady: true } && !_voluntaryDisconnects.Contains(dev.Serial)
-                    && !_voluntaryDisconnects.Contains(wd.DeviceKey))
+                    && !_voluntaryDisconnects.Contains(wd.DeviceKey) && !_failedReconnects.Contains(wd.DeviceKey))
                     await ConnectDeviceAsync(dev, wd,
                         userId is { } u ? new MirrorAccount(u, wd.AccountName ?? string.Format(L("account.default_name"), u)) : null);
             }
@@ -822,6 +946,27 @@ public partial class MainViewModel : ObservableObject
         foreach (var m in Mirrors.Where(m => m.Device.SharesIdentity(device)))
             m.AccentHex = hex;
         RefreshMissingDevices();
+        SaveNow();
+    }
+
+    public void SetDevicePinned(AdbDevice device, bool pinned)
+    {
+        var key = device.DeviceKey;
+        if (!_settings.Devices.TryGetValue(key, out var prefs))
+            _settings.Devices[key] = prefs = new DevicePrefs();
+        prefs.Pinned = pinned;
+        prefs.Model = device.Model;
+        prefs.LastSerial = device.Serial;
+        for (var i = 0; i < Devices.Count; i++)
+            if (Devices[i].SharesIdentity(device))
+                Devices[i] = Devices[i] with { Pinned = pinned };
+        var order = Devices.OrderByDescending(d => d.Pinned).ToList();
+        for (var i = 0; i < order.Count; i++)
+        {
+            var cur = Devices.IndexOf(order[i]);
+            if (cur != i)
+                Devices.Move(cur, i);
+        }
         SaveNow();
     }
 
@@ -1007,6 +1152,7 @@ public partial class MainViewModel : ObservableObject
 
     public ObservableCollection<MarketplaceItem> Catalog { get; } = new();
     public ICollectionView CatalogView { get; }
+    public ICollectionView PluginsView { get; }
 
     [ObservableProperty] private string _catalogStatus = "";
     [ObservableProperty] private bool _catalogBusy;
@@ -1025,9 +1171,13 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnCatalogFilterChanged(string value) => CatalogView.Refresh();
 
+    public MarketplaceItem? FeaturedPlugin => Catalog.FirstOrDefault(c => c.Featured);
+
     private bool CatalogPredicate(object o)
     {
         if (o is not MarketplaceItem m)
+            return false;
+        if (m == FeaturedPlugin && string.IsNullOrWhiteSpace(CatalogFilter))
             return false;
         return string.IsNullOrWhiteSpace(CatalogFilter)
                || m.Name.Contains(CatalogFilter, StringComparison.OrdinalIgnoreCase)
@@ -1052,6 +1202,8 @@ public partial class MainViewModel : ObservableObject
             }
             CatalogStatus = Catalog.Count == 0 ? "catalogue vide" : "";
             _catalogLoaded = true;
+            OnPropertyChanged(nameof(FeaturedPlugin));
+            CatalogView.Refresh();
         }
         catch (Exception ex)
         {
@@ -1293,11 +1445,31 @@ public partial class MainViewModel : ObservableObject
         };
         OnPropertyChanged(nameof(IsConnected));
         OnPropertyChanged(nameof(IsDisconnected));
+        OnPropertyChanged(nameof(ShowMirrorSurface));
+        OnPropertyChanged(nameof(ShowHubSurface));
         OnPropertyChanged(nameof(StatusDotColor));
         OnPropertyChanged(nameof(RecordingVisibility));
+        for (var i = 0; i < Devices.Count; i++)
+        {
+            var mir = Mirrors.Any(m => m.Device.SharesIdentity(Devices[i]));
+            if (Devices[i].IsMirrored != mir)
+                Devices[i] = Devices[i] with { IsMirrored = mir };
+        }
     }
 
-    private ScrcpyOptions BuildOptions(WorkspaceDevice? o = null, MirrorAccount? account = null) => new()
+    private async Task<string?> ResolveAccountDisplayAsync(AdbDevice device, WorkspaceDevice? prefs)
+    {
+        if (!string.IsNullOrEmpty(prefs?.NewDisplay))
+            return prefs.NewDisplay;
+        var (w, h) = await AdbService.GetScreenSizeAsync(device.Serial);
+        if (w <= 0 || h <= 0)
+            return null;
+        var dpi = await AdbService.GetScreenDensityAsync(device.Serial);
+        return $"{Math.Max(w, h)}x{Math.Min(w, h)}/{(dpi > 0 ? dpi : 420)}";
+    }
+
+    private EngineOptions BuildOptions(WorkspaceDevice? o = null, MirrorAccount? account = null,
+        string? accountDisplay = null) => new()
     {
         MaxSize = o?.MaxSize ?? _settings.MaxSize,
         MaxFps = o?.MaxFps ?? _settings.MaxFps,
@@ -1305,14 +1477,18 @@ public partial class MainViewModel : ObservableObject
         VideoCodec = o?.VideoCodec ?? _settings.VideoCodec,
         VideoDecoder = o?.VideoDecoder ?? _settings.VideoDecoder,
         VideoSharpen = VideoSharpen,
+        VideoFxaa = VideoFxaa,
         VideoBrightness = VideoBrightness,
         VideoContrast = VideoContrast,
         VideoSaturation = VideoSaturation,
+        VideoVibrance = VideoVibrance,
+        VideoVignette = VideoVignette,
+        VideoGamma = VideoGamma,
         StayAwake = StayAwake,
         Audio = o?.EnableAudio ?? _settings.EnableAudio,
         TurnScreenOff = o?.TurnScreenOff ?? _settings.TurnScreenOff,
         NewDisplay = account != null
-            ? (string.IsNullOrEmpty(o?.NewDisplay) ? "1920x1200/280" : o.NewDisplay)
+            ? (string.IsNullOrEmpty(o?.NewDisplay) ? (accountDisplay ?? "1920x1200/280") : o.NewDisplay)
             : (o?.NewDisplay ?? _settings.NewDisplay),
         AutoLaunchPackage = account != null
             ? $"com.ankama.dofustouch@{account.UserId}"
@@ -1321,7 +1497,7 @@ public partial class MainViewModel : ObservableObject
         ClipboardAutosync = SyncDeviceClipboard,
     };
 
-    private WorkspaceDevice? ActivePrefs() => ActiveMirror?.Prefs;
+    private WorkspaceDevice? ActivePrefs() => SettingsScopeGlobal ? null : ActiveMirror?.Prefs;
 
     private void LoadEffectiveSettings()
     {
@@ -1336,7 +1512,7 @@ public partial class MainViewModel : ObservableObject
         EnableAudio = o?.EnableAudio ?? _settings.EnableAudio;
         TurnScreenOff = o?.TurnScreenOff ?? _settings.TurnScreenOff;
         AdaptiveBitrate = o?.AdaptiveBitrate ?? _settings.AdaptiveBitrate;
-        if (ActiveMirror != null)
+        if (o != null && ActiveMirror != null)
             ActiveMirror.AdaptiveBitrate = AdaptiveBitrate;
         var spec = o?.NewDisplay ?? _settings.NewDisplay;
         SelectedDisplayFormat = DisplayFormatOptions.FirstOrDefault(f => f.Spec == spec)
@@ -1347,6 +1523,7 @@ public partial class MainViewModel : ObservableObject
         _suppressSave = false;
         _suppressReconnect = false;
         OnPropertyChanged(nameof(ActiveSettingsScope));
+        OnPropertyChanged(nameof(HasDeviceScope));
     }
 
     private bool _suppressReconnect;
@@ -1409,6 +1586,17 @@ public partial class MainViewModel : ObservableObject
         ScheduleSave();
     }
 
+    partial void OnVideoFxaaChanged(bool value)
+    {
+        foreach (var m in Mirrors)
+            if (m.Decoder?.GpuPresenter is { } p)
+            {
+                p.Fxaa = value;
+                p.Redraw();
+            }
+        ScheduleSave();
+    }
+
     private void ApplyColorAdjust()
     {
         foreach (var m in Mirrors)
@@ -1416,6 +1604,7 @@ public partial class MainViewModel : ObservableObject
             {
                 p.SetColorAdjust((float)VideoBrightness, (float)VideoContrast,
                     (float)VideoSaturation);
+                p.SetEffects((float)VideoVibrance, (float)VideoVignette, (float)VideoGamma);
                 p.Redraw();
             }
         ScheduleSave();
@@ -1424,6 +1613,9 @@ public partial class MainViewModel : ObservableObject
     partial void OnVideoBrightnessChanged(double value) => ApplyColorAdjust();
     partial void OnVideoContrastChanged(double value) => ApplyColorAdjust();
     partial void OnVideoSaturationChanged(double value) => ApplyColorAdjust();
+    partial void OnVideoVibranceChanged(double value) => ApplyColorAdjust();
+    partial void OnVideoVignetteChanged(double value) => ApplyColorAdjust();
+    partial void OnVideoGammaChanged(double value) => ApplyColorAdjust();
 
     [RelayCommand]
     private void ResetVideoColor()
@@ -1431,6 +1623,9 @@ public partial class MainViewModel : ObservableObject
         VideoBrightness = 0;
         VideoContrast = 1;
         VideoSaturation = 1;
+        VideoVibrance = 0;
+        VideoVignette = 0;
+        VideoGamma = 1;
     }
 
     partial void OnStayAwakeChanged(bool value) => ScheduleSave();
@@ -1448,7 +1643,20 @@ public partial class MainViewModel : ObservableObject
                 AppLogger.Forget(LoadCatalog());
         }
     }
-    partial void OnSelectedDeviceChanged(AdbDevice? value) => ScheduleSave();
+    partial void OnSelectedDeviceChanged(AdbDevice? value)
+    {
+        ScheduleSave();
+        SyncDeviceSelection();
+        if (value != null && SetupTarget != null
+            && SetupTarget.DeviceKey != value.DeviceKey
+            && (SetupKind == "offer" || SetupKind == "busy"))
+        {
+            _setupOffered.Add(SetupTarget.DeviceKey);
+            SetupTarget = null;
+            SetupKind = "";
+            UpdateSetupOffer(Devices.ToList());
+        }
+    }
     partial void OnTurnScreenOffChanged(bool value)
     {
         if (_suppressSave) return;
@@ -1470,7 +1678,7 @@ public partial class MainViewModel : ObservableObject
     private async Task ReconnectActiveAsync()
     {
         var m = ActiveMirror;
-        if (m == null || !m.IsConnected || IsBusy)
+        if (m == null || !m.IsConnected || IsBusy || SettingsScopeGlobal)
             return;
         Log("Réglage modifié — reconnexion de la tuile active…");
         var device = m.Device;
@@ -1492,6 +1700,7 @@ public partial class MainViewModel : ObservableObject
                 ? L("st.adb_embedded")
                 : $"adb : {adb}";
         await RefreshDevicesAsync();
+        AppLogger.Forget(RefreshConnectionWarningAsync());
         MigrateLegacyPlugins();
         RescanPlugins();
         AppLogger.Forget(CheckUpdateAsync());
@@ -1519,7 +1728,11 @@ public partial class MainViewModel : ObservableObject
         }, _trackCts.Token);
     }
 
-    public void StopTracking() => _trackCts.Cancel();
+    public void StopTracking()
+    {
+        _pollTimer.Stop();
+        _trackCts.Cancel();
+    }
 
     private async Task CheckUpdateAsync()
     {
@@ -1547,9 +1760,9 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task RefreshDevicesAsync()
     {
-        if (_refreshing)
+        if (Refreshing)
             return;
-        _refreshing = true;
+        Refreshing = true;
         try
         {
             var list = (await AdbService.GetDevicesAsync()).ToList();
@@ -1560,7 +1773,7 @@ public partial class MainViewModel : ObservableObject
                     d.MatchesSerial(st.Serial)
                     || d.DeviceKey == st.DeviceKey
                     || d.DeviceKey == st.Serial);
-                if (dev == null)
+                if (dev is not { IsReady: true } || Mirrors.Any(m => m.Device.SharesIdentity(dev)))
                     continue;
                 try
                 {
@@ -1587,7 +1800,11 @@ public partial class MainViewModel : ObservableObject
                 }
             }
 
-            _voluntaryDisconnects.RemoveWhere(s => !list.Any(d => d.Serial == s));
+            _voluntaryDisconnects.RemoveWhere(s =>
+            {
+                var (baseKey, _) = SplitIdentityKey(s);
+                return !list.Any(d => d.DeviceKey == baseKey || d.MatchesSerial(baseKey));
+            });
 
             for (var i = 0; i < list.Count; i++)
             {
@@ -1597,8 +1814,8 @@ public partial class MainViewModel : ObservableObject
                 prefs.Model = d.Model;
                 prefs.LastSerial = d.Serial;
                 if ((prefs.CustomName != null && prefs.CustomName != d.CustomName)
-                    || prefs.Color != d.Color)
-                    list[i] = d with { CustomName = prefs.CustomName ?? d.CustomName, Color = prefs.Color };
+                    || prefs.Color != d.Color || prefs.Pinned != d.Pinned)
+                    list[i] = d with { CustomName = prefs.CustomName ?? d.CustomName, Color = prefs.Color, Pinned = prefs.Pinned };
             }
 
             foreach (var (key, prefs) in _settings.Devices)
@@ -1607,8 +1824,22 @@ public partial class MainViewModel : ObservableObject
                     || (prefs.LastSerial != null && d.MatchesSerial(prefs.LastSerial)));
                 if (!present)
                     list.Add(new AdbDevice(prefs.LastSerial ?? key, prefs.Model ?? "",
-                        "remembered", CustomName: prefs.CustomName, Color: prefs.Color));
+                        "remembered", CustomName: prefs.CustomName, Color: prefs.Color, Pinned: prefs.Pinned));
             }
+
+            list = list.OrderByDescending(d => d.Pinned).ToList();
+
+            var selKey = SelectedDevice?.DeviceKey;
+            for (var i = 0; i < list.Count; i++)
+                list[i] = list[i] with
+                {
+                    IsSelected = selKey != null && list[i].DeviceKey == selKey,
+                    IsMirrored = Mirrors.Any(m => m.Device.SharesIdentity(list[i]))
+                };
+
+            var known = Devices.Where(d => d.IsReady).ToList();
+            foreach (var d in list.Where(d => d.IsReady && !known.Any(k => k.SharesIdentity(d))))
+                AddActivity("phone", L("act.device_detected"), d.ShortName);
 
             for (var i = 0; i < list.Count; i++)
             {
@@ -1624,7 +1855,6 @@ public partial class MainViewModel : ObservableObject
             }
             while (Devices.Count > list.Count)
                 Devices.RemoveAt(Devices.Count - 1);
-            UpdateSetupOffer(list);
             var current = SelectedDevice != null
                 ? list.FirstOrDefault(d => d.SharesIdentity(SelectedDevice) || d.DeviceKey == SelectedDevice.DeviceKey)
                 : null;
@@ -1632,24 +1862,46 @@ public partial class MainViewModel : ObservableObject
                 ?? list.FirstOrDefault(d => d.DeviceKey == _settings.LastSelectedDeviceKey)
                 ?? list.FirstOrDefault(d => d.IsReady)
                 ?? list.FirstOrDefault();
+            SyncDeviceSelection();
+            OnPropertyChanged(nameof(DetectedDeviceCount));
+            OnPropertyChanged(nameof(StepPluggedDone));
+            OnPropertyChanged(nameof(StepAuthDone));
+            UpdateSetupOffer(list);
             var detected = list.Count(d => !d.IsRememberedOnly);
-            if (detected == 0)
-                Status = L("st.no_device");
-            else if (!IsConnected)
-                Status = string.Format(L("st.devices_detected"), detected);
+            if (!_hasError && !Mirrors.Any(m => m.IsReconnecting))
+            {
+                if (detected == 0)
+                    Status = L("st.no_device");
+                else if (!IsConnected)
+                    Status = string.Format(L("st.devices_detected"), detected);
+            }
             _apiHost.Publish("devices", new { detected });
 
-            _pollTimer.IsEnabled = list.Any(d => !d.IsReady);
+            _pollTimer.IsEnabled = !_trackCts.IsCancellationRequested && (detected == 0 || list.Any(d => !d.IsReady));
+            if (detected == 0)
+            {
+                if ((DateTime.Now - _usbDiagChecked).TotalSeconds > 4)
+                {
+                    _usbDiagChecked = DateTime.Now;
+                    AppLogger.Forget(RefreshUsbDiagAsync());
+                }
+            }
+            else
+            {
+                UsbDiagTitle = UsbDiagDetail = null;
+            }
             RefreshMissingDevices();
             AppLogger.Forget(TryConnectMissingAsync());
         }
         catch (Exception ex)
         {
             Status = ex.Message;
+            _pollTimer.IsEnabled = !_trackCts.IsCancellationRequested;
+            AppLogger.Forget(RefreshUsbDiagAsync());
         }
         finally
         {
-            _refreshing = false;
+            Refreshing = false;
         }
     }
 
@@ -1667,6 +1919,49 @@ public partial class MainViewModel : ObservableObject
     public bool SetupIsBusy => SetupKind == "busy";
     [ObservableProperty] private int _setupProfileCount;
     [ObservableProperty] private string _setupAccountName = "";
+
+    [ObservableProperty] private string? _usbDiagTitle;
+    [ObservableProperty] private string? _usbDiagDetail;
+    private DateTime _usbDiagChecked = DateTime.MinValue;
+    private bool _usbDiagRunning;
+    [ObservableProperty] private string? _connectionWarning;
+
+    private async Task RefreshUsbDiagAsync()
+    {
+        if (_usbDiagRunning || _trackCts.IsCancellationRequested)
+            return;
+        _usbDiagRunning = true;
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_trackCts.Token);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        try
+        {
+            var found = await AdbService.DetectPnpAndroidAsync(timeout.Token);
+            if (found.Count == 0 || Devices.Any(d => !d.IsRememberedOnly))
+            {
+                UsbDiagTitle = UsbDiagDetail = null;
+                return;
+            }
+            UsbDiagTitle = string.Format(L("diag.usb_title"), string.Join(", ", found.Select(d => d.Name).Distinct()));
+            var guides = found.Select(d => d.Brand switch
+            {
+                "Xiaomi" => "diag.usb_xiaomi",
+                "Samsung" => "diag.usb_samsung",
+                "OnePlus" or "Oppo" or "Vivo" => "diag.usb_oneplus",
+                _ => "diag.usb_generic"
+            }).Distinct();
+            UsbDiagDetail = string.Join("\n", guides.Select(L));
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { Log($"USB diagnostic unavailable: {ex.GetType().Name}"); }
+        finally { _usbDiagRunning = false; }
+    }
+
+    private async Task RefreshConnectionWarningAsync()
+    {
+        var names = await Task.Run(() => AdbService.FindCompetingProcesses().Select(p => p.Name).Distinct().ToArray());
+        if (!_trackCts.IsCancellationRequested)
+            ConnectionWarning = names.Length == 0 ? null : string.Format(L("diag.other_apps"), string.Join(", ", names));
+    }
 
     private void UpdateSetupOffer(List<AdbDevice> list)
     {
@@ -1699,10 +1994,12 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        var candidate = list.FirstOrDefault(d => d.IsReady
-            && !_setupOffered.Contains(d.DeviceKey)
-            && !_profilesChecked.Contains(d.DeviceKey)
-            && !_settings.SetupDismissed.Contains(d.DeviceKey));
+        var candidate = list.Where(d => d.IsReady
+                && !_setupOffered.Contains(d.DeviceKey)
+                && !_profilesChecked.Contains(d.DeviceKey)
+                && !_settings.SetupDismissed.Contains(d.DeviceKey))
+            .OrderByDescending(d => SelectedDevice != null && d.DeviceKey == SelectedDevice.DeviceKey)
+            .FirstOrDefault();
         if (candidate == null)
             return;
 
@@ -1738,6 +2035,20 @@ public partial class MainViewModel : ObservableObject
                 SetupAccountName = string.Format(L("setup.account_name"), 2);
                 SetupKind = "offer";
             }
+        }
+    }
+
+    private void SyncDeviceSelection()
+    {
+        var key = SelectedDevice?.DeviceKey;
+        for (var i = 0; i < Devices.Count; i++)
+        {
+            var d = Devices[i];
+            var sel = key != null && d.DeviceKey == key;
+            if (d.IsSelected != sel)
+                Devices[i] = d with { IsSelected = sel };
+            if (sel && !ReferenceEquals(Devices[i], SelectedDevice))
+                SelectedDevice = Devices[i];
         }
     }
 
@@ -1829,6 +2140,8 @@ public partial class MainViewModel : ObservableObject
         Services.AppLogger.Write($"connect start: {device.Serial}");
         _voluntaryDisconnects.Remove(device.Serial);
         _voluntaryDisconnects.Remove(IdentityKeyOf(device, account?.UserId));
+        _failedReconnects.Remove(IdentityKeyOf(device, account?.UserId));
+        AppLogger.Forget(RefreshConnectionWarningAsync());
         var existing = Mirrors.FirstOrDefault(m => m.Device.SharesIdentity(device)
             && m.AccountUserId == account?.UserId);
         if (existing != null)
@@ -1837,7 +2150,8 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        prefs ??= FindWorkspaceDevice(device, account?.UserId);
+        prefs ??= FindWorkspaceDevice(device, account?.UserId)
+            ?? DetachedPrefs(device, account?.UserId);
         IsBusy = true;
         _hasError = false;
         OnPropertyChanged(nameof(StatusDotColor));
@@ -1858,7 +2172,10 @@ public partial class MainViewModel : ObservableObject
         {
             WireMirror(instance);
             Services.AppLogger.Write("startasync begin");
-            var options = BuildOptions(prefs, account);
+            var accountDisplay = account != null
+                ? await ResolveAccountDisplayAsync(device, prefs)
+                : null;
+            var options = BuildOptions(prefs, account, accountDisplay);
             if (account != null)
                 await AdbService.StartUserAsync(device.Serial, account.UserId);
             await instance.StartAsync(options);
@@ -1866,10 +2183,12 @@ public partial class MainViewModel : ObservableObject
             RememberDevice(device);
             BindKeybindPersistence(instance);
         }
+        catch (OperationCanceledException) when (instance.ManualDisconnect) { }
         catch (Exception ex)
         {
             Log(ex.ToString());
             _hasError = true;
+            _failedReconnects.Add(instance.IdentityKey);
             Mirrors.Remove(instance);
             PromoteNextActive(instance);
             instance.Dispose();
@@ -1925,6 +2244,7 @@ public partial class MainViewModel : ObservableObject
             Status = string.Format(L("st.creating_account"), name);
             var userId = await AdbService.CreateCloneProfileAsync(device.Serial, name);
             Log($"profil clone créé : {name} (user {userId})");
+            AddActivity("person", L("act.account_created"), device.ShortName);
             await AdbService.InstallAppForUserAsync(device.Serial, userId, "com.ankama.dofustouch");
             await AdbService.StartUserAsync(device.Serial, userId);
             await ConnectDeviceAsync(device, null, new MirrorAccount(userId, name));
@@ -2061,6 +2381,7 @@ public partial class MainViewModel : ObservableObject
     public void StopAirPlay() => _airPlay?.Dispose();
 
     private readonly HashSet<string> _voluntaryDisconnects = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _failedReconnects = new(StringComparer.OrdinalIgnoreCase);
 
     public bool IsVoluntarilyDisconnected(string serial) => _voluntaryDisconnects.Contains(serial);
 
@@ -2245,6 +2566,7 @@ public partial class MainViewModel : ObservableObject
             else
             {
                 ActiveMirror = null;
+                LoadEffectiveSettings();
                 UpdateStatus();
             }
         }
@@ -2258,19 +2580,49 @@ public partial class MainViewModel : ObservableObject
     private void WireMirror(MirrorInstance instance, Action? onDisconnected = null)
     {
         instance.Log += Log;
+        instance.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MirrorInstance.ReconnectStatus) && instance.ReconnectStatus is { } message)
+            {
+                if (ReferenceEquals(ActiveMirror, instance))
+                    Status = $"{instance.Device.ShortName} : {message}";
+                AppLogger.Forget(RefreshConnectionWarningAsync());
+            }
+        };
         instance.Connected += m =>
         {
-            SetActive(m);
-            AnyConnected?.Invoke();
+            if (!m.IsReconnecting)
+            {
+                SetActive(m);
+                AnyConnected?.Invoke();
+            }
+            else if (ReferenceEquals(ActiveMirror, m))
+                UpdateStatus();
+            AddActivity("play", L("act.mirror_started"), m.Device.ShortName);
             _apiHost.Publish("mirror.connected",
                 new { slot = m.Slot, name = m.DeviceName, serial = m.Device.Serial });
         };
         instance.Disconnected += m =>
         {
+            AddActivity("dismiss", L("act.mirror_stopped"), m.Device.ShortName);
             _apiHost.Publish("mirror.disconnected",
                 new { name = m.DeviceName, serial = m.Device.Serial, manual = m.ManualDisconnect });
             Mirrors.Remove(m);
             PromoteNextActive(m);
+            if (m.UnexpectedDeath)
+            {
+                _failedReconnects.Add(m.IdentityKey);
+                Status = string.Format(L(m.LastDeviceState switch
+                {
+                    "unauthorized" => "st.authorize",
+                    "offline" => "st.offline",
+                    "missing" => "st.not_detected",
+                    _ => "st.link_reset"
+                }), m.Device.ShortName);
+                AppLogger.Forget(RefreshConnectionWarningAsync());
+                _hasError = true;
+                OnPropertyChanged(nameof(StatusDotColor));
+            }
             onDisconnected?.Invoke();
         };
         instance.OverlayLineClicked += (m, id, idx) =>
@@ -2320,6 +2672,7 @@ public partial class MainViewModel : ObservableObject
             SelectedDevice = wifiDevice;
             WifiStatus = string.Format(L("st.wifi_on"), ip);
             Status = reconnect ? L("st.wifi_reconnect") : L("st.wifi_ready");
+            AddActivity("wifi", L("act.wifi_enabled"), wifiDevice.ShortName);
             if (reconnect)
                 await ConnectDeviceAsync(wifiDevice);
         }
@@ -2331,6 +2684,353 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    [ObservableProperty] private bool _pairOpen;
+    [ObservableProperty] private byte[]? _pairQrPng;
+    [ObservableProperty] private string _pairStatus = "";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PairIdle))]
+    private bool _pairBusy;
+    public bool PairIdle => !PairBusy;
+    [ObservableProperty] private string _pairAddress = "";
+    [ObservableProperty] private string _pairCode = "";
+    [ObservableProperty] private bool _debugOpen;
+    [ObservableProperty] private string _debugReport = "";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DebugIdle))]
+    private bool _debugBusy;
+    public bool DebugIdle => !DebugBusy;
+    [ObservableProperty] private string _debugNote = "";
+
+    private QrPairSession? _pairSession;
+
+    [RelayCommand]
+    private void OpenPairing()
+    {
+        PairOpen = true;
+        StartQrSession();
+    }
+
+    [RelayCommand]
+    private void ClosePairing()
+    {
+        _pairSession?.Dispose();
+        _pairSession = null;
+        PairOpen = false;
+        PairBusy = false;
+        PairStatus = "";
+    }
+
+    [RelayCommand]
+    private void RegeneratePairQr() => StartQrSession();
+
+    private void StartQrSession()
+    {
+        _pairSession?.Dispose();
+        var session = new QrPairSession();
+        _pairSession = session;
+        PairQrPng = RenderQr(session.Payload);
+        PairStatus = L("pair.waiting");
+        _ = RunQrSessionAsync(session);
+    }
+
+    private static byte[] RenderQr(string payload)
+    {
+        var data = new QRCoder.QRCodeGenerator().CreateQrCode(payload, QRCoder.QRCodeGenerator.ECCLevel.Q);
+        return new QRCoder.PngByteQRCode(data).GetGraphic(9);
+    }
+
+    private async Task RunQrSessionAsync(QrPairSession session)
+    {
+        try
+        {
+            await session.RunAsync(async (state, detail) =>
+            {
+                if (session != _pairSession)
+                    return;
+                AppLogger.Write($"pairing : {state} {detail}");
+                switch (state)
+                {
+                    case QrPairState.Found:
+                        PairStatus = string.Format(L("pair.found"), detail);
+                        break;
+                    case QrPairState.Pairing:
+                        PairBusy = true;
+                        PairStatus = L("pair.pairing");
+                        break;
+                    case QrPairState.Done:
+                        PairBusy = false;
+                        PairStatus = L("pair.done");
+                        AddActivity("wifi", L("act.paired"), detail ?? "");
+                        await RefreshDevicesAsync();
+                        await Task.Delay(1600);
+                        if (session == _pairSession)
+                            ClosePairing();
+                        break;
+                    case QrPairState.Failed:
+                        PairBusy = false;
+                        PairStatus = string.Format(L("pair.fail"), detail);
+                        break;
+                    case QrPairState.Timeout:
+                        PairBusy = false;
+                        PairStatus = L("pair.timeout");
+                        break;
+                }
+            });
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            PairBusy = false;
+            if (session == _pairSession)
+                PairStatus = string.Format(L("pair.fail"), ex.Message);
+        }
+    }
+
+    [RelayCommand]
+    private async Task PairManualAsync()
+    {
+        if (PairBusy)
+            return;
+        PairBusy = true;
+        try
+        {
+            var result = await AdbService.PairAsync(PairAddress.Trim(), PairCode.Trim());
+            PairStatus = L("pair.done");
+            AddActivity("wifi", L("act.paired"), PairAddress.Trim());
+            await RefreshDevicesAsync();
+            await Task.Delay(1600);
+            if (PairOpen)
+                ClosePairing();
+            _ = result;
+        }
+        catch (Exception ex)
+        {
+            PairStatus = string.Format(L("pair.fail"), ex.Message);
+        }
+        finally
+        {
+            PairBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task PairConnectAsync()
+    {
+        if (PairBusy)
+            return;
+        PairBusy = true;
+        try
+        {
+            await AdbService.ConnectAsync(PairAddress.Trim());
+            PairStatus = L("pair.connected");
+            await RefreshDevicesAsync();
+            await Task.Delay(1200);
+            if (PairOpen)
+                ClosePairing();
+        }
+        catch (Exception ex)
+        {
+            PairStatus = string.Format(L("pair.fail"), ex.Message);
+        }
+        finally
+        {
+            PairBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private void OpenDebug()
+    {
+        DebugOpen = true;
+        _ = BuildDebugReportAsync();
+    }
+
+    [RelayCommand]
+    private void CloseDebug() => DebugOpen = false;
+
+    [RelayCommand]
+    private async Task RefreshDebugAsync() => await BuildDebugReportAsync();
+
+    [RelayCommand]
+    private void CopyDebug()
+    {
+        if (string.IsNullOrEmpty(DebugReport))
+            return;
+        try
+        {
+            System.Windows.Clipboard.SetText(DebugReport);
+            DebugNote = L("dbg.copied");
+        }
+        catch (Exception ex)
+        {
+            DebugNote = ex.Message;
+        }
+        _ = ClearDebugNoteAsync();
+    }
+
+    private async Task ClearDebugNoteAsync()
+    {
+        await Task.Delay(2500);
+        DebugNote = "";
+    }
+
+    [RelayCommand]
+    private void OpenLogsFolder()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start("explorer.exe",
+                System.IO.Path.GetDirectoryName(AppLogger.LogFilePath)!);
+        }
+        catch (Exception ex) { DebugNote = ex.Message; }
+    }
+
+    private async Task BuildDebugReportAsync()
+    {
+        if (DebugBusy)
+            return;
+        DebugBusy = true;
+        try
+        {
+            var nl = Environment.NewLine;
+            var adbPath = AdbService.FindAdb();
+            var adbVersion = await AdbService.ProbeAsync("version");
+            var devicesRaw = await AdbService.ProbeAsync("devices -l");
+            var mdnsServices = await AdbService.ProbeAsync("mdns services");
+            var mdnsCheck = await AdbService.ProbeAsync("mdns check");
+            List<AdbService.PnpAndroidDevice> pnp = new();
+            string? pnpError = null;
+            try { pnp = await AdbService.DetectPnpAndroidAsync(); }
+            catch (Exception ex) { pnpError = ex.Message; }
+            var foreign = AdbService.FindCompetingProcesses();
+            var lanIps = MdnsHost.LanAddresses();
+            var mdnsReplies = -1;
+            try { mdnsReplies = await MdnsHost.ProbeAsync(TimeSpan.FromSeconds(2)); }
+            catch { }
+            var detected = Devices.Where(d => !d.IsRememberedOnly).ToList();
+            var ready = detected.Where(d => d.IsReady).ToList();
+
+            var sb = new System.Text.StringBuilder();
+            sb.Append("TouchMirror v").Append(typeof(App).Assembly.GetName().Version?.ToString(3)).Append(nl);
+            sb.Append(System.Runtime.InteropServices.RuntimeInformation.OSDescription).Append(nl);
+            sb.Append(System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription).Append(nl);
+            sb.Append("écran : ").Append(SystemParameters.PrimaryScreenWidth).Append("x")
+                .Append(SystemParameters.PrimaryScreenHeight).Append(nl);
+            sb.Append("réglages : ").Append(MaxSize == 0 ? "natif" : MaxSize + "p").Append(" · ")
+                .Append(MaxFps).Append(" fps · ").Append(VideoBitRate / 1_000_000).Append(" Mbps · ")
+                .Append(VideoCodec).Append(" · audio ").Append(EnableAudio ? "on" : "off")
+                .Append(" · écran off ").Append(TurnScreenOff ? "on" : "off").Append(nl);
+
+            sb.Append(nl).Append("== diagnostic ==").Append(nl);
+            if (adbPath != null)
+                sb.Append("[OK] adb : ").Append(adbPath).Append(nl);
+            else
+                sb.Append("[!!] adb introuvable — platform-tools manquant").Append(nl);
+            sb.Append(adbVersion.Contains("Android Debug Bridge", StringComparison.OrdinalIgnoreCase)
+                    ? "[OK] le serveur adb répond" : "[!!] adb ne répond pas").Append(nl);
+            if (ready.Count > 0)
+                sb.Append("[OK] ").Append(ready.Count).Append(" appareil(s) prêt(s)").Append(nl);
+            else if (detected.Any(d => d.NeedsAuthorization))
+                sb.Append("[!!] appareil en attente d'autorisation — accepte la popup RSA sur le téléphone").Append(nl);
+            else if (detected.Any(d => d.IsOffline))
+                sb.Append("[!!] appareil « offline » — rebranche le câble").Append(nl);
+            else if (detected.Count == 0)
+                sb.Append("[--] aucun appareil adb").Append(nl);
+            var pnpOnly = pnp.Where(p => detected.All(d =>
+                !(d.DeviceKey ?? "").Contains(p.Vid, StringComparison.OrdinalIgnoreCase))).ToList();
+            foreach (var p in pnpOnly)
+                sb.Append("[!!] Windows voit « ").Append(p.Name).Append(" » (").Append(p.Brand ?? p.Vid)
+                    .Append(") mais adb non — débogage USB/RSA à vérifier").Append(nl);
+            if (pnpError != null)
+                sb.Append("[--] détection Windows : ").Append(pnpError).Append(nl);
+            var brands = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var p in pnp)
+                if (p.Brand != null)
+                    brands.Add(p.Brand);
+            var models = devicesRaw.ToLowerInvariant();
+            if (models.Contains("redmi") || models.Contains("poco") || models.Contains("xiaomi"))
+                brands.Add("Xiaomi");
+            if (models.Contains("sm-") || models.Contains("samsung") || models.Contains("galaxy"))
+                brands.Add("Samsung");
+            if (models.Contains("cph") || models.Contains("oppo"))
+                brands.Add("Oppo");
+            if (models.Contains("rmx") || models.Contains("realme"))
+                brands.Add("Oppo");
+            if (models.Contains("oneplus"))
+                brands.Add("Oppo");
+            if (models.Contains("vivo"))
+                brands.Add("Vivo");
+            if (models.Contains("huawei") || models.Contains("honor"))
+                brands.Add("Huawei");
+            foreach (var b in brands.OrderBy(b => b))
+            {
+                var tip = b switch
+                {
+                    "Xiaomi" => "contrôle : active « Débogage USB (paramètres de sécurité) » — compte Mi + SIM souvent requis",
+                    "Samsung" => "vérifie « Auto Blocker » (Paramètres → Sécurité) — il bloque les commandes USB ; déverrouille le tel pour la popup RSA",
+                    "Oppo" or "OnePlus" => "contrôle : active « Désactiver la surveillance des autorisations » dans les options développeur",
+                    "Vivo" => "contrôle : active « Entrée simulée USB » dans les options développeur",
+                    "Huawei" => "ferme HiSuite — il peut occuper le port adb du téléphone",
+                    _ => null
+                };
+                if (tip != null)
+                    sb.Append("[i ] ").Append(b).Append(" : ").Append(tip).Append(nl);
+            }
+            foreach (var p in foreign)
+                sb.Append("[!!] ").Append(p.Name).Append(" tourne — peut réinitialiser la liaison adb").Append(nl);
+            if (mdnsReplies >= 0)
+                sb.Append(mdnsReplies > 0
+                        ? $"[OK] mDNS : {mdnsReplies} réponse(s) — le pairing QR peut trouver le téléphone"
+                        : "[!!] mDNS silencieux — pairing QR impossible (PC et tel sur le même WiFi ?)")
+                    .Append(nl);
+            else
+                sb.Append("[--] mDNS non testable").Append(nl);
+            sb.Append("[i ] IP du PC : ").Append(lanIps.Count > 0 ? string.Join(", ", lanIps) : "?")
+                .Append(" — le téléphone doit être sur le même réseau").Append(nl);
+
+            sb.Append(nl).Append("== adb devices -l ==").Append(nl).Append(devicesRaw).Append(nl);
+            sb.Append(nl).Append("== adb mdns ==").Append(nl).Append(mdnsCheck).Append(nl).Append(mdnsServices).Append(nl);
+            sb.Append(nl).Append("== périphériques Windows (PnP) ==").Append(nl);
+            if (pnp.Count == 0)
+                sb.Append("(aucun)").Append(nl);
+            else
+                foreach (var d in pnp)
+                    sb.Append("- ").Append(d.Name).Append("  [").Append(d.Vid).Append("] ").Append(d.Brand ?? "").Append(nl);
+            sb.Append(nl).Append("== processus adb / mirroring ==").Append(nl);
+            if (foreign.Count == 0)
+                sb.Append("(aucun)").Append(nl);
+            else
+                foreach (var p in foreign)
+                    sb.Append("- ").Append(p.Name).Append("  ").Append(p.Path ?? "?").Append(nl);
+            sb.Append(nl).Append("== miroirs ==").Append(nl);
+            if (Mirrors.Count == 0)
+                sb.Append("(aucun)").Append(nl);
+            else
+                foreach (var m in Mirrors)
+                    sb.Append("- ").Append(m.DeviceName).Append(m.IsConnected ? " [connecté]" : "")
+                        .Append(m.IsReconnecting ? $" [reconnexion: {m.ReconnectStatus}]" : "")
+                        .Append(m.UnexpectedDeath ? " [mort inattendue]" : "")
+                        .Append(" état=").Append(m.LastDeviceState).Append(nl);
+            sb.Append(nl).Append("== journal ==").Append(nl);
+            sb.Append(TailLog(250));
+            DebugReport = sb.ToString();
+        }
+        finally
+        {
+            DebugBusy = false;
+        }
+    }
+
+    private static string TailLog(int maxLines)
+    {
+        try
+        {
+            var lines = File.ReadAllLines(AppLogger.LogFilePath);
+            return string.Join(Environment.NewLine, lines.TakeLast(maxLines));
+        }
+        catch (Exception ex) { return ex.Message; }
+    }
+
     [RelayCommand] private void SendBack() => ActiveMirror?.Session?.Control?.InjectKeyPress(AndroidKeyCode.Back);
     [RelayCommand] private void SendHome() => ActiveMirror?.Session?.Control?.InjectKeyPress(AndroidKeyCode.Home);
     [RelayCommand] private void SendRecents() => ActiveMirror?.Session?.Control?.InjectKeyPress(AndroidKeyCode.AppSwitch);
@@ -2339,8 +3039,9 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand] private void RotateDevice() => ActiveMirror?.Session?.Control?.SendSimple(ControlMsgType.RotateDevice);
     [RelayCommand] private void Screenshot()
     {
-        if (ActiveMirror != null)
-            RequestScreenshot(ActiveMirror);
+        var m = ActiveMirror;
+        if (m != null && RequestScreenshot(m) != null)
+            AddActivity("camera", L("act.capture"), m.Device.ShortName);
     }
 
     [RelayCommand]
@@ -2375,6 +3076,19 @@ public partial class MainViewModel : ObservableObject
 
     private readonly ConcurrentQueue<string> _logQueue = new();
     private int _logFlushPending;
+
+    private void AddActivity(string icon, string text, string? device = null)
+    {
+        var d = Application.Current?.Dispatcher;
+        if (d == null || d.HasShutdownFinished)
+            return;
+        d.BeginInvoke(() =>
+        {
+            ActivityLog.Insert(0, new ActivityEntry(DateTime.Now.ToString("HH:mm"), icon, text, device));
+            while (ActivityLog.Count > 8)
+                ActivityLog.RemoveAt(ActivityLog.Count - 1);
+        });
+    }
 
     private void Log(string message)
     {

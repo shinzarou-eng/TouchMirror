@@ -6,14 +6,13 @@ import android.content.ClipData;
 import android.content.Context;
 
 public final class ClipboardManager {
+
     private final android.content.ClipboardManager manager;
 
     static ClipboardManager create() {
-        android.content.ClipboardManager manager = (android.content.ClipboardManager) FakeContext.get().getSystemService(Context.CLIPBOARD_SERVICE);
-        if (manager == null) {
-            return null;
-        }
-        return new ClipboardManager(manager);
+        android.content.ClipboardManager manager =
+                (android.content.ClipboardManager) FakeContext.get().getSystemService(Context.CLIPBOARD_SERVICE);
+        return manager == null ? null : new ClipboardManager(manager);
     }
 
     private ClipboardManager(android.content.ClipboardManager manager) {
@@ -21,16 +20,15 @@ public final class ClipboardManager {
     }
 
     public CharSequence getText() {
-        ClipData clipData = manager.getPrimaryClip();
-        if (clipData == null || clipData.getItemCount() == 0) {
+        ClipData clip = manager.getPrimaryClip();
+        if (clip == null || clip.getItemCount() == 0) {
             return null;
         }
-        return clipData.getItemAt(0).getText();
+        return clip.getItemAt(0).getText();
     }
 
     public boolean setText(CharSequence text) {
-        ClipData clipData = ClipData.newPlainText(null, text);
-        manager.setPrimaryClip(clipData);
+        manager.setPrimaryClip(ClipData.newPlainText(null, text));
         return true;
     }
 

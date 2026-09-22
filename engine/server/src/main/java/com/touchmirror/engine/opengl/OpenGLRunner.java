@@ -113,22 +113,18 @@ public final class OpenGLRunner {
             EGL14.eglTerminate(eglDisplay);
             throw new OpenGLException("Unable to find ES2 EGL config");
         }
-        EGLConfig eglConfig = configs[0];
 
         int[] contextAttribList = {
                 EGL14.EGL_CONTEXT_CLIENT_VERSION, 2,
                 EGL14.EGL_NONE
         };
-        eglContext = EGL14.eglCreateContext(eglDisplay, eglConfig, EGL14.EGL_NO_CONTEXT, contextAttribList, 0);
+        eglContext = EGL14.eglCreateContext(eglDisplay, configs[0], EGL14.EGL_NO_CONTEXT, contextAttribList, 0);
         if (eglContext == null) {
             EGL14.eglTerminate(eglDisplay);
             throw new OpenGLException("Failed to create EGL context");
         }
 
-        int[] surfaceAttribList = {
-                EGL14.EGL_NONE
-        };
-        eglSurface = EGL14.eglCreateWindowSurface(eglDisplay, eglConfig, outputSurface, surfaceAttribList, 0);
+        eglSurface = EGL14.eglCreateWindowSurface(eglDisplay, configs[0], outputSurface, new int[]{EGL14.EGL_NONE}, 0);
         if (eglSurface == null) {
             EGL14.eglDestroyContext(eglDisplay, eglContext);
             EGL14.eglTerminate(eglDisplay);
@@ -200,8 +196,7 @@ public final class OpenGLRunner {
 
             filter.release();
 
-            int[] textures = {textureId};
-            GLES20.glDeleteTextures(1, textures, 0);
+            GLES20.glDeleteTextures(1, new int[]{textureId}, 0);
             GLUtils.checkGlError();
 
             EGL14.eglDestroySurface(eglDisplay, eglSurface);

@@ -16,7 +16,6 @@ public class AffineOpenGLFilter implements OpenGLFilter {
 
     private int vertexPosLoc;
     private int texCoordsInLoc;
-
     private int texLoc;
     private int texMatrixLoc;
     private int userMatrixLoc;
@@ -57,22 +56,18 @@ public class AffineOpenGLFilter implements OpenGLFilter {
             throw new OpenGLException("Cannot create OpenGL program");
         }
 
-        float[] vertices = {
+        vertexBuffer = GLUtils.createFloatBuffer(new float[]{
                 -1, -1,
                 1, -1,
                 -1, 1,
                 1, 1,
-        };
-
-        float[] texCoords = {
+        });
+        texCoordsBuffer = GLUtils.createFloatBuffer(new float[]{
                 0, 0,
                 1, 0,
                 0, 1,
                 1, 1,
-        };
-
-        vertexBuffer = GLUtils.createFloatBuffer(vertices);
-        texCoordsBuffer = GLUtils.createFloatBuffer(texCoords);
+        });
 
         vertexPosLoc = GLES20.glGetAttribLocation(program, "vertex_pos");
         assert vertexPosLoc != -1;

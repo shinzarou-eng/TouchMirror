@@ -17,7 +17,6 @@ events.Connect(15000);
 var sw = new StreamWriter(events);
 sw.WriteLine("{\"type\":\"ready\",\"name\":\"FakeHost\",\"deviceId\":\"\"}");
 sw.Flush();
-// délai réaliste : l'app souscrit aux events après StartAsync
 Thread.Sleep(2500);
 sw.WriteLine("{\"type\":\"connected\",\"name\":\"Fake iPhone\",\"deviceId\":\"AA:BB:CC:DD:EE:FF\"}");
 sw.Flush();

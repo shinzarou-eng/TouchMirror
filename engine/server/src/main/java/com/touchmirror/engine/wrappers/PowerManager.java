@@ -2,6 +2,7 @@ package com.touchmirror.engine.wrappers;
 
 import com.touchmirror.engine.AndroidVersions;
 import com.touchmirror.engine.util.Ln;
+import com.touchmirror.engine.util.Reflect;
 
 import android.os.Build;
 import android.os.IInterface;
@@ -14,63 +15,58 @@ public final class PowerManager {
     private static final int USER_ACTIVITY_EVENT_OTHER = 0;
 
     private final IInterface manager;
+
     private Method isScreenOnMethod;
     private Method userActivityMethod;
 
     static PowerManager create() {
-        IInterface manager = ServiceManager.getService("power", "android.os.IPowerManager");
-        return new PowerManager(manager);
+        return new PowerManager(ServiceManager.getService("power", "android.os.IPowerManager"));
     }
 
     private PowerManager(IInterface manager) {
         this.manager = manager;
     }
 
-    private Method getIsScreenOnMethod() throws NoSuchMethodException {
+    private Method resolveIsScreenOn() throws NoSuchMethodException {
         if (isScreenOnMethod == null) {
-            if (Build.VERSION.SDK_INT >= AndroidVersions.API_34_ANDROID_14) {
-                isScreenOnMethod = manager.getClass().getMethod("isDisplayInteractive", int.class);
-            } else {
-                isScreenOnMethod = manager.getClass().getMethod("isInteractive");
-            }
+            isScreenOnMethod = Build.VERSION.SDK_INT >= AndroidVersions.API_34_ANDROID_14
+                    ? Reflect.lookupOrThrow(manager.getClass(), "isDisplayInteractive", int.class)
+                    : Reflect.lookupOrThrow(manager.getClass(), "isInteractive");
         }
         return isScreenOnMethod;
     }
 
     public boolean isScreenOn(int displayId) {
-
         try {
-            Method method = getIsScreenOnMethod();
-            if (Build.VERSION.SDK_INT >= AndroidVersions.API_34_ANDROID_14) {
-                return (boolean) method.invoke(manager, displayId);
-            }
-            return (boolean) method.invoke(manager);
+            Method method = resolveIsScreenOn();
+            Object result = Build.VERSION.SDK_INT >= AndroidVersions.API_34_ANDROID_14
+                    ? method.invoke(manager, displayId)
+                    : method.invoke(manager);
+            return result != null && (boolean) result;
         } catch (ReflectiveOperationException e) {
             Ln.e("Could not invoke method", e);
             return false;
         }
     }
 
-    private Method getUserActivityMethod() throws NoSuchMethodException {
+    private Method resolveUserActivity() throws NoSuchMethodException {
         if (userActivityMethod == null) {
-            if (Build.VERSION.SDK_INT >= AndroidVersions.API_31_ANDROID_12) {
-                userActivityMethod = manager.getClass().getMethod("userActivity", int.class, long.class, int.class, int.class);
-            } else {
-                userActivityMethod = manager.getClass().getMethod("userActivity", long.class, int.class, int.class);
-            }
+            userActivityMethod = Build.VERSION.SDK_INT >= AndroidVersions.API_31_ANDROID_12
+                    ? Reflect.lookupOrThrow(manager.getClass(), "userActivity", int.class, long.class, int.class, int.class)
+                    : Reflect.lookupOrThrow(manager.getClass(), "userActivity", long.class, int.class, int.class);
         }
         return userActivityMethod;
     }
 
     public void userActivity(int displayId) {
         try {
-            Method method = getUserActivityMethod();
+            Method method = resolveUserActivity();
             long time = SystemClock.uptimeMillis();
             if (Build.VERSION.SDK_INT >= AndroidVersions.API_31_ANDROID_12) {
                 method.invoke(manager, displayId, time, USER_ACTIVITY_EVENT_OTHER, 0);
-                return;
+            } else {
+                method.invoke(manager, time, USER_ACTIVITY_EVENT_OTHER, 0);
             }
-            method.invoke(manager, time, USER_ACTIVITY_EVENT_OTHER, 0);
         } catch (ReflectiveOperationException e) {
             Ln.e("Could not invoke method", e);
         }

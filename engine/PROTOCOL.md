@@ -1,94 +1,104 @@
 # TouchMirror engine protocol
 
-Wire format between the Windows client and `touchmirror-engine.jar` (version `4.1-tm.2`).
+Wire format between the Windows client and `touchmirror-engine.jar` — **TM/3** (engine version `3.0`).
 
-All integers are big-endian. The client is the only supported peer: the engine must be started with the client version as first argument (`app_process … com.touchmirror.engine.Server <version> [key=value …]`).
+All integers are big-endian. The client is the only supported peer: the engine must be started
+with the client version as first argument (`app_process … com.touchmirror.engine.Server <version> <scid_hex>`).
 
 ## Transport
 
 - `adb reverse localabstract:touchmirror[_<scid_hex>] → tcp:<port>` — the client listens, the engine connects back.
-- Up to 3 sockets are opened in this order: **video**, **audio** (skipped if `audio=false`), **control** (skipped if `control=false`).
-- `send_dummy_byte` (default on): the engine writes one `0x00` byte on the video socket so the client can detect a broken connection.
+- **One** socket carries every channel, multiplexed by framed packets:
 
-## Startup arguments
+| Offset | Field | Size |
+|---|---|---|
+| 0 | channel | 1 |
+| 1 | payload length | 4 |
+| 5 | payload | `length` bytes |
 
-`key=value` pairs parsed by `Options.java`. The client currently sends:
-`scid`, `log_level`, `video`, `audio`, `audio_codec`, `video_codec`, `control`, `max_size`, `max_fps`,
-`video_bit_rate`, `stay_awake`, `power_on`, `cleanup`, `new_display`, `start_app`, `display_id`.
+Channels: `0` session (engine → client) · `1` video · `2` audio · `3` control (client → engine) ·
+`4` device messages (engine → client). Unknown inbound channels are dropped.
 
-Other parsed keys (accepted but unused by the client today): `min_size_alignment`, `angle`, `crop`,
-`tunnel_forward`, `show_touches`, `screen_off_timeout`, `video_codec_options`, `audio_codec_options`,
-`video_encoder`, `audio_encoder`, `power_off_on_close`, `clipboard_autosync`, `downsize_on_error`,
-`vd_destroy_content`, `vd_system_decorations`, `flex_display`, `capture_orientation`,
-`display_ime_policy`, `keep_active`, `ignore_video_encoder_constraints`,
-`send_device_meta`, `send_frame_meta`, `send_dummy_byte`, `send_stream_meta`, `raw_stream`.
+## Session bootstrap
 
-Unknown keys log a warning and are ignored.
+1. Engine connects, sends a channel-0 frame carrying the **hello**:
 
-## Video / audio streams
+| Offset | Field | Size |
+|---|---|---|
+| 0 | magic `TMIR` | 4 |
+| 4 | protocol version | 2 (= 3) |
+| 6 | capabilities | 4 |
+| 10 | device name length | 1 |
+| 11 | device name (UTF-8) | ≤ 63 |
 
-### Stream meta (if `send_stream_meta`, default on)
+Capability bits: `0x01` video · `0x02` audio · `0x04` control · `0x08` clipboard ·
+`0x10` h265 · `0x20` av1 · `0x40` virtual display.
 
-| Field | Size |
-|---|---|
-| codec id | 4 bytes |
-| session flags | 4 bytes (bit 31 = session meta, bit 0 = client-side resize) |
-| width | 4 bytes |
-| height | 4 bytes |
+2. The client answers with its **first channel-3 frame**: a `CONFIG` message (type `0x01`)
+   carrying the session options as a TLV sequence `[field u8][length u8][value]`.
+   The engine applies it, then starts capture. Fields:
 
-The session block is only sent on the video stream.
+| Id | Name | Value |
+|---|---|---|
+| 0x01 | audio | bool |
+| 0x02 | video codec | u8 — 0 auto, 1 h264, 2 h265, 3 av1 |
+| 0x03 | audio codec | u8 — 0 opus, 1 aac, 2 flac, 3 raw |
+| 0x04 | max size | u16 |
+| 0x05 | max fps | u8 |
+| 0x06 | video bit rate | u32 |
+| 0x07 | flags | u16 — bit0 video, bit1 stay_awake, bit2 power_on, bit3 cleanup, bit4 downsize_on_error, bit5 clipboard_autosync |
+| 0x08 | new display | w u16, h u16, dpi u16 |
+| 0x09 | start app | UTF-8 package |
+| 0x0A | log level | u8 — 0 verbose … 4 error |
+
+Unknown fields are skipped — older engines tolerate newer clients.
+
+## Media channels (video = 1, audio = 2)
+
+Each channel payload is one kind-tagged message:
+
+| Kind | Name | Body |
+|---|---|---|
+| 0 | codec | codec id, 4 bytes |
+| 1 | packet | pts i64 · flags u8 (bit0 config, bit1 key frame) · data |
+| 2 | session meta | width u32 · height u32 · flags u8 (bit0 client-side resize) — video only |
+| 3 | stream end | code u8 — 0 continue, 1 abort |
 
 Codec ids: h264 `0x68323634`, h265 `0x68323635`, av1 `0x00617631` (video);
 opus `0x6f707573`, aac `0x00616163`, flac `0x666c6163`, raw `0x00726177` (audio).
-`0x00000000`/`0x00000001` as codec id = stream disabled (continue / abort).
 
-### Frame meta (if `send_frame_meta`, default on) — 12 bytes per packet
+## Control channel (client → engine, channel 3)
 
-| Field | Size |
-|---|---|
-| pts + flags | 8 bytes — bit 63 = config packet, bit 62 = key frame |
-| packet size | 4 bytes |
-| payload | `packet size` bytes |
+One channel-3 frame payload = one control message. First byte = message type,
+then the type-specific body. Unknown types are skipped at frame level.
 
-### Device meta (if `send_device_meta`, default on)
-
-64 bytes on the video socket, before the stream meta: UTF-8 device name, zero-padded.
-
-## Control channel (client → engine)
-
-First byte = message type. Types not listed are rejected (`12`–`14` and `18`–`20` are retired).
-
-| Type | Name | Payload |
+| Type | Name | Body |
 |---|---|---|
-| 0 | INJECT_KEYCODE | action u8, keycode i32, repeat u32, metastate u32 |
-| 1 | INJECT_TEXT | length u32, utf8 |
-| 2 | INJECT_TOUCH_EVENT | action u8, pointer_id i64, x i32, y i32, w u16, h u16, pressure u16 fixed, action_button u32, buttons u32 |
-| 3 | INJECT_SCROLL_EVENT | x i32, y i32, w u16, h u16, hscroll i16 fixed, vscroll i16 fixed, buttons u32 |
-| 4 | BACK_OR_SCREEN_ON | action u8 |
-| 5 | EXPAND_NOTIFICATION_PANEL | — |
-| 6 | EXPAND_SETTINGS_PANEL | — |
-| 7 | COLLAPSE_PANELS | — |
-| 8 | GET_CLIPBOARD | copy_key u8 |
-| 9 | SET_CLIPBOARD | sequence i64, paste u8, length u32, utf8 |
-| 10 | SET_DISPLAY_POWER | on u8 |
-| 11 | ROTATE_DEVICE | — |
-| 15 | OPEN_HARD_KEYBOARD_SETTINGS | — |
-| 16 | START_APP | length u8, utf8 (`?name=…` or package) |
-| 17 | RESET_VIDEO | — |
-| 21 | RESIZE_DISPLAY | width u16, height u16 |
-| 22 | SCAN_FILE | length u32, utf8 path |
-| 23 | SET_VIDEO_PARAMS | bit_rate i32, suspend u8 |
+| 0x01 | CONFIG | TLV sequence (see bootstrap) |
+| 0x10 | INJECT_KEYCODE | action u8, keycode i32, repeat u32, metastate u32 |
+| 0x11 | INJECT_TEXT | length u32, utf8 |
+| 0x12 | INJECT_TOUCH | action u8, pointer_id i64, x i32, y i32, w u16, h u16, pressure u16 fixed, action_button u32, buttons u32 |
+| 0x13 | INJECT_SCROLL | x i32, y i32, w u16, h u16, hscroll i16 fixed, vscroll i16 fixed, buttons u32 |
+| 0x20 | BACK_OR_SCREEN_ON | action u8 |
+| 0x21 | EXPAND_NOTIFICATIONS | — |
+| 0x22 | EXPAND_SETTINGS | — |
+| 0x23 | COLLAPSE_PANELS | — |
+| 0x24 | SET_DISPLAY_POWER | on u8 |
+| 0x25 | ROTATE_DEVICE | — |
+| 0x26 | HARD_KEYBOARD_SETTINGS | — |
+| 0x27 | START_APP | length u8, utf8 (`?name=…` or package) |
+| 0x28 | SCAN_FILE | length u32, utf8 path |
+| 0x30 | RESET_VIDEO | — |
+| 0x31 | RESIZE_DISPLAY | width u16, height u16 |
+| 0x32 | SET_VIDEO_PARAMS | bit_rate i32, suspend u8 |
+| 0x40 | GET_CLIPBOARD | copy_key u8 |
+| 0x41 | SET_CLIPBOARD | sequence i64, paste u8, length u32, utf8 |
 
-## Control channel (engine → client)
+## Device messages (engine → client, channel 4)
 
-| Type | Name | Payload |
+One channel-4 frame payload = one device message.
+
+| Type | Name | Body |
 |---|---|---|
-| 0 | CLIPBOARD | length u32, utf8 |
-| 1 | ACK_CLIPBOARD | sequence i64 |
-
-## Changelog
-
-- `4.1-tm.2` — fork protocol owned by TouchMirror: camera capture path, UHID virtual devices,
-  mic/`audio_source` capture, catalog `list_*` options and the remote `video_source`/`audio_source`
-  switches removed (message types 12–14 and 18–20 retired).
-- `4.1-tm.1` — initial fork: `start_app` option, `SET_VIDEO_PARAMS` (23) for live bitrate/suspend.
+| 0x50 | CLIPBOARD | length u32, utf8 |
+| 0x51 | ACK_CLIPBOARD | sequence i64 |

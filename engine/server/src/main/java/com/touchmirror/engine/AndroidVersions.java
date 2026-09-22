@@ -22,5 +22,4 @@ public final class AndroidVersions {
     public static final int API_33_ANDROID_13 = Build.VERSION_CODES.TIRAMISU;
     public static final int API_34_ANDROID_14 = Build.VERSION_CODES.UPSIDE_DOWN_CAKE;
     public static final int API_35_ANDROID_15 = Build.VERSION_CODES.VANILLA_ICE_CREAM;
-
 }

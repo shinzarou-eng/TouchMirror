@@ -19,19 +19,13 @@ import java.nio.ByteBuffer;
 
 public class AudioDirectCapture implements AudioCapture {
 
-    private static final int SAMPLE_RATE = AudioConfig.SAMPLE_RATE;
-    private static final int CHANNEL_CONFIG = AudioConfig.CHANNEL_CONFIG;
-    private static final int CHANNELS = AudioConfig.CHANNELS;
-    private static final int CHANNEL_MASK = AudioConfig.CHANNEL_MASK;
-    private static final int ENCODING = AudioConfig.ENCODING;
-
     private final int audioSource;
 
     private AudioRecord recorder;
     private AudioRecordReader reader;
 
-    public AudioDirectCapture(AudioSource audioSource) {
-        this.audioSource = audioSource.getDirectAudioSource();
+    public AudioDirectCapture(AudioSource source) {
+        this.audioSource = source.getDirectAudioSource();
     }
 
     @TargetApi(AndroidVersions.API_23_ANDROID_6_0)
@@ -43,11 +37,11 @@ public class AudioDirectCapture implements AudioCapture {
         }
         builder.setAudioSource(audioSource);
         builder.setAudioFormat(AudioConfig.createAudioFormat());
-        int minBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, ENCODING);
+
+        int minBufferSize = AudioRecord.getMinBufferSize(AudioConfig.SAMPLE_RATE, AudioConfig.CHANNEL_CONFIG, AudioConfig.ENCODING);
         if (minBufferSize > 0) {
             builder.setBufferSizeInBytes(8 * minBufferSize);
         }
-
         return builder.build();
     }
 
@@ -75,9 +69,8 @@ public class AudioDirectCapture implements AudioCapture {
                     Ln.e("On Android 11, audio capture must be started in the foreground, make sure that the device is unlocked when starting "
                             + "TouchMirror.");
                     throw new AudioCaptureException();
-                } else {
-                    Ln.d("Failed to start audio capture, retrying...");
                 }
+                Ln.d("Failed to start audio capture, retrying...");
             }
         }
     }
@@ -86,7 +79,8 @@ public class AudioDirectCapture implements AudioCapture {
         try {
             recorder = createAudioRecord(audioSource);
         } catch (NullPointerException e) {
-            recorder = Workarounds.createAudioRecord(audioSource, SAMPLE_RATE, CHANNEL_CONFIG, CHANNELS, CHANNEL_MASK, ENCODING);
+            recorder = Workarounds.createAudioRecord(audioSource, AudioConfig.SAMPLE_RATE, AudioConfig.CHANNEL_CONFIG, AudioConfig.CHANNELS,
+                    AudioConfig.CHANNEL_MASK, AudioConfig.ENCODING);
         }
         recorder.startRecording();
         reader = new AudioRecordReader(recorder);

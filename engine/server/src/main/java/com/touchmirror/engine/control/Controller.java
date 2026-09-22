@@ -5,7 +5,6 @@ import com.touchmirror.engine.AsyncProcessor;
 import com.touchmirror.engine.CleanUp;
 import com.touchmirror.engine.Options;
 import com.touchmirror.engine.device.Device;
-import com.touchmirror.engine.model.DeviceApp;
 import com.touchmirror.engine.model.Point;
 import com.touchmirror.engine.model.Position;
 import com.touchmirror.engine.model.Size;
@@ -30,7 +29,6 @@ import android.view.MotionEvent;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -51,16 +49,10 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
     }
 
     private static final int DEFAULT_DEVICE_ID = 0;
-
     private static final int POINTER_ID_MOUSE = -1;
-
     private static final long KEEP_ACTIVE_INTERVAL_MS = 4000;
 
     private static final ScheduledExecutorService EXECUTOR = Executors.newSingleThreadScheduledExecutor();
-    private ExecutorService startAppExecutor;
-
-    private Thread thread;
-    private Thread keepActiveThread;
 
     private final int displayId;
     private final boolean supportsInputEvents;
@@ -72,30 +64,30 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
     private final boolean keepActive;
 
     private final KeyCharacterMap charMap = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD);
-
     private final AtomicBoolean isSettingClipboard = new AtomicBoolean();
-
     private final AtomicReference<DisplayData> displayData = new AtomicReference<>();
     private final Object displayDataAvailable = new Object();
 
-    private long lastTouchDown;
     private final PointersState pointersState = new PointersState();
     private final MotionEvent.PointerProperties[] pointerProperties = new MotionEvent.PointerProperties[PointersState.MAX_POINTERS];
     private final MotionEvent.PointerCoords[] pointerCoords = new MotionEvent.PointerCoords[PointersState.MAX_POINTERS];
 
-    private boolean keepDisplayPowerOff;
+    private Thread thread;
+    private Thread keepActiveThread;
+    private ExecutorService startAppExecutor;
 
+    private long lastTouchDown;
+    private boolean keepDisplayPowerOff;
     private SurfaceCapture surfaceCapture;
 
     public Controller(ControlChannel controlChannel, CleanUp cleanUp, Options options) {
         this.controlChannel = controlChannel;
         this.cleanUp = cleanUp;
-
         this.displayId = options.getDisplayId();
-
         this.clipboardAutosync = options.getClipboardAutosync();
         this.powerOn = options.getPowerOn();
         this.keepActive = options.getKeepActive();
+
         initPointers();
         sender = new DeviceMessageSender(controlChannel);
 
@@ -113,8 +105,7 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
                     }
                     String text = Device.getClipboardText();
                     if (text != null) {
-                        DeviceMessage msg = DeviceMessage.createClipboard(text);
-                        sender.send(msg);
+                        sender.send(DeviceMessage.createClipboard(text));
                     }
                 });
             } else {
@@ -125,8 +116,7 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
 
     @Override
     public void onNewVirtualDisplay(int virtualDisplayId, PositionMapper positionMapper) {
-        DisplayData data = new DisplayData(virtualDisplayId, positionMapper);
-        DisplayData old = this.displayData.getAndSet(data);
+        DisplayData old = displayData.getAndSet(new DisplayData(virtualDisplayId, positionMapper));
         if (old == null) {
             synchronized (displayDataAvailable) {
                 displayDataAvailable.notify();
@@ -142,20 +132,57 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
         for (int i = 0; i < PointersState.MAX_POINTERS; ++i) {
             MotionEvent.PointerProperties props = new MotionEvent.PointerProperties();
             props.toolType = MotionEvent.TOOL_TYPE_FINGER;
+            pointerProperties[i] = props;
 
             MotionEvent.PointerCoords coords = new MotionEvent.PointerCoords();
             coords.orientation = 0;
             coords.size = 0;
-
-            pointerProperties[i] = props;
             pointerCoords[i] = coords;
         }
+    }
+
+    @Override
+    public void start(TerminationListener listener) {
+        if (keepActive) {
+            startKeepActiveThread();
+        }
+
+        thread = new Thread(() -> {
+            try {
+                control();
+            } catch (IOException e) {
+                Ln.e("Controller error", e);
+            } finally {
+                Ln.d("Controller stopped");
+                listener.onTerminated(true);
+            }
+        }, "control-recv");
+        thread.start();
+        sender.start();
+    }
+
+    @Override
+    public void stop() {
+        if (keepActiveThread != null) {
+            keepActiveThread.interrupt();
+        }
+        if (thread != null) {
+            thread.interrupt();
+        }
+        sender.stop();
+    }
+
+    @Override
+    public void join() throws InterruptedException {
+        if (thread != null) {
+            thread.join();
+        }
+        sender.join();
     }
 
     private void control() throws IOException {
         if (powerOn && displayId == 0 && !Device.isScreenOn(displayId)) {
             Device.pressReleaseKeycode(KeyEvent.KEYCODE_POWER, displayId, Device.INJECT_MODE_ASYNC);
-
             SystemClock.sleep(500);
         }
 
@@ -181,55 +208,9 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
             } finally {
                 Ln.d("Keep active thread stopped");
             }
-        });
-        keepActiveThread.setName("keep-active");
+        }, "keep-active");
         keepActiveThread.setDaemon(true);
         keepActiveThread.start();
-    }
-
-    @Override
-    public void start(TerminationListener listener) {
-        if (keepActive) {
-            startKeepActiveThread();
-        }
-
-        thread = new Thread(() -> {
-            try {
-                control();
-            } catch (IOException e) {
-                Ln.e("Controller error", e);
-            } finally {
-                Ln.d("Controller stopped");
-                listener.onTerminated(true);
-            }
-        }, "control-recv");
-        thread.start();
-        if (sender != null) {
-            sender.start();
-        }
-    }
-
-    @Override
-    public void stop() {
-        if (keepActiveThread != null) {
-            keepActiveThread.interrupt();
-        }
-        if (thread != null) {
-            thread.interrupt();
-        }
-        if (sender != null) {
-            sender.stop();
-        }
-    }
-
-    @Override
-    public void join() throws InterruptedException {
-        if (thread != null) {
-            thread.join();
-        }
-        if (sender != null) {
-            sender.join();
-        }
     }
 
     private boolean handleEvent() throws IOException {
@@ -243,9 +224,7 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
             return false;
         }
 
-        int type = msg.getType();
-
-        switch (type) {
+        switch (msg.getType()) {
             case ControlMessage.TYPE_INJECT_KEYCODE:
                 if (supportsInputEvents) {
                     injectKeycode(msg.getAction(), msg.getKeycode(), msg.getRepeat(), msg.getMetaState());
@@ -258,8 +237,8 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
                 return true;
             case ControlMessage.TYPE_INJECT_TOUCH_EVENT:
                 if (supportsInputEvents) {
-                    injectTouch(
-                            msg.getAction(), msg.getPointerId(), msg.getPosition(), msg.getPressure(), msg.getActionButton(), msg.getButtons());
+                    injectTouch(msg.getAction(), msg.getPointerId(), msg.getPosition(), msg.getPressure(), msg.getActionButton(),
+                            msg.getButtons());
                 }
                 return true;
             case ControlMessage.TYPE_INJECT_SCROLL_EVENT:
@@ -317,7 +296,7 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
                 setVideoParams(msg.getBitRate(), msg.isSuspend());
                 return true;
             default:
-                throw new AssertionError("Unexpected message type: " + type);
+                throw new AssertionError("Unexpected message type: " + msg.getType());
         }
     }
 
@@ -331,53 +310,51 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
 
     private boolean injectChar(char c) {
         String decomposed = KeyComposition.decompose(c);
-        char[] chars = decomposed != null ? decomposed.toCharArray() : new char[]{c};
-        KeyEvent[] events = charMap.getEvents(chars);
+        KeyEvent[] events = charMap.getEvents(decomposed != null ? decomposed.toCharArray() : new char[]{c});
         if (events == null) {
             return false;
         }
 
         int actionDisplayId = getActionDisplayId();
-        if (actionDisplayId != Device.DISPLAY_ID_NONE) {
-            for (KeyEvent event : events) {
-                if (!Device.injectEvent(event, actionDisplayId, Device.INJECT_MODE_ASYNC)) {
-                    return false;
-                }
+        if (actionDisplayId == Device.DISPLAY_ID_NONE) {
+            return true;
+        }
+        for (KeyEvent event : events) {
+            if (!Device.injectEvent(event, actionDisplayId, Device.INJECT_MODE_ASYNC)) {
+                return false;
             }
         }
         return true;
     }
 
     private int injectText(String text) {
-        int successCount = 0;
+        int injected = 0;
         for (char c : text.toCharArray()) {
-            if (!injectChar(c)) {
+            if (injectChar(c)) {
+                injected++;
+            } else {
                 Ln.w("Could not inject char u+" + String.format("%04x", (int) c));
-                continue;
             }
-            successCount++;
         }
-        return successCount;
+        return injected;
     }
 
     private Pair<Point, Integer> getEventPointAndDisplayId(Position position) {
-        @SuppressWarnings("checkstyle:HiddenField")
-        DisplayData displayData = this.displayData.get();
-        assert displayData != null || displayId != Device.DISPLAY_ID_NONE : "Cannot receive a positional event without a display";
+        DisplayData data = displayData.get();
+        assert data != null || displayId != Device.DISPLAY_ID_NONE : "Cannot receive a positional event without a display";
 
         Point point;
         int targetDisplayId;
-        if (displayData != null) {
-            point = displayData.positionMapper.map(position);
+        if (data != null) {
+            point = data.positionMapper.map(position);
             if (point == null) {
                 if (Ln.isEnabled(Ln.Level.VERBOSE)) {
-                    Size eventSize = position.getScreenSize();
-                    Size currentSize = displayData.positionMapper.getVideoSize();
-                    Ln.v("Ignore positional event generated for size " + eventSize + " (current size is " + currentSize + ")");
+                    Ln.v("Ignore positional event generated for size " + position.getScreenSize() + " (current size is "
+                            + data.positionMapper.getVideoSize() + ")");
                 }
                 return null;
             }
-            targetDisplayId = displayData.virtualDisplayId;
+            targetDisplayId = data.virtualDisplayId;
         } else {
             point = position.getPoint();
             targetDisplayId = displayId;
@@ -389,13 +366,10 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
     private boolean injectTouch(int action, long pointerId, Position position, float pressure, int actionButton, int buttons) {
         long now = SystemClock.uptimeMillis();
 
-        Pair<Point, Integer> pair = getEventPointAndDisplayId(position);
-        if (pair == null) {
+        Pair<Point, Integer> target = getEventPointAndDisplayId(position);
+        if (target == null) {
             return false;
         }
-
-        Point point = pair.first;
-        int targetDisplayId = pair.second;
 
         int pointerIndex = pointersState.getPointerIndex(pointerId);
         if (pointerIndex == -1) {
@@ -403,12 +377,12 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
             return false;
         }
         Pointer pointer = pointersState.get(pointerIndex);
-        pointer.setPoint(point);
+        pointer.setPoint(target.first);
         pointer.setPressure(pressure);
 
         int source;
-        boolean activeSecondaryButtons = ((actionButton | buttons) & ~MotionEvent.BUTTON_PRIMARY) != 0;
-        if (pointerId == POINTER_ID_MOUSE && (action == MotionEvent.ACTION_HOVER_MOVE || activeSecondaryButtons)) {
+        boolean secondaryButtons = ((actionButton | buttons) & ~MotionEvent.BUTTON_PRIMARY) != 0;
+        if (pointerId == POINTER_ID_MOUSE && (action == MotionEvent.ACTION_HOVER_MOVE || secondaryButtons)) {
             pointerProperties[pointerIndex].toolType = MotionEvent.TOOL_TYPE_MOUSE;
             source = InputDevice.SOURCE_MOUSE;
             pointer.setUp(buttons == 0);
@@ -424,12 +398,10 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
             if (action == MotionEvent.ACTION_DOWN) {
                 lastTouchDown = now;
             }
-        } else {
-            if (action == MotionEvent.ACTION_UP) {
-                action = MotionEvent.ACTION_POINTER_UP | (pointerIndex << MotionEvent.ACTION_POINTER_INDEX_SHIFT);
-            } else if (action == MotionEvent.ACTION_DOWN) {
-                action = MotionEvent.ACTION_POINTER_DOWN | (pointerIndex << MotionEvent.ACTION_POINTER_INDEX_SHIFT);
-            }
+        } else if (action == MotionEvent.ACTION_UP) {
+            action = MotionEvent.ACTION_POINTER_UP | (pointerIndex << MotionEvent.ACTION_POINTER_INDEX_SHIFT);
+        } else if (action == MotionEvent.ACTION_DOWN) {
+            action = MotionEvent.ACTION_POINTER_DOWN | (pointerIndex << MotionEvent.ACTION_POINTER_INDEX_SHIFT);
         }
 
         if (Build.VERSION.SDK_INT >= AndroidVersions.API_23_ANDROID_6_0 && source == InputDevice.SOURCE_MOUSE) {
@@ -437,73 +409,60 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
                 if (actionButton == buttons) {
                     MotionEvent downEvent = MotionEvent.obtain(lastTouchDown, now, MotionEvent.ACTION_DOWN, pointerCount, pointerProperties,
                             pointerCoords, 0, buttons, 1f, 1f, DEFAULT_DEVICE_ID, 0, source, 0);
-                    if (!Device.injectEvent(downEvent, targetDisplayId, Device.INJECT_MODE_ASYNC)) {
+                    if (!Device.injectEvent(downEvent, target.second, Device.INJECT_MODE_ASYNC)) {
                         return false;
                     }
                 }
 
-                MotionEvent pressEvent = MotionEvent.obtain(lastTouchDown, now, MotionEvent.ACTION_BUTTON_PRESS, pointerCount, pointerProperties,
-                        pointerCoords, 0, buttons, 1f, 1f, DEFAULT_DEVICE_ID, 0, source, 0);
+                MotionEvent pressEvent = MotionEvent.obtain(lastTouchDown, now, MotionEvent.ACTION_BUTTON_PRESS, pointerCount,
+                        pointerProperties, pointerCoords, 0, buttons, 1f, 1f, DEFAULT_DEVICE_ID, 0, source, 0);
                 if (!InputManager.setActionButton(pressEvent, actionButton)) {
                     return false;
                 }
-                if (!Device.injectEvent(pressEvent, targetDisplayId, Device.INJECT_MODE_ASYNC)) {
-                    return false;
-                }
-
-                return true;
+                return Device.injectEvent(pressEvent, target.second, Device.INJECT_MODE_ASYNC);
             }
 
             if (action == MotionEvent.ACTION_UP) {
-                MotionEvent releaseEvent = MotionEvent.obtain(lastTouchDown, now, MotionEvent.ACTION_BUTTON_RELEASE, pointerCount, pointerProperties,
-                        pointerCoords, 0, buttons, 1f, 1f, DEFAULT_DEVICE_ID, 0, source, 0);
+                MotionEvent releaseEvent = MotionEvent.obtain(lastTouchDown, now, MotionEvent.ACTION_BUTTON_RELEASE, pointerCount,
+                        pointerProperties, pointerCoords, 0, buttons, 1f, 1f, DEFAULT_DEVICE_ID, 0, source, 0);
                 if (!InputManager.setActionButton(releaseEvent, actionButton)) {
                     return false;
                 }
-                if (!Device.injectEvent(releaseEvent, targetDisplayId, Device.INJECT_MODE_ASYNC)) {
+                if (!Device.injectEvent(releaseEvent, target.second, Device.INJECT_MODE_ASYNC)) {
                     return false;
                 }
 
                 if (buttons == 0) {
                     MotionEvent upEvent = MotionEvent.obtain(lastTouchDown, now, MotionEvent.ACTION_UP, pointerCount, pointerProperties,
                             pointerCoords, 0, buttons, 1f, 1f, DEFAULT_DEVICE_ID, 0, source, 0);
-                    if (!Device.injectEvent(upEvent, targetDisplayId, Device.INJECT_MODE_ASYNC)) {
-                        return false;
-                    }
+                    return Device.injectEvent(upEvent, target.second, Device.INJECT_MODE_ASYNC);
                 }
-
                 return true;
             }
         }
 
-        MotionEvent event = MotionEvent.obtain(lastTouchDown, now, action, pointerCount, pointerProperties, pointerCoords, 0, buttons, 1f, 1f,
-                DEFAULT_DEVICE_ID, 0, source, 0);
-        return Device.injectEvent(event, targetDisplayId, Device.INJECT_MODE_ASYNC);
+        MotionEvent event = MotionEvent.obtain(lastTouchDown, now, action, pointerCount, pointerProperties, pointerCoords, 0, buttons, 1f,
+                1f, DEFAULT_DEVICE_ID, 0, source, 0);
+        return Device.injectEvent(event, target.second, Device.INJECT_MODE_ASYNC);
     }
 
     private boolean injectScroll(Position position, float hScroll, float vScroll, int buttons) {
         long now = SystemClock.uptimeMillis();
 
-        Pair<Point, Integer> pair = getEventPointAndDisplayId(position);
-        if (pair == null) {
+        Pair<Point, Integer> target = getEventPointAndDisplayId(position);
+        if (target == null) {
             return false;
         }
 
-        Point point = pair.first;
-        int targetDisplayId = pair.second;
+        pointerProperties[0].id = 0;
+        pointerCoords[0].x = target.first.getX();
+        pointerCoords[0].y = target.first.getY();
+        pointerCoords[0].setAxisValue(MotionEvent.AXIS_HSCROLL, hScroll);
+        pointerCoords[0].setAxisValue(MotionEvent.AXIS_VSCROLL, vScroll);
 
-        MotionEvent.PointerProperties props = pointerProperties[0];
-        props.id = 0;
-
-        MotionEvent.PointerCoords coords = pointerCoords[0];
-        coords.x = point.getX();
-        coords.y = point.getY();
-        coords.setAxisValue(MotionEvent.AXIS_HSCROLL, hScroll);
-        coords.setAxisValue(MotionEvent.AXIS_VSCROLL, vScroll);
-
-        MotionEvent event = MotionEvent.obtain(lastTouchDown, now, MotionEvent.ACTION_SCROLL, 1, pointerProperties, pointerCoords, 0, buttons, 1f, 1f,
-                DEFAULT_DEVICE_ID, 0, InputDevice.SOURCE_MOUSE, 0);
-        return Device.injectEvent(event, targetDisplayId, Device.INJECT_MODE_ASYNC);
+        MotionEvent event = MotionEvent.obtain(lastTouchDown, now, MotionEvent.ACTION_SCROLL, 1, pointerProperties, pointerCoords, 0,
+                buttons, 1f, 1f, DEFAULT_DEVICE_ID, 0, InputDevice.SOURCE_MOUSE, 0);
+        return Device.injectEvent(event, target.second, Device.INJECT_MODE_ASYNC);
     }
 
     private static void scheduleDisplayPowerOff(int displayId) {
@@ -543,10 +502,9 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
         }
 
         if (!clipboardAutosync) {
-            String clipboardText = Device.getClipboardText();
-            if (clipboardText != null) {
-                DeviceMessage msg = DeviceMessage.createClipboard(clipboardText);
-                sender.send(msg);
+            String text = Device.getClipboardText();
+            if (text != null) {
+                sender.send(DeviceMessage.createClipboard(text));
             }
         }
     }
@@ -564,52 +522,39 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
         }
 
         if (sequence != ControlMessage.SEQUENCE_INVALID) {
-            DeviceMessage msg = DeviceMessage.createAckClipboard(sequence);
-            sender.send(msg);
+            sender.send(DeviceMessage.createAckClipboard(sequence));
         }
 
         return ok;
     }
 
     private void openHardKeyboardSettings() {
-        Intent intent = new Intent("android.settings.HARD_KEYBOARD_SETTINGS");
-        ServiceManager.getActivityManager().startActivity(intent);
+        ServiceManager.getActivityManager().startActivity(new Intent("android.settings.HARD_KEYBOARD_SETTINGS"));
     }
 
     private boolean injectKeyEvent(int action, int keyCode, int repeat, int metaState, int injectMode) {
         int actionDisplayId = getActionDisplayId();
-        if (actionDisplayId == Device.DISPLAY_ID_NONE) {
-            return false;
-        }
-        return Device.injectKeyEvent(action, keyCode, repeat, metaState, actionDisplayId, injectMode);
+        return actionDisplayId != Device.DISPLAY_ID_NONE
+                && Device.injectKeyEvent(action, keyCode, repeat, metaState, actionDisplayId, injectMode);
     }
 
     private boolean pressReleaseKeycode(int keyCode, int injectMode) {
         int actionDisplayId = getActionDisplayId();
-        if (actionDisplayId == Device.DISPLAY_ID_NONE) {
-            return false;
-        }
-        return Device.pressReleaseKeycode(keyCode, actionDisplayId, injectMode);
+        return actionDisplayId != Device.DISPLAY_ID_NONE && Device.pressReleaseKeycode(keyCode, actionDisplayId, injectMode);
     }
 
     private int getActionDisplayId() {
         if (displayId != Device.DISPLAY_ID_NONE) {
             return displayId;
         }
-
         DisplayData data = displayData.get();
-        if (data == null) {
-            return Device.DISPLAY_ID_NONE;
-        }
-
-        return data.virtualDisplayId;
+        return data != null ? data.virtualDisplayId : Device.DISPLAY_ID_NONE;
     }
 
     public void startAppAsync(String name) {
         if (startAppExecutor == null) {
             startAppExecutor = Executors.newSingleThreadExecutor();
         }
-
         startAppExecutor.submit(() -> startApp(name));
     }
 
@@ -619,7 +564,6 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
             Ln.e("No known display id to start app \"" + name + "\"");
             return;
         }
-
         Device.startApp(name, startAppDisplayId);
     }
 
@@ -641,7 +585,6 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
 
     private DisplayData waitDisplayData(long timeoutMillis) throws InterruptedException {
         long deadline = System.currentTimeMillis() + timeoutMillis;
-
         synchronized (displayDataAvailable) {
             DisplayData data = displayData.get();
             while (data == null) {
@@ -654,20 +597,17 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
                 }
                 data = displayData.get();
             }
-
             return data;
         }
     }
 
     private void setDisplayPower(boolean on) {
         int targetDisplayId = displayId != Device.DISPLAY_ID_NONE ? displayId : 0;
-        boolean setDisplayPowerOk = Device.setDisplayPower(targetDisplayId, on);
-        if (setDisplayPowerOk) {
+        if (Device.setDisplayPower(targetDisplayId, on)) {
             keepDisplayPowerOff = displayId != Device.DISPLAY_ID_NONE && !on;
             Ln.i("Device display turned " + (on ? "on" : "off"));
             if (cleanUp != null) {
-                boolean mustRestoreOnExit = !on;
-                cleanUp.setRestoreDisplayPower(mustRestoreOnExit);
+                cleanUp.setRestoreDisplayPower(!on);
             }
         }
     }
@@ -687,8 +627,7 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
     }
 
     private void resizeDisplay(int width, int height) {
-        NewDisplayCapture newDisplayCapture = (NewDisplayCapture) surfaceCapture;
-        newDisplayCapture.requestResize(width, height);
+        ((NewDisplayCapture) surfaceCapture).requestResize(width, height);
     }
 
     private void scanFile(String path) {

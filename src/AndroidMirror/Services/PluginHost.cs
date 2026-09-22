@@ -1,5 +1,6 @@
 using System.IO;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -31,6 +32,10 @@ public partial class PluginInstance : ObservableObject
     [ObservableProperty] private bool _isVerified;
     public string? ContentHash { get; private set; }
     [ObservableProperty] private bool _running;
+    public int GroupIndex { get; private set; } = 1;
+    public string GroupLabel => GroupIndex == 0
+        ? LocalizationService.Get("plugins_grp_image")
+        : LocalizationService.Get("plugins_grp_fond");
 
     private Thread? _thread;
     private CancellationTokenSource? _cts;
@@ -85,6 +90,7 @@ public partial class PluginInstance : ObservableObject
             ContentHash = Convert.ToHexString(
                 SHA256.HashData(bytes.Concat(manifest).ToArray()));
             IsVerified = VerifiedPlugins.Hashes.Contains(ContentHash);
+            GroupIndex = PluginAudit.UsesOverlay(Encoding.UTF8.GetString(bytes)) ? 0 : 1;
             _verifiedCode = bytes;
         }
         catch { ContentHash = null; IsVerified = false; _verifiedCode = null; }
@@ -94,7 +100,7 @@ public partial class PluginInstance : ObservableObject
     private bool ComputeIsVerified() => VerifyNow();
 
     private PluginApi? _api;
-    private Engine? _engine;
+    private Jint.Engine? _engine;
     private readonly Dictionary<string, List<JsValue>> _handlers = new();
 
     public void Start(PluginApi api)
@@ -200,7 +206,7 @@ public partial class PluginInstance : ObservableObject
     {
         try
         {
-            var engine = new Engine(o =>
+            var engine = new Jint.Engine(o =>
             {
                 o.LimitMemory(8_000_000);
                 o.LimitRecursion(64);
