@@ -52,6 +52,11 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     [ObservableProperty] private string? _reconnectStatus;
     private EngineOptions? _lastOptions;
     private int _reconnectAttempts;
+    private int _incidents;
+    private double _fpsMin = double.MaxValue, _fpsSum;
+    private int _fpsSamples;
+    private long _rxBytesFinal;
+    private TimeSpan? _sessionDuration;
     private long _connectedAt;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
@@ -116,6 +121,11 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     private string? _recordPath;
     public DateTime? RecordingSince { get; private set; }
     public DateTime? ConnectedSince { get; private set; }
+    public TimeSpan? SessionDuration => _sessionDuration;
+    public double FpsAvg => _fpsSamples > 0 ? _fpsSum / _fpsSamples : 0;
+    public double FpsMin => _fpsMin == double.MaxValue ? 0 : _fpsMin;
+    public long RxBytesFinal => _rxBytesFinal;
+    public int Incidents => _incidents;
     private readonly object _decoderLock = new();
     private readonly object _audioLock = new();
     private bool _screenDimmed;
@@ -373,6 +383,17 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         if (s == null || !IsConnected || _videoHidden || _stopping || _disposed)
             return;
         var now = Environment.TickCount64;
+        if (now - s.ConnectedAt > 10000)
+        {
+            var vf = View.Dispatcher.Invoke(() => View.CurrentFps);
+            if (vf > 0)
+            {
+                _fpsSum += vf;
+                _fpsSamples++;
+                if (vf < _fpsMin)
+                    _fpsMin = vf;
+            }
+        }
         var last = s.LastPacketAt;
         var idle = now - (last == 0 ? s.ConnectedAt : last);
         long decoded;
@@ -391,18 +412,21 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             {
                 RaiseLog(L("log.stream_stalled"));
             }
+            _incidents++;
             s.BreakConnection();
             return;
         }
         if (s.VideoPackets == 0 && now - s.ConnectedAt > 15000)
         {
             RaiseLog(L("log.no_frames"));
+            _incidents++;
             s.BreakConnection();
             return;
         }
         if (idle > 25000)
         {
             RaiseLog(L("log.stream_stalled"));
+            _incidents++;
             s.BreakConnection();
         }
     }
@@ -621,6 +645,10 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         var session = Session;
         Session = null;
         IsConnected = false;
+        if (ConnectedSince.HasValue)
+            _sessionDuration = DateTime.Now - ConnectedSince.Value;
+        if (session != null)
+            _rxBytesFinal = session.RxBytes;
         ConnectedSince = null;
         CodecBadge = null;
         View.Dispatcher.Invoke(View.Detach);

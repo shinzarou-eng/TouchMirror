@@ -858,6 +858,11 @@
                                     <Rectangle.RenderTransform><ScaleTransform x:Name="Eq5" ScaleY="0.4" /></Rectangle.RenderTransform>
                                 </Rectangle>
                             </StackPanel>
+                            <Path Style="{StaticResource Ic}" Data="{StaticResource IcShieldError24}"
+                                  Width="11" Height="11" VerticalAlignment="Center" Margin="8,0,0,0"
+                                  Fill="{DynamicResource WarnBrush}"
+                                  ToolTip="{Binding HealthTooltip}"
+                                  Visibility="{Binding HasHealthWarnings, Converter={StaticResource BoolToVis}}" />
                         </StackPanel>
                         <StackPanel x:Name="IslandActs" Orientation="Horizontal" VerticalAlignment="Center" Width="0" Opacity="0"
                                     Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}">

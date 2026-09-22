@@ -58,7 +58,12 @@ jobs:
           files: |
             TouchMirror-win-x64.zip
             TouchMirror-win-x64.zip.sha256
-            Releases/*
+            Releases/TouchMirror-win-Setup.exe
+            Releases/TouchMirror-*-full.nupkg
+            Releases/TouchMirror-*-delta.nupkg
+            Releases/releases.win.json
+            Releases/assets.win.json
+            Releases/RELEASES
           body_path: .relnotes/${{ github.ref_name }}.md
 
       - name: Announce on Discord

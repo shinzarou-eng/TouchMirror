@@ -128,6 +128,8 @@ public partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsConnected))]
     [NotifyPropertyChangedFor(nameof(StatusDotColor))]
     private ObservableCollection<MirrorInstance> _mirrors = new();
+    private readonly PredictiveMonitor _health = new();
+    private readonly HashSet<string> _usbSwitched = new();
 
     public ObservableCollection<MirrorInstance> InactiveMirrors { get; } = new();
 
@@ -202,6 +204,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _isBusy;
 
     public bool IsConnected => Mirrors.Count > 0;
+    public bool HasHealthWarnings => _health.Warnings.Count > 0;
+    public string HealthTooltip => string.Join(Environment.NewLine, _health.Warnings);
     public bool IsDisconnected => !IsConnected;
 
     [ObservableProperty]
@@ -292,6 +296,12 @@ public partial class MainViewModel : ObservableObject
                 if (p.Running)
                     p.DispatchEvent(json);
         };
+        _health.Changed += () =>
+        {
+            OnPropertyChanged(nameof(HasHealthWarnings));
+            OnPropertyChanged(nameof(HealthTooltip));
+        };
+        _health.WifiDegraded += OnWifiDegraded;
         _suppressReconnect = true;
         _suppressSave = true;
         MaxSize = _settings.MaxSize;
@@ -1765,6 +1775,7 @@ public partial class MainViewModel : ObservableObject
         _pollTimer.Stop();
         _trackCts.Cancel();
         _benchCts?.Cancel();
+        _health.Dispose();
         DeviceThumbs.Shutdown();
     }
 
@@ -2701,9 +2712,21 @@ public partial class MainViewModel : ObservableObject
         instance.Disconnected += m =>
         {
             AddActivity("dismiss", L("act.mirror_stopped"), m.Device.ShortName);
+            if (m.SessionDuration is { } dur && dur.TotalSeconds >= 30)
+            {
+                var h = (int)dur.TotalHours;
+                var durs = h > 0 ? $"{h}h{dur.Minutes:D2}" : $"{dur.Minutes}min{dur.Seconds:D2}";
+                var report = string.Format(L("act.session_report"),
+                    durs, m.FpsAvg.ToString("0"), m.FpsMin.ToString("0"),
+                    (m.RxBytesFinal / 1073741824.0).ToString("0.0"), m.Incidents);
+                AddActivity("report", report, m.Device.ShortName);
+                Log($"{m.Device.ShortName} — {report}");
+            }
             _apiHost.Publish("mirror.disconnected",
                 new { name = m.DeviceName, serial = m.Device.Serial, manual = m.ManualDisconnect });
             Mirrors.Remove(m);
+            if (Mirrors.Count == 0)
+                _health.Stop();
             PromoteNextActive(m);
             if (m.UnexpectedDeath)
             {
@@ -2726,10 +2749,43 @@ public partial class MainViewModel : ObservableObject
                 new { slot = m.Slot, id, index = idx });
 
         Mirrors.Add(instance);
+        if (Mirrors.Count == 1)
+            _health.Start(() => Mirrors.Count, BuildWifiProbes);
         ApplyMirrorOrder();
         RefreshInactiveMirrors();
         SetActive(instance);
         MirrorAdded?.Invoke(instance);
+    }
+
+    private IReadOnlyList<PredictiveMonitor.WifiProbe> BuildWifiProbes()
+    {
+        var list = new List<PredictiveMonitor.WifiProbe>();
+        foreach (var m in Mirrors)
+        {
+            if (!m.Device.IsWifi)
+                continue;
+            var ip = m.Device.Serial.Split(':')[0];
+            if (ip.Contains('.'))
+                list.Add(new PredictiveMonitor.WifiProbe(m.Device.ShortName, ip));
+        }
+        return list;
+    }
+
+    private async void OnWifiDegraded(PredictiveMonitor.WifiProbe probe)
+    {
+        var m = Mirrors.FirstOrDefault(x => x.Device.IsWifi
+            && x.Device.Serial.Split(':')[0] == probe.Ip);
+        if (m == null || m.IsRecording || !_usbSwitched.Add(m.IdentityKey))
+            return;
+        var twin = Devices.FirstOrDefault(d =>
+            !d.IsWifi && d.IsReady && d.SharesIdentity(m.Device));
+        if (twin == null)
+            return;
+        AddActivity("usb", L("act.usb_switch"), m.Device.ShortName);
+        Status = string.Format(L("st.usb_switch"), m.Device.ShortName);
+        m.ManualDisconnect = true;
+        await m.DisconnectAsync();
+        await ConnectDeviceAsync(twin);
     }
 
     [RelayCommand]
