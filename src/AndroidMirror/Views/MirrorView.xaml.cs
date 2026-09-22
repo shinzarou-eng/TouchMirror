@@ -143,7 +143,16 @@ public partial class MirrorView : UserControl
     private bool _iosMouseDown;
     private double _iosRx, _iosRy;
 
-    public void SetIosPointer(IIosPointer? pointer) => _iosPointer = pointer;
+    public void SetIosPointer(IIosPointer? pointer)
+    {
+        if (_iosMouseDown)
+        {
+            _iosMouseDown = false;
+            _iosPendingMove = false;
+            _iosPointer?.Up(_iosRx, _iosRy);
+        }
+        _iosPointer = pointer;
+    }
 
     public void SetIosBadgeText(string text)
     {
@@ -904,6 +913,12 @@ public partial class MirrorView : UserControl
     private void OnLostCapture(object sender, MouseEventArgs e)
     {
         _viewPanning = false;
+        if (_iosMouseDown)
+        {
+            _iosMouseDown = false;
+            _iosPendingMove = false;
+            _iosPointer?.Up(_iosRx, _iosRy);
+        }
         if (_pressedButtons != 0 && _control != null)
         {
             _control.InjectTouch(AndroidMotionEvent.ActionUp, AndroidMotionEvent.PointerIdMouse,
@@ -1005,8 +1020,21 @@ public partial class MirrorView : UserControl
         var code = MapKey(key);
         if (code < 0)
             return false;
+        if (isDown) _heldCodes.Add(code); else _heldCodes.Remove(code);
         _control.InjectKey(isDown ? AndroidKeyEvent.ActionDown : AndroidKeyEvent.ActionUp, code);
         return true;
+    }
+
+    private readonly HashSet<int> _heldCodes = new();
+
+    public void ReleaseHeldKeys()
+    {
+        if (_heldCodes.Count == 0)
+            return;
+        var codes = _heldCodes.ToArray();
+        _heldCodes.Clear();
+        foreach (var c in codes)
+            _control?.InjectKey(AndroidKeyEvent.ActionUp, c);
     }
 
     public void InjectText(string text) => _control?.InjectText(text);
@@ -1030,7 +1058,7 @@ public partial class MirrorView : UserControl
 
     private static int MapKey(Key key) => key switch
     {
-        Key.Back => AndroidKeyCode.Back,
+        Key.Back => AndroidKeyCode.Del,
         Key.Enter => AndroidKeyCode.Enter,
         Key.Escape => AndroidKeyCode.Escape,
         Key.Delete => AndroidKeyCode.ForwardDel,
@@ -1064,6 +1092,7 @@ public partial class MirrorView : UserControl
 
     public void Detach()
     {
+        ReleaseHeldKeys();
         _decoder = null;
         _control = null;
         _pressedButtons = 0;

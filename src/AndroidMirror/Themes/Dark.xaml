@@ -41,6 +41,7 @@
         <GradientStop Color="#F0090D14" Offset="1" />
     </LinearGradientBrush>
     <SolidColorBrush x:Key="CodeBackgroundBrush" Color="#33000000" />
+    <SolidColorBrush x:Key="SageBrush" Color="#4EC98E" />
 
     <SolidColorBrush x:Key="TextFillColorPrimaryBrush" Color="#EDEFF2" />
     <SolidColorBrush x:Key="TextFillColorSecondaryBrush" Color="#A9B3C4" />

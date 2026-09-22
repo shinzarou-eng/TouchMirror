@@ -52,14 +52,22 @@ public sealed class RtspServer : IDisposable
             while (!ct.IsCancellationRequested)
             {
                 var client = await _listener!.AcceptTcpClientAsync(ct);
-                var session = new AirPlaySession(client, _name);
-                session.Log += s => Log?.Invoke(s);
-                session.DeviceConnected += (n, id) => DeviceConnected?.Invoke(n, id);
-                session.DeviceDisconnected += (n, id) => DeviceDisconnected?.Invoke(n, id);
-                session.StreamStarted += src => StreamStarted?.Invoke(src);
-                session.StreamStopped += () => StreamStopped?.Invoke();
                 lock (_clients)
+                {
+                    _clients.RemoveAll(t => t.IsCompleted);
+                    if (_clients.Count >= 8)
+                    {
+                        try { client.Dispose(); } catch { }
+                        continue;
+                    }
+                    var session = new AirPlaySession(client, _name);
+                    session.Log += s => Log?.Invoke(s);
+                    session.DeviceConnected += (n, id) => DeviceConnected?.Invoke(n, id);
+                    session.DeviceDisconnected += (n, id) => DeviceDisconnected?.Invoke(n, id);
+                    session.StreamStarted += src => StreamStarted?.Invoke(src);
+                    session.StreamStopped += () => StreamStopped?.Invoke();
                     _clients.Add(Task.Run(() => session.RunAsync(ct)));
+                }
             }
         }
         catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or SocketException)

@@ -32,6 +32,30 @@ public static class MdnsHost
         }
     }
 
+    public static async Task<int> ProbeAdbAsync(TimeSpan window, CancellationToken ct = default)
+    {
+        var mdns = Instance;
+        var count = 0;
+        void OnAnswer(object? s, MessageEventArgs e)
+        {
+            if (e.Message.Answers.Any(r =>
+                    r.ToString().Contains("_adb-tls", StringComparison.OrdinalIgnoreCase)))
+                Interlocked.Increment(ref count);
+        }
+        mdns.AnswerReceived += OnAnswer;
+        try
+        {
+            mdns.SendQuery("_adb-tls-pairing._tcp.local", type: DnsType.PTR);
+            mdns.SendQuery("_adb-tls-connect._tcp.local", type: DnsType.PTR);
+            await Task.Delay(window, ct);
+            return count;
+        }
+        finally
+        {
+            mdns.AnswerReceived -= OnAnswer;
+        }
+    }
+
     public static List<string> LanAddresses()
     {
         try

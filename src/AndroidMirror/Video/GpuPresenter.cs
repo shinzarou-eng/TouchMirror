@@ -502,13 +502,23 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
     {
         _image = image;
         _hwnd = hwnd;
+        image.IsFrontBufferAvailableChanged += OnFrontBufferChanged;
         if (_w > 0)
             Rebind();
     }
 
+    private void OnFrontBufferChanged(object? sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (_image is { IsFrontBufferAvailable: true })
+        {
+            Rebind();
+            Redraw();
+        }
+    }
+
     public void Rebind()
     {
-        if (_image == null || _w <= 0)
+        if (_image == null || _w <= 0 || !_image.IsFrontBufferAvailable)
             return;
 
         if (_dev9 == null)
@@ -601,7 +611,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
     public void Invalidate()
     {
         var img = _image;
-        if (_disposed || img == null)
+        if (_disposed || img == null || !img.IsFrontBufferAvailable)
             return;
         img.Lock();
         try
@@ -634,6 +644,11 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
     public void Dispose()
     {
         _disposed = true;
+        if (_image != null)
+        {
+            _image.IsFrontBufferAvailableChanged -= OnFrontBufferChanged;
+            _image = null;
+        }
         lock (_sync)
         {
             foreach (var e in _srcCache.Values)

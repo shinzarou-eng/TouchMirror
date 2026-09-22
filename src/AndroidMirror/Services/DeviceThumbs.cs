@@ -73,11 +73,34 @@ public static class DeviceThumbs
     private static void Apply(Image img, AdbDevice? dev)
     {
         BitmapImage? s = null;
-        if (dev != null)
-            Thumbs.TryGetValue(dev.DeviceKey, out s);
+        if (dev != null && !Thumbs.TryGetValue(dev.DeviceKey, out s))
+            s = LoadCached(dev.DeviceKey);
         img.Source = s;
         SetHasThumb(img, s != null);
         SetLandscape(img, s is { PixelWidth: var w, PixelHeight: var h } && w > h);
+    }
+
+    private static string CacheDir => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "TouchMirror", "thumbs");
+
+    private static string CachePath(string key) => Path.Combine(CacheDir,
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(key)))[..16].ToLowerInvariant() + ".png");
+
+    private static BitmapImage? LoadCached(string key)
+    {
+        try
+        {
+            var p = CachePath(key);
+            if (!File.Exists(p))
+                return null;
+            var bi = Decode(File.ReadAllBytes(p));
+            if (bi != null)
+                Thumbs[key] = bi;
+            return bi;
+        }
+        catch { return null; }
     }
 
     private static void RefreshKey(string key)
@@ -113,14 +136,14 @@ public static class DeviceThumbs
                     });
                 }
                 catch { break; }
-                foreach (var dev in targets)
+                var tasks = targets.Select(async dev =>
                 {
                     if (ct.IsCancellationRequested)
                         return;
                     if (IsBusy?.Invoke(dev) == true)
-                        continue;
+                        return;
                     if (!Inflight.TryAdd(dev.DeviceKey, 0))
-                        continue;
+                        return;
                     try
                     {
                         var png = await AdbService.ScreencapAsync(dev.Serial, ct);
@@ -128,16 +151,45 @@ public static class DeviceThumbs
                         if (bi != null)
                         {
                             Thumbs[dev.DeviceKey] = bi;
+                            try
+                            {
+                                Directory.CreateDirectory(CacheDir);
+                                File.WriteAllBytes(CachePath(dev.DeviceKey), png!);
+                            }
+                            catch { }
                             var key = dev.DeviceKey;
                             await disp.InvokeAsync(() => RefreshKey(key));
                         }
                     }
                     finally { Inflight.TryRemove(dev.DeviceKey, out _); }
-                }
+                });
+                await Task.WhenAll(tasks);
                 await Task.Delay(4000, ct);
             }
         });
     }
+
+    public static void ClearAll()
+    {
+        Thumbs.Clear();
+        try
+        {
+            if (Directory.Exists(CacheDir))
+                foreach (var f in Directory.EnumerateFiles(CacheDir, "*.png"))
+                    try { File.Delete(f); } catch { }
+        }
+        catch { }
+        var disp = Application.Current?.Dispatcher;
+        if (disp is { HasShutdownFinished: false })
+            disp.BeginInvoke(() =>
+            {
+                lock (Views)
+                    foreach (var img in Views.ToArray())
+                        Apply(img, GetDevice(img));
+            });
+    }
+
+    public static void Shutdown() => _cts?.Cancel();
 
     private static BitmapImage? Decode(byte[] png)
     {

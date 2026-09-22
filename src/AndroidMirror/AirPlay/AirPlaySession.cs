@@ -436,6 +436,8 @@ public sealed class AirPlaySession
             if (b < 0)
                 return null;
             headerBytes.Add((byte)b);
+            if (headerBytes.Count > 32 * 1024)
+                throw new IOException("airplay: en-têtes rtsp trop grandes");
             var expected = matched switch { 0 or 2 => (byte)'\r', _ => (byte)'\n' };
             matched = b == expected ? matched + 1 : (b == (byte)'\r' ? 1 : 0);
         }
@@ -513,7 +515,21 @@ public sealed class AirPlaySession
     private async Task<bool> FillPlainAsync(CancellationToken ct)
     {
         var buf = _fillBuf;
-        var n = await _stream.ReadAsync(buf, ct);
+        int n;
+        if (_streaming)
+        {
+            n = await _stream.ReadAsync(buf, ct);
+        }
+        else
+        {
+            using var idle = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            idle.CancelAfter(TimeSpan.FromSeconds(30));
+            try { n = await _stream.ReadAsync(buf, idle.Token); }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                throw new IOException("airplay: délai de lecture dépassé");
+            }
+        }
         if (n == 0)
             return false;
         _raw.AddRange(buf.AsSpan(0, n).ToArray());
@@ -576,7 +592,9 @@ public sealed class AirPlaySession
         while (_raw.Count > 0)
         {
             var len = _cipher!.TryDecryptBlock(CollectionsMarshal.AsSpan(_raw), outBuf.AsSpan(off), out var consumed);
-            if (len <= 0)
+            if (len < 0)
+                throw new IOException("airplay: bloc chiffré illisible — session fermée");
+            if (len == 0)
                 break;
             off += len;
             _raw.RemoveRange(0, consumed);

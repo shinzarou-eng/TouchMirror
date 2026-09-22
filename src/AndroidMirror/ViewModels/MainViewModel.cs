@@ -58,6 +58,8 @@ public partial class MainViewModel : ObservableObject
         new("disp.src.virtual", true),
     };
 
+    public sealed record DiagIssue(string Title, string Detail, string? FixKey = null, string? FixLabel = null, string? Tag = null);
+
     public sealed record DisplayFormatOption(string LabelKey, string Spec)
     {
         public string Label => LocalizationService.Get(LabelKey);
@@ -126,6 +128,8 @@ public partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsConnected))]
     [NotifyPropertyChangedFor(nameof(StatusDotColor))]
     private ObservableCollection<MirrorInstance> _mirrors = new();
+    private readonly PredictiveMonitor _health = new();
+    private readonly HashSet<string> _usbSwitched = new();
 
     public ObservableCollection<MirrorInstance> InactiveMirrors { get; } = new();
 
@@ -155,9 +159,13 @@ public partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IosBleActive))]
     [NotifyPropertyChangedFor(nameof(IsSecondaryAccountMirror))]
     [NotifyPropertyChangedFor(nameof(DisplaySourceEnabled))]
+    [NotifyPropertyChangedFor(nameof(BenchTitle))]
     private MirrorInstance? _activeMirror;
 
     public bool IsActiveMirrorIos => ActiveMirror?.IsIos == true;
+    public string BenchTitle => ActiveMirror != null
+        ? $"{L("bench.title")} — {ActiveMirror.Device.ShortName}"
+        : L("bench.title");
     public bool IosBleActive => (ActiveMirror as IosMirrorInstance)?.BleActive == true;
 
     [ObservableProperty]
@@ -196,6 +204,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _isBusy;
 
     public bool IsConnected => Mirrors.Count > 0;
+    public bool HasHealthWarnings => _health.Warnings.Count > 0;
+    public string HealthTooltip => string.Join(Environment.NewLine, _health.Warnings);
     public bool IsDisconnected => !IsConnected;
 
     [ObservableProperty]
@@ -286,6 +296,12 @@ public partial class MainViewModel : ObservableObject
                 if (p.Running)
                     p.DispatchEvent(json);
         };
+        _health.Changed += () =>
+        {
+            OnPropertyChanged(nameof(HasHealthWarnings));
+            OnPropertyChanged(nameof(HealthTooltip));
+        };
+        _health.WifiDegraded += OnWifiDegraded;
         _suppressReconnect = true;
         _suppressSave = true;
         MaxSize = _settings.MaxSize;
@@ -441,6 +457,24 @@ public partial class MainViewModel : ObservableObject
     public string UpdateUrl { get; private set; } = "";
     public Visibility UpdateBannerVisibility =>
         UpdateVersion != null ? Visibility.Visible : Visibility.Collapsed;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UpdateActionLabel))]
+    private bool _updateSelfUpdate;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UpdateActionLabel))]
+    [NotifyPropertyChangedFor(nameof(UpdateBusy))]
+    private bool _updateReady;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UpdateActionLabel))]
+    [NotifyPropertyChangedFor(nameof(UpdateBusy))]
+    [NotifyPropertyChangedFor(nameof(UpdateProgressText))]
+    private int _updateProgress = -1;
+    public bool UpdateBusy => UpdateProgress >= 0;
+    public string UpdateProgressText => UpdateProgress >= 0 ? $"· {UpdateProgress} %" : "";
+    public string UpdateActionLabel => UpdateReady ? L("maj_redemarrer")
+        : UpdateSelfUpdate ? L("maj_installer") : L("telecharger");
+    public string UpdateSubtitle =>
+        L(UpdateSelfUpdate ? "maj_sous_delta" : "maj_sous_web");
 
     [ObservableProperty] private ObservableCollection<string> _logs = new();
 
@@ -454,6 +488,12 @@ public partial class MainViewModel : ObservableObject
     public event Action<MirrorInstance>? MirrorAdded;
     public event Func<MirrorInstance, string?>? ScreenshotRequested;
     public event Action? AnyConnected;
+
+    partial void OnActiveMirrorChanged(MirrorInstance? oldValue, MirrorInstance? newValue)
+    {
+        if (!ReferenceEquals(oldValue, newValue))
+            oldValue?.View.ReleaseHeldKeys();
+    }
 
     public void SetActive(MirrorInstance instance)
     {
@@ -531,11 +571,13 @@ public partial class MainViewModel : ObservableObject
 
     public async Task<AdbDevice?> FindDeviceBySerialAsync(string serial)
     {
-        var d = Devices.FirstOrDefault(x => x.MatchesSerial(serial));
+        var d = Devices.FirstOrDefault(x => x.MatchesSerial(serial)
+            || x.DeviceKey == serial || x.HardwareSerial == serial);
         if (d == null)
         {
             await RefreshDevicesAsync();
-            d = Devices.FirstOrDefault(x => x.MatchesSerial(serial));
+            d = Devices.FirstOrDefault(x => x.MatchesSerial(serial)
+                || x.DeviceKey == serial || x.HardwareSerial == serial);
         }
         return d;
     }
@@ -1732,6 +1774,9 @@ public partial class MainViewModel : ObservableObject
     {
         _pollTimer.Stop();
         _trackCts.Cancel();
+        _benchCts?.Cancel();
+        _health.Dispose();
+        DeviceThumbs.Shutdown();
     }
 
     private async Task CheckUpdateAsync()
@@ -1741,17 +1786,42 @@ public partial class MainViewModel : ObservableObject
         {
             UpdateVersion = u.Version.ToString(3);
             UpdateUrl = u.Url;
+            UpdateSelfUpdate = u.SelfUpdate;
             OnPropertyChanged(nameof(UpdateUrl));
+            OnPropertyChanged(nameof(UpdateSubtitle));
             Log($"Mise à jour disponible : v{UpdateVersion}");
         }
     }
 
     [RelayCommand]
-    private void OpenUpdate()
+    private async Task OpenUpdateAsync()
     {
-        if (!string.IsNullOrEmpty(UpdateUrl))
-            System.Diagnostics.Process.Start(
-                new System.Diagnostics.ProcessStartInfo(UpdateUrl) { UseShellExecute = true });
+        if (UpdateReady)
+        {
+            UpdateService.ApplyOnExit();
+            Application.Current.MainWindow?.Close();
+            return;
+        }
+        if (UpdateBusy)
+            return;
+        if (!UpdateSelfUpdate)
+        {
+            if (!string.IsNullOrEmpty(UpdateUrl))
+                System.Diagnostics.Process.Start(
+                    new System.Diagnostics.ProcessStartInfo(UpdateUrl) { UseShellExecute = true });
+            return;
+        }
+        UpdateProgress = 0;
+        try
+        {
+            await UpdateService.DownloadAsync(new Progress<int>(p => UpdateProgress = p));
+            UpdateProgress = -1;
+            UpdateReady = true;
+        }
+        catch
+        {
+            UpdateProgress = -1;
+        }
     }
 
     [RelayCommand]
@@ -1781,6 +1851,8 @@ public partial class MainViewModel : ObservableObject
                         await AdbService.SetStayOnWhilePluggedInAsync(dev.Serial, st.StayOn);
                     if (st.Brightness >= 0)
                         await AdbService.SetBrightnessAsync(dev.Serial, st.Brightness);
+                    if (st.BrightnessMode >= 0)
+                        await AdbService.SetBrightnessModeAsync(dev.Serial, st.BrightnessMode);
                     DimmedScreenStore.Remove(st);
                     Log($"écran restauré sur {dev.DisplayName} (état retrouvé d'une session précédente)");
                 }
@@ -2160,12 +2232,12 @@ public partial class MainViewModel : ObservableObject
             : string.Format(L("st.connecting_account"), device.DisplayName, account.Name);
         var instance = new MirrorInstance(device)
         {
-            ShouldSyncClipboard = () => SyncDeviceClipboard,
             Prefs = prefs,
             AccountUserId = account?.UserId,
             AccountName = account?.Name,
             AccentHex = _settings.Devices.TryGetValue(device.DeviceKey, out var dp) ? dp.Color : null
         };
+        instance.ShouldSyncClipboard = () => SyncDeviceClipboard && instance.IsActive;
         if (account != null)
             instance.DeviceName = $"{device.ShortName} · {account.Name}";
         try
@@ -2228,11 +2300,28 @@ public partial class MainViewModel : ObservableObject
 
     public async Task<List<AndroidProfile>> ListProfilesAsync(AdbDevice device)
     {
-        try { return await AdbService.ListProfilesAsync(device.Serial); }
+        try
+        {
+            var owned = _settings.Devices.TryGetValue(device.DeviceKey, out var dp)
+                ? dp.OwnedUserIds : new List<int>();
+            return (await AdbService.ListProfilesAsync(device.Serial))
+                .Select(p => p with { Owned = owned.Contains(p.Id) }).ToList();
+        }
         catch (Exception ex)
         {
             Log($"profiles: {ex.Message}");
             return new List<AndroidProfile>();
+        }
+    }
+
+    private void MarkOwnedProfile(AdbDevice device, int userId)
+    {
+        if (!_settings.Devices.TryGetValue(device.DeviceKey, out var dp))
+            _settings.Devices[device.DeviceKey] = dp = new DevicePrefs();
+        if (!dp.OwnedUserIds.Contains(userId))
+        {
+            dp.OwnedUserIds.Add(userId);
+            SaveNow();
         }
     }
 
@@ -2244,9 +2333,19 @@ public partial class MainViewModel : ObservableObject
             Status = string.Format(L("st.creating_account"), name);
             var userId = await AdbService.CreateCloneProfileAsync(device.Serial, name);
             Log($"profil clone créé : {name} (user {userId})");
+            MarkOwnedProfile(device, userId);
             AddActivity("person", L("act.account_created"), device.ShortName);
-            await AdbService.InstallAppForUserAsync(device.Serial, userId, "com.ankama.dofustouch");
-            await AdbService.StartUserAsync(device.Serial, userId);
+            try
+            {
+                await AdbService.InstallAppForUserAsync(device.Serial, userId, "com.ankama.dofustouch");
+                await AdbService.StartUserAsync(device.Serial, userId);
+            }
+            catch (Exception ex)
+            {
+                Log(ex.ToString());
+                Status = string.Format(L("st.account_partial"), name, ex.Message);
+                return;
+            }
             await ConnectDeviceAsync(device, null, new MirrorAccount(userId, name));
         }
         catch (Exception ex)
@@ -2279,6 +2378,11 @@ public partial class MainViewModel : ObservableObject
 
     public async Task RemoveAccountAsync(AdbDevice device, AndroidProfile profile)
     {
+        if (!profile.Owned)
+        {
+            Status = L("st.profile_foreign");
+            return;
+        }
         var tile = Mirrors.FirstOrDefault(m => m.AccountUserId == profile.Id
             && m.Device.SharesIdentity(device));
         if (tile != null)
@@ -2286,6 +2390,9 @@ public partial class MainViewModel : ObservableObject
         try
         {
             await AdbService.RemoveUserProfileAsync(device.Serial, profile.Id);
+            if (_settings.Devices.TryGetValue(device.DeviceKey, out var dp)
+                && dp.OwnedUserIds.Remove(profile.Id))
+                SaveNow();
             Log($"profil supprimé : {profile.Name} (user {profile.Id})");
             Status = string.Format(L("st.account_deleted"), profile.Name);
         }
@@ -2605,9 +2712,21 @@ public partial class MainViewModel : ObservableObject
         instance.Disconnected += m =>
         {
             AddActivity("dismiss", L("act.mirror_stopped"), m.Device.ShortName);
+            if (m.SessionDuration is { } dur && dur.TotalSeconds >= 30)
+            {
+                var h = (int)dur.TotalHours;
+                var durs = h > 0 ? $"{h}h{dur.Minutes:D2}" : $"{dur.Minutes}min{dur.Seconds:D2}";
+                var report = string.Format(L("act.session_report"),
+                    durs, m.FpsAvg.ToString("0"), m.FpsMin.ToString("0"),
+                    (m.RxBytesFinal / 1073741824.0).ToString("0.0"), m.Incidents);
+                AddActivity("report", report, m.Device.ShortName);
+                Log($"{m.Device.ShortName} — {report}");
+            }
             _apiHost.Publish("mirror.disconnected",
                 new { name = m.DeviceName, serial = m.Device.Serial, manual = m.ManualDisconnect });
             Mirrors.Remove(m);
+            if (Mirrors.Count == 0)
+                _health.Stop();
             PromoteNextActive(m);
             if (m.UnexpectedDeath)
             {
@@ -2630,10 +2749,43 @@ public partial class MainViewModel : ObservableObject
                 new { slot = m.Slot, id, index = idx });
 
         Mirrors.Add(instance);
+        if (Mirrors.Count == 1)
+            _health.Start(() => Mirrors.Count, BuildWifiProbes);
         ApplyMirrorOrder();
         RefreshInactiveMirrors();
         SetActive(instance);
         MirrorAdded?.Invoke(instance);
+    }
+
+    private IReadOnlyList<PredictiveMonitor.WifiProbe> BuildWifiProbes()
+    {
+        var list = new List<PredictiveMonitor.WifiProbe>();
+        foreach (var m in Mirrors)
+        {
+            if (!m.Device.IsWifi)
+                continue;
+            var ip = m.Device.Serial.Split(':')[0];
+            if (ip.Contains('.'))
+                list.Add(new PredictiveMonitor.WifiProbe(m.Device.ShortName, ip));
+        }
+        return list;
+    }
+
+    private async void OnWifiDegraded(PredictiveMonitor.WifiProbe probe)
+    {
+        var m = Mirrors.FirstOrDefault(x => x.Device.IsWifi
+            && x.Device.Serial.Split(':')[0] == probe.Ip);
+        if (m == null || m.IsRecording || !_usbSwitched.Add(m.IdentityKey))
+            return;
+        var twin = Devices.FirstOrDefault(d =>
+            !d.IsWifi && d.IsReady && d.SharesIdentity(m.Device));
+        if (twin == null)
+            return;
+        AddActivity("usb", L("act.usb_switch"), m.Device.ShortName);
+        Status = string.Format(L("st.usb_switch"), m.Device.ShortName);
+        m.ManualDisconnect = true;
+        await m.DisconnectAsync();
+        await ConnectDeviceAsync(twin);
     }
 
     [RelayCommand]
@@ -2700,6 +2852,22 @@ public partial class MainViewModel : ObservableObject
     private bool _debugBusy;
     public bool DebugIdle => !DebugBusy;
     [ObservableProperty] private string _debugNote = "";
+    [ObservableProperty] private bool _diagFixAdbVisible;
+    [ObservableProperty] private bool _diagFixReauthVisible;
+    [ObservableProperty] private bool _diagFixKillVisible;
+    [ObservableProperty] private string _diagFixKillLabel = "";
+    [ObservableProperty] private bool _diagFixFwVisible;
+    [ObservableProperty] private bool _diagFixAllVisible;
+    [ObservableProperty] private string _diagBenchText = "";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BenchIdle))]
+    private bool _diagBenchBusy;
+    public bool BenchIdle => !DiagBenchBusy;
+    [ObservableProperty] private bool _diagGuideVisible;
+    [ObservableProperty] private bool _diagGuideOpen;
+    [ObservableProperty] private string _diagGuideTitle = "";
+    [ObservableProperty] private string _diagGuideText = "";
+    [ObservableProperty] private bool _diagDevmgmtVisible;
 
     private QrPairSession? _pairSession;
 
@@ -2868,6 +3036,49 @@ public partial class MainViewModel : ObservableObject
         _ = ClearDebugNoteAsync();
     }
 
+    [RelayCommand]
+    private void CopyDebugMasked()
+    {
+        if (string.IsNullOrEmpty(DebugReport))
+            return;
+        try
+        {
+            System.Windows.Clipboard.SetText(MaskReport(DebugReport));
+            DebugNote = L("dbg.masked");
+        }
+        catch (Exception ex)
+        {
+            DebugNote = ex.Message;
+        }
+        _ = ClearDebugNoteAsync();
+    }
+
+    [RelayCommand]
+    private void PurgeThumbs()
+    {
+        DeviceThumbs.ClearAll();
+        DebugNote = L("dbg.thumbs_purged");
+        _ = ClearDebugNoteAsync();
+    }
+
+    private string MaskReport(string report)
+    {
+        var masked = System.Text.RegularExpressions.Regex.Replace(
+            report, @"\b(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}\b", "$1.$2.×.×");
+        masked = System.Text.RegularExpressions.Regex.Replace(
+            masked, @"\b(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}\b", "xx:xx:xx:xx:xx:xx");
+        var user = Environment.UserName;
+        if (user.Length > 0)
+            masked = masked.Replace($@"C:\Users\{user}", @"C:\Users\…",
+                StringComparison.OrdinalIgnoreCase);
+        foreach (var s in Devices.SelectMany(d => new[] { d.Serial, d.HardwareSerial })
+                     .Concat(Mirrors.Select(m => m.Device.Serial))
+                     .Concat(Mirrors.Select(m => m.Device.HardwareSerial))
+                     .Where(x => !string.IsNullOrEmpty(x)).Distinct())
+            masked = masked.Replace(s!, "«serial»");
+        return masked;
+    }
+
     private async Task ClearDebugNoteAsync()
     {
         await Task.Delay(2500);
@@ -2882,6 +3093,406 @@ public partial class MainViewModel : ObservableObject
             System.Diagnostics.Process.Start("explorer.exe",
                 System.IO.Path.GetDirectoryName(AppLogger.LogFilePath)!);
         }
+        catch (Exception ex) { DebugNote = ex.Message; }
+    }
+
+    private string GuideFor(string brand) => brand switch
+    {
+        "Xiaomi" => L("dbg.guide.xiaomi"),
+        "Samsung" => L("dbg.guide.samsung"),
+        "Oppo" or "OnePlus" => L("dbg.guide.oppo"),
+        "Vivo" => L("dbg.guide.vivo"),
+        "Huawei" => L("dbg.guide.huawei"),
+        _ => L("dbg.guide.generic")
+    };
+
+    [RelayCommand]
+    private async Task DiagFixAdbAsync()
+    {
+        try
+        {
+            await AdbService.RunTextAsync("kill-server");
+            var check = await AdbService.RunTextAsync("devices");
+            if (!check.Contains("List of devices", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("adb ne répond pas après redémarrage");
+            DebugNote = L("dbg.fix_done");
+        }
+        catch (Exception ex) { DebugNote = ex.Message; }
+        await BuildDebugReportAsync();
+        _ = ClearDebugNoteAsync();
+    }
+
+    public Func<IReadOnlyList<string>, Task<bool>>? ConfirmKill { get; set; }
+
+    [RelayCommand]
+    private async Task DiagFixKillAsync()
+    {
+        var targets = AdbService.FindCompetingProcesses()
+            .Where(p => p.Name.Equals("adb", StringComparison.OrdinalIgnoreCase)).ToList();
+        if (targets.Count == 0)
+        {
+            DebugNote = L("dbg.no_kill_target");
+            _ = ClearDebugNoteAsync();
+            return;
+        }
+        if (ConfirmKill != null && !await ConfirmKill(
+                targets.Select(t => $"{t.Name} — {t.Path ?? "?"} (pid {t.Pid})").ToList()))
+            return;
+        var n = 0;
+        foreach (var p in targets)
+            try { System.Diagnostics.Process.GetProcessById(p.Pid).Kill(); n++; } catch { }
+        DebugNote = string.Format(L("dbg.killed"), n);
+        await Task.Delay(800);
+        await BuildDebugReportAsync();
+        _ = ClearDebugNoteAsync();
+    }
+
+    [RelayCommand]
+    private async Task DiagFixReauthAsync()
+    {
+        try { await AdbService.ProbeAsync("reconnect"); DebugNote = L("dbg.reauth_hint"); }
+        catch (Exception ex) { DebugNote = ex.Message; }
+        _ = ClearDebugNoteAsync();
+    }
+
+    [RelayCommand]
+    private async Task DiagFixFwAsync()
+    {
+        var exe = Environment.ProcessPath;
+        if (exe == null) return;
+        await FirewallHelper.EnsureRulesAsync(new List<(string, string)> { (exe, "TouchMirror") });
+        await BuildDebugReportAsync();
+        DebugNote = L("dbg.fix_done");
+        _ = ClearDebugNoteAsync();
+    }
+
+    [RelayCommand]
+    private async Task DiagFixAllAsync()
+    {
+        var kill = DiagFixKillVisible; var adb = DiagFixAdbVisible;
+        var reauth = DiagFixReauthVisible; var fw = DiagFixFwVisible;
+        if (kill) await DiagFixKillAsync();
+        if (adb) await DiagFixAdbAsync();
+        if (reauth) await DiagFixReauthAsync();
+        if (fw) await DiagFixFwAsync();
+    }
+
+    [ObservableProperty] private bool _benchOpen;
+    [ObservableProperty] private int _benchSeconds;
+    [ObservableProperty] private string _benchLive = "";
+    [ObservableProperty] private string _benchBigFps = "";
+    [ObservableProperty] private string _benchRange = "";
+    [ObservableProperty] private string _benchAxisEnd = "30 s";
+    [ObservableProperty] private string _benchMbps = "";
+    [ObservableProperty] private string _benchLat = "";
+    [ObservableProperty] private string _benchAdb = "";
+    [ObservableProperty] private string _benchCpu = "";
+    [ObservableProperty] private bool _benchHasResult;
+    [ObservableProperty] private System.Windows.Media.PointCollection _benchFpsPoints = new();
+    [ObservableProperty] private System.Windows.Media.PointCollection _benchFillPoints = new();
+    private CancellationTokenSource? _benchCts;
+
+    [RelayCommand]
+    private void OpenBench()
+    {
+        DebugOpen = false;
+        BenchOpen = true;
+    }
+
+    [RelayCommand]
+    private void CloseBench()
+    {
+        _benchCts?.Cancel();
+        BenchOpen = false;
+    }
+
+    [RelayCommand]
+    private void CancelBench() => _benchCts?.Cancel();
+
+    private void PushBenchCurve(List<double> fps)
+    {
+        var maxF = Math.Max(1, fps.Max());
+        var line = new System.Windows.Media.PointCollection();
+        var fill = new System.Windows.Media.PointCollection();
+        for (var j = 0; j < fps.Count; j++)
+        {
+            var x = j * (392.0 / 29);
+            var y = 66 - fps[j] / maxF * 56;
+            line.Add(new System.Windows.Point(x, y));
+            fill.Add(new System.Windows.Point(x, y));
+        }
+        if (fill.Count > 0)
+        {
+            fill.Add(new System.Windows.Point(fill[^1].X, 72));
+            fill.Add(new System.Windows.Point(0, 72));
+        }
+        BenchFpsPoints = line;
+        BenchFillPoints = fill;
+    }
+
+    [RelayCommand]
+    private async Task RunBenchAsync()
+    {
+        var m = ActiveMirror;
+        if (m?.Session == null || !m.IsConnected)
+        {
+            BenchLive = L("dbg.bench_need");
+            return;
+        }
+        DiagBenchBusy = true;
+        DiagBenchText = "";
+        BenchLive = "";
+        BenchSeconds = 0;
+        BenchHasResult = false;
+        BenchMbps = BenchLat = BenchAdb = BenchCpu = "";
+        BenchFpsPoints = new();
+        BenchFillPoints = new();
+        BenchAxisEnd = "30 s";
+        _benchCts = new CancellationTokenSource();
+        var ct = _benchCts.Token;
+        GpuSampler? gpu = null;
+        try
+        {
+            var proc = System.Diagnostics.Process.GetCurrentProcess();
+            var cores = Math.Max(1, Environment.ProcessorCount);
+            double adbRtt = -1;
+            try
+            {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                for (var i = 0; i < 3; i++)
+                    await AdbService.ProbeAsync($"-s {m.Device.Serial} get-state", ct);
+                sw.Stop();
+                adbRtt = sw.Elapsed.TotalMilliseconds / 3;
+            }
+            catch { }
+            gpu = GpuSampler.TryCreate(proc.Id);
+            gpu?.NextUtil();
+
+            var fps = new List<double>();
+            var mbps = new List<double>();
+            var lag = new List<double>();
+            var jit = new List<double>();
+            var gpuU = new List<double>();
+            var f0 = m.VideoFrames;
+            var b0 = m.Session?.RxBytes ?? 0;
+            var cpu0 = proc.TotalProcessorTime;
+            var t0 = Environment.TickCount64;
+            var tPrev = t0;
+            for (var i = 0; i < 30; i++)
+            {
+                try { await Task.Delay(1000, ct); }
+                catch (OperationCanceledException) { break; }
+                var tn = Environment.TickCount64;
+                var dt = Math.Max(0.001, (tn - tPrev) / 1000.0);
+                tPrev = tn;
+                var f1 = m.VideoFrames;
+                var b1 = m.Session?.RxBytes ?? b0;
+                fps.Add((f1 - f0) / dt);
+                mbps.Add((b1 - b0) * 8.0 / 1e6 / dt);
+                lag.Add(m.StreamLagMs);
+                jit.Add(m.StreamJitterMs);
+                if (gpu != null)
+                    gpuU.Add(gpu.NextUtil());
+                f0 = f1;
+                b0 = b1;
+                BenchSeconds = i + 1;
+                BenchBigFps = $"{fps[^1]:0}";
+                BenchRange = $"{BenchSeconds} s / 30 s";
+                BenchLive = $"{mbps[^1]:0.0} Mbps";
+                PushBenchCurve(fps);
+                if (m.Session == null || !m.IsConnected)
+                    break;
+            }
+            var secs = Math.Max(1, (Environment.TickCount64 - t0) / 1000.0);
+            var cpu = (proc.TotalProcessorTime - cpu0).TotalMilliseconds / (secs * 1000 * cores) * 100;
+            var secsR = Math.Round(secs);
+            BenchAxisEnd = $"{secsR:0} s";
+
+            var sb = new System.Text.StringBuilder();
+            sb.Append("== bench ").Append(m.Device.ShortName).Append(" — ").Append(secsR).Append(" s ==").Append('\n');
+            if (fps.Count > 0)
+            {
+                sb.Append($"fps : moy {fps.Average():0} · min {fps.Min():0} · max {fps.Max():0}").Append('\n');
+                BenchBigFps = $"{fps.Average():0}";
+                BenchRange = $"min {fps.Min():0} · max {fps.Max():0}\nsur {secsR:0} s";
+            }
+            if (mbps.Count > 0)
+            {
+                sb.Append($"débit reçu : moy {mbps.Average():0.0} Mbps · pic {mbps.Max():0.0} Mbps").Append('\n');
+                BenchMbps = $"moy {mbps.Average():0.0} Mbps · pic {mbps.Max():0.0}";
+            }
+            if (lag.Count > 0)
+            {
+                var lagAvg = lag.Average();
+                sb.Append(lagAvg < 0
+                    ? $"latence flux : 0 ms (flux en avance) · jitter {jit.Average():0} ms"
+                    : $"latence flux : {lagAvg:0} ms · jitter {jit.Average():0} ms").Append('\n');
+                BenchLat = lagAvg < 0
+                    ? $"0 ms (flux en avance) · jitter {jit.Average():0} ms"
+                    : $"{lagAvg:0} ms · jitter {jit.Average():0} ms";
+            }
+            if (adbRtt >= 0)
+            {
+                sb.Append($"adb : {adbRtt:0} ms aller-retour (processus inclus)").Append('\n');
+                BenchAdb = $"{adbRtt:0} ms";
+            }
+            sb.Append($"cpu app : {cpu:0.0}% de la machine").Append('\n');
+            var gpuTxt = gpuU.Count > 1 && gpu != null
+                ? $"gpu : moy {gpuU.Skip(1).DefaultIfEmpty(0).Average():0}% · vram {gpu.VramMB():0} Mo"
+                : "gpu : n/d";
+            sb.Append(gpuTxt);
+            BenchCpu = gpuU.Count > 1 && gpu != null
+                ? $"{cpu:0.0} % · {gpuU.Skip(1).DefaultIfEmpty(0).Average():0} % ({gpu.VramMB():0} Mo vram)"
+                : $"{cpu:0.0} % · gpu n/d";
+            BenchLive = "";
+            DiagBenchText = sb.ToString();
+            BenchHasResult = true;
+        }
+        catch (Exception ex) { BenchLive = ex.Message; }
+        finally
+        {
+            gpu?.Dispose();
+            _benchCts = null;
+            DiagBenchBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private void DiagShowGuide() => DiagGuideOpen = true;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NetIdle))]
+    private bool _diagNetBusy;
+    public bool NetIdle => !DiagNetBusy;
+    [ObservableProperty] private string _diagScore = "";
+    public event Action? DebugScrollToEnd;
+    public ObservableCollection<DiagIssue> DiagIssues { get; } = new();
+
+    [RelayCommand]
+    private async Task DiagIssueFixAsync(DiagIssue? issue)
+    {
+        switch (issue?.FixKey)
+        {
+            case "adb": await DiagFixAdbAsync(); break;
+            case "reauth": await DiagFixReauthAsync(); break;
+            case "kill": await DiagFixKillAsync(); break;
+            case "fw": await DiagFixFwAsync(); break;
+            case "devmgmt": DiagOpenDevmgmt(); break;
+            case "guide": DiagShowGuide(); break;
+        }
+    }
+
+    [RelayCommand]
+    private void DiagIssueLink(DiagIssue? issue)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                "https://github.com/shinzarou-eng/TouchMirror/issues") { UseShellExecute = true });
+        }
+        catch { }
+    }
+
+    [RelayCommand]
+    private async Task DiagNetAsync()
+    {
+        DiagNetBusy = true;
+        DebugNote = L("dbg.net_run");
+        foreach (var i in DiagIssues.Where(x => x.Tag == "net").ToList())
+            DiagIssues.Remove(i);
+        try
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append("\n== réseau wifi ==\n");
+            var pc = WifiDiag.QueryPcWifi();
+            if (pc is { Connected: true })
+            {
+                var band = WifiDiag.Band(pc.Channel);
+                sb.Append(pc.Signal >= 40
+                    ? $"[OK] wifi PC : « {pc.Ssid} » · signal {pc.Signal} % · {pc.RxMbps} Mbps · {band}"
+                    : $"[!!] wifi PC faible : « {pc.Ssid} » · signal {pc.Signal} % · {pc.RxMbps} Mbps · {band}").Append('\n');
+                if (pc.Signal < 40)
+                    DiagIssues.Add(new("signal wifi PC faible",
+                        "Signal < 40 % : le flux va sauter en mirroring WiFi. → Rapproche le PC du routeur ou passe en ethernet.",
+                        Tag: "net"));
+            }
+            else if (pc != null)
+                sb.Append("[--] wifi PC non connecté — ethernet ou carte inactive\n");
+            else
+                sb.Append("[--] pas de carte wifi détectée sur le PC\n");
+
+            var dev = ActiveMirror?.Device ?? Devices.FirstOrDefault(d => d.IsReady);
+            if (dev == null)
+            {
+                sb.Append("[--] aucun appareil prêt — branche un tel pour tester la liaison\n");
+            }
+            else
+            {
+                var wifi = await WifiDiag.PhoneWifiAsync(dev.Serial, CancellationToken.None);
+                if (wifi is { } w)
+                {
+                    sb.Append(w.Rssi < -70
+                        ? $"[!!] wifi tel faible : rssi {w.Rssi} dBm · lien {w.Mbps} Mbps · {w.Band}\n"
+                        : $"[OK] wifi tel : rssi {w.Rssi} dBm · lien {w.Mbps} Mbps · {w.Band}\n");
+                    if (w.Rssi < -70)
+                        DiagIssues.Add(new("signal wifi tel faible",
+                            "RSSI < −70 dBm : la connexion lâche au moindre obstacle. → Rapproche le tel du routeur, évite les murs, force le 5 GHz.",
+                            Tag: "net"));
+                }
+                var ip = await WifiDiag.PhoneIpAsync(dev, CancellationToken.None);
+                var pcIp = ip != null ? WifiDiag.PcIpv4For(ip) : WifiDiag.PcPrimaryIpv4();
+                if (ip != null && pcIp != null)
+                {
+                    var sameNet = WifiDiag.SameSubnet(pcIp.Value.Ip, ip, pcIp.Value.Mask);
+                    sb.Append(sameNet
+                        ? $"[OK] même sous-réseau : PC {pcIp.Value.Ip} · tel {ip}\n"
+                        : $"[!!] sous-réseau différent : PC {pcIp.Value.Ip} · tel {ip} — le pairing wifi va échouer\n");
+                    if (!sameNet)
+                        DiagIssues.Add(new("PC et tel pas sur le même sous-réseau",
+                            "Le pairing QR et la découverte mDNS ne traversent pas deux réseaux. → Connecte les deux au même WiFi (pas de wifi invité, pas de partage 4G).",
+                            Tag: "net"));
+                    var ping = await WifiDiag.PingAsync(ip, 8, CancellationToken.None);
+                    if (ping is { } pn)
+                    {
+                        sb.Append(pn.Lost == 0 && pn.Avg <= 60
+                            ? $"[OK] ping tel : moy {pn.Avg:0} ms · min {pn.Min:0} · max {pn.Max:0} · perte 0/{pn.Sent}\n"
+                            : $"[!!] ping tel : moy {(pn.Avg < 0 ? 0 : pn.Avg):0} ms · perte {pn.Lost}/{pn.Sent} — wifi instable\n");
+                        if (pn.Lost > 0 || pn.Avg > 60)
+                            DiagIssues.Add(new("ping instable",
+                                "Perte de paquets ou latence > 60 ms — le flux va saccader. → Rapproche le tel, coupe les téléchargements en cours, évite le wifi invité.",
+                                Tag: "net"));
+                    }
+                    var mbps = await AdbService.MeasureAdbMbpsAsync(dev.Serial, 8, CancellationToken.None);
+                    if (mbps > 0)
+                    {
+                        sb.Append(mbps >= 15
+                            ? $"[OK] débit adb : {mbps:0} Mbps mesurés\n"
+                            : $"[!!] débit adb : {mbps:0} Mbps — sous le bitrate par défaut, baisse la qualité\n");
+                        if (mbps < 15)
+                            DiagIssues.Add(new("débit adb faible",
+                                $"{mbps:0} Mbps mesurés, sous le bitrate par défaut (16). → Baisse la qualité dans les réglages, ou passe en 5 GHz / USB.",
+                                Tag: "net"));
+                    }
+                }
+                else if (ip == null)
+                    sb.Append("[--] ip du tel introuvable — le wifi du tel est peut-être coupé\n");
+            }
+            DebugReport += sb.ToString();
+            DebugScrollToEnd?.Invoke();
+            DebugNote = L("dbg.net_done");
+        }
+        catch (Exception ex) { DebugNote = ex.Message; }
+        finally { DiagNetBusy = false; }
+        _ = ClearDebugNoteAsync();
+    }
+
+    [RelayCommand]
+    private void DiagCloseGuide() => DiagGuideOpen = false;
+
+    [RelayCommand]
+    private void DiagOpenDevmgmt()
+    {
+        try { System.Diagnostics.Process.Start("devmgmt.msc"); }
         catch (Exception ex) { DebugNote = ex.Message; }
     }
 
@@ -2905,7 +3516,7 @@ public partial class MainViewModel : ObservableObject
             var foreign = AdbService.FindCompetingProcesses();
             var lanIps = MdnsHost.LanAddresses();
             var mdnsReplies = -1;
-            try { mdnsReplies = await MdnsHost.ProbeAsync(TimeSpan.FromSeconds(2)); }
+            try { mdnsReplies = await MdnsHost.ProbeAdbAsync(TimeSpan.FromSeconds(2)); }
             catch { }
             var detected = Devices.Where(d => !d.IsRememberedOnly).ToList();
             var ready = detected.Where(d => d.IsReady).ToList();
@@ -2921,28 +3532,81 @@ public partial class MainViewModel : ObservableObject
                 .Append(VideoCodec).Append(" · audio ").Append(EnableAudio ? "on" : "off")
                 .Append(" · écran off ").Append(TurnScreenOff ? "on" : "off").Append(nl);
 
-            sb.Append(nl).Append("== diagnostic ==").Append(nl);
+            var ds = new System.Text.StringBuilder();
+            var issues = new List<DiagIssue>();
+            int errs = 0, warns = 0;
             if (adbPath != null)
-                sb.Append("[OK] adb : ").Append(adbPath).Append(nl);
+                ds.Append("[OK] adb : ").Append(adbPath).Append(nl);
             else
-                sb.Append("[!!] adb introuvable — platform-tools manquant").Append(nl);
-            sb.Append(adbVersion.Contains("Android Debug Bridge", StringComparison.OrdinalIgnoreCase)
-                    ? "[OK] le serveur adb répond" : "[!!] adb ne répond pas").Append(nl);
+            {
+                errs++;
+                ds.Append("[!!] adb introuvable — platform-tools manquant").Append(nl);
+                issues.Add(new("adb introuvable",
+                    "Le binaire adb embarqué est absent ou cassé. → Réinstalle TouchMirror, ou replace le dossier assets\\platform-tools à côté de l'exécutable."));
+            }
+            var adbResponds = devicesRaw.Contains("List of devices", StringComparison.OrdinalIgnoreCase);
+            if (adbResponds)
+                ds.Append("[OK] le serveur adb répond").Append(nl);
+            else
+            {
+                errs++;
+                ds.Append("[!!] adb ne répond pas").Append(nl);
+                issues.Add(new("adb ne répond pas",
+                    "Le serveur adb est planté ou un autre serveur occupe le port 5037. → Relance-le ci-dessous ; si ça revient, tue les processus adb/scrcpy concurrents.",
+                    "adb", L("dbg.fix_adb")));
+            }
             if (ready.Count > 0)
-                sb.Append("[OK] ").Append(ready.Count).Append(" appareil(s) prêt(s)").Append(nl);
-            else if (detected.Any(d => d.NeedsAuthorization))
-                sb.Append("[!!] appareil en attente d'autorisation — accepte la popup RSA sur le téléphone").Append(nl);
-            else if (detected.Any(d => d.IsOffline))
-                sb.Append("[!!] appareil « offline » — rebranche le câble").Append(nl);
-            else if (detected.Count == 0)
-                sb.Append("[--] aucun appareil adb").Append(nl);
-            var pnpOnly = pnp.Where(p => detected.All(d =>
-                !(d.DeviceKey ?? "").Contains(p.Vid, StringComparison.OrdinalIgnoreCase))).ToList();
+                ds.Append("[OK] ").Append(ready.Count).Append(" appareil(s) prêt(s)").Append(nl);
+            foreach (var d in detected.Where(d => d.NeedsAuthorization))
+            {
+                errs++;
+                ds.Append("[!!] « ").Append(d.ShortName)
+                    .Append(" » en attente d'autorisation — accepte la popup RSA sur le téléphone").Append(nl);
+                issues.Add(new($"« {d.ShortName} » en attente d'autorisation",
+                    "La popup « Autoriser ce PC » n'a jamais été acceptée sur le téléphone (Samsung : « Auto Blocker » peut la bloquer). → Déverrouille le tel, rebranche le câble, accepte la popup.",
+                    "reauth", L("dbg.fix_reauth")));
+            }
+            foreach (var d in detected.Where(d => d.IsOffline))
+            {
+                errs++;
+                ds.Append("[!!] « ").Append(d.ShortName).Append(" » hors ligne — rebranche le câble").Append(nl);
+                issues.Add(new($"« {d.ShortName} » hors ligne",
+                    "Câble ou port instable, ou le démon adb du tel a planté. → Rebranche sur un autre port USB ; si ça persiste, redémarre le tel.",
+                    "adb", L("dbg.fix_adb")));
+            }
+            if (detected.Count == 0)
+            {
+                warns++;
+                ds.Append("[--] aucun appareil adb").Append(nl);
+                issues.Add(new("aucun appareil détecté",
+                    "Pas branché, ou le débogage USB est désactivé sur le tel. → Active le débogage USB (guide par marque) puis branche le câble.",
+                    "guide", L("dbg.guide")));
+            }
+            else if (ready.Count == 0
+                && !detected.Any(d => d.NeedsAuthorization || d.IsOffline))
+            {
+                warns++;
+                ds.Append("[--] appareil(s) détecté(s), aucun prêt").Append(nl);
+                issues.Add(new("appareil détecté, aucun prêt",
+                    "adb voit l'appareil mais il n'est pas dans l'état « device ». → Déverrouille le tel, rebranche le câble.",
+                    "guide", L("dbg.guide")));
+            }
+            var pnpOnly = pnp.Where(p => p.UsbSerial != null && detected.All(d =>
+                !d.MatchesSerial(p.UsbSerial) && d.HardwareSerial != p.UsbSerial
+                && d.DeviceKey != p.UsbSerial)).ToList();
             foreach (var p in pnpOnly)
-                sb.Append("[!!] Windows voit « ").Append(p.Name).Append(" » (").Append(p.Brand ?? p.Vid)
+            {
+                errs++;
+                ds.Append("[!!] Windows voit « ").Append(p.Name).Append(" » (").Append(p.Brand ?? p.Vid)
                     .Append(") mais adb non — débogage USB/RSA à vérifier").Append(nl);
-            if (pnpError != null)
-                sb.Append("[--] détection Windows : ").Append(pnpError).Append(nl);
+                issues.Add(new($"{p.Name} vu par Windows, pas par adb",
+                    "Le driver USB est là mais adb ne voit pas l'appareil : débogage USB off, popup RSA refusée, ou pilote générique. → Ouvre le guide de débogage ; vérifie le pilote dans le gestionnaire.",
+                    "devmgmt", L("dbg.devmgmt")));
+            }
+            foreach (var p in pnp.Where(p => p.UsbSerial == null))
+                ds.Append("[--] Windows voit « ").Append(p.Name).Append(" » (").Append(p.Brand ?? p.Vid)
+                    .Append(") — non corrélé à un appareil adb").Append(nl);
+            if (pnpError != null) { warns++; ds.Append("[--] détection Windows : ").Append(pnpError).Append(nl); }
             var brands = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var p in pnp)
                 if (p.Brand != null)
@@ -2974,20 +3638,53 @@ public partial class MainViewModel : ObservableObject
                     _ => null
                 };
                 if (tip != null)
-                    sb.Append("[i ] ").Append(b).Append(" : ").Append(tip).Append(nl);
+                    ds.Append("[i ] ").Append(b).Append(" : ").Append(tip).Append(nl);
             }
-            foreach (var p in foreign)
-                sb.Append("[!!] ").Append(p.Name).Append(" tourne — peut réinitialiser la liaison adb").Append(nl);
-            if (mdnsReplies >= 0)
-                sb.Append(mdnsReplies > 0
-                        ? $"[OK] mDNS : {mdnsReplies} réponse(s) — le pairing QR peut trouver le téléphone"
-                        : "[!!] mDNS silencieux — pairing QR impossible (PC et tel sur le même WiFi ?)")
-                    .Append(nl);
+            var foreignAdb = foreign.Where(p =>
+                p.Name.Equals("adb", StringComparison.OrdinalIgnoreCase)).ToList();
+            foreach (var g in foreign.Where(p =>
+                             !p.Name.Equals("adb", StringComparison.OrdinalIgnoreCase))
+                         .GroupBy(p => p.Name))
+            {
+                ds.Append("[--] ").Append(g.Key)
+                    .Append(g.Count() > 1 ? $" tourne (×{g.Count()})" : " tourne")
+                    .Append(" — adb propre, pas de conflit direct").Append(nl);
+            }
+            foreach (var g in foreignAdb.GroupBy(p => p.Name))
+            {
+                warns++;
+                ds.Append("[!!] ").Append(g.Key).Append(g.Count() > 1 ? $" tourne (×{g.Count()})" : " tourne")
+                    .Append(" — un autre serveur adb peut couper la liaison").Append(nl);
+                issues.Add(new($"« {g.Key} » tourne en dehors de l'app",
+                    "Un autre serveur adb (ancien build, Android Studio, Walky) peut couper la liaison pendant une session. → Arrête-le ci-dessous après vérification de la liste.",
+                    "kill", L("dbg.fix_kill")));
+            }
+            var selfExe = Environment.ProcessPath;
+            var fwBlocked = selfExe != null
+                && FirewallHelper.InboundState(selfExe) == FirewallHelper.State.Block;
+            if (fwBlocked)
+            {
+                warns++;
+                ds.Append("[!!] le pare-feu bloque TouchMirror — connexions entrantes refusées").Append(nl);
+                issues.Add(new("le pare-feu bloque TouchMirror",
+                    "Une règle entrante « bloquer » existe pour l'exe — le mirroring WiFi et le pairing échouent. → Autorise l'app ci-dessous (UAC).",
+                    "fw", L("dbg.fix_fw")));
+            }
+            if (mdnsReplies > 0)
+                ds.Append($"[OK] mDNS : {mdnsReplies} service(s) adb visibles — le pairing QR peut trouver le téléphone").Append(nl);
+            else if (mdnsReplies == 0)
+                ds.Append("[--] mDNS : aucun service adb en écoute (normal hors mode « appairer » du téléphone)").Append(nl);
             else
-                sb.Append("[--] mDNS non testable").Append(nl);
-            sb.Append("[i ] IP du PC : ").Append(lanIps.Count > 0 ? string.Join(", ", lanIps) : "?")
+                ds.Append("[--] mDNS non testable").Append(nl);
+            ds.Append("[i ] IP du PC : ").Append(lanIps.Count > 0 ? string.Join(", ", lanIps) : "?")
                 .Append(" — le téléphone doit être sur le même réseau").Append(nl);
 
+            var score = errs > 0 ? $"🔴 problème bloquant — {errs} point(s) à corriger" :
+                warns > 0 ? $"🟡 attention — {warns} point(s) à vérifier" :
+                "🟢 prêt à jouer";
+            DiagScore = score;
+            sb.Append("santé globale : ").Append(score).Append(nl);
+            sb.Append(nl).Append("== diagnostic ==").Append(nl).Append(ds);
             sb.Append(nl).Append("== adb devices -l ==").Append(nl).Append(devicesRaw).Append(nl);
             sb.Append(nl).Append("== adb mdns ==").Append(nl).Append(mdnsCheck).Append(nl).Append(mdnsServices).Append(nl);
             sb.Append(nl).Append("== périphériques Windows (PnP) ==").Append(nl);
@@ -3014,6 +3711,27 @@ public partial class MainViewModel : ObservableObject
             sb.Append(nl).Append("== journal ==").Append(nl);
             sb.Append(TailLog(250));
             DebugReport = sb.ToString();
+            DiagFixAdbVisible = adbPath != null && !adbResponds;
+            DiagFixReauthVisible = detected.Any(d => d.NeedsAuthorization);
+            DiagFixKillVisible = foreignAdb.Count > 0;
+            DiagFixKillLabel = foreignAdb.Count > 1
+                ? string.Format(L("dbg.fix_kill_n"), foreignAdb.Count) : L("dbg.fix_kill");
+            DiagDevmgmtVisible = pnpOnly.Count > 0;
+            DiagFixFwVisible = fwBlocked;
+            DiagFixAllVisible = DiagFixKillVisible || DiagFixAdbVisible
+                || DiagFixReauthVisible || fwBlocked;
+            DiagIssues.Clear();
+            foreach (var i in issues)
+                DiagIssues.Add(i);
+            DiagGuideVisible = brands.Count > 0 || pnpOnly.Count > 0;
+            if (DiagGuideVisible)
+            {
+                DiagGuideTitle = L("dbg.guide_title");
+                DiagGuideText = string.Join(nl + nl, brands.OrderBy(b => b)
+                    .Select(b => "• " + b + " — " + GuideFor(b))
+                    .Concat(pnpOnly.Count > 0 && brands.Count == 0
+                        ? new[] { L("dbg.guide.generic") } : Array.Empty<string>()));
+            }
         }
         finally
         {
@@ -3025,7 +3743,9 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            var lines = File.ReadAllLines(AppLogger.LogFilePath);
+            using var fs = new FileStream(AppLogger.LogFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var sr = new StreamReader(fs);
+            var lines = sr.ReadToEnd().Split('\n');
             return string.Join(Environment.NewLine, lines.TakeLast(maxLines));
         }
         catch (Exception ex) { return ex.Message; }

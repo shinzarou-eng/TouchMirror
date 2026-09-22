@@ -32,6 +32,7 @@
     <SolidColorBrush x:Key="SurfaceFaintBrush" Color="#07000000" />
     <SolidColorBrush x:Key="IconTileBrush" Color="#0C000000" />
     <SolidColorBrush x:Key="CodeBackgroundBrush" Color="#0A000000" />
+    <SolidColorBrush x:Key="SageBrush" Color="#2E9A6B" />
 
     <SolidColorBrush x:Key="TextFillColorPrimaryBrush" Color="#E4000000" />
     <SolidColorBrush x:Key="TextFillColorSecondaryBrush" Color="#9B000000" />

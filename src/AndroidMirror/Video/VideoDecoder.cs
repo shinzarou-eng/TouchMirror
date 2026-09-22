@@ -40,9 +40,12 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
 
     public GpuPresenter? GpuPresenter { get; }
 
-    private IntPtr ExternalD3D11Device => GpuPresenter != null ? GpuPresenter.SharedDevicePtr : IntPtr.Zero;
+    private readonly IntPtr _extDevicePtr;
+    private IntPtr ExternalD3D11Device => _extDevicePtr;
 
     public bool HardwareDecoding { get; private set; }
+    private long _decodedFrames;
+    public long DecodedFrames => Interlocked.Read(ref _decodedFrames);
 
     public static void InitializeFFmpeg()
     {
@@ -63,6 +66,7 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
     {
         InitializeFFmpeg();
         GpuPresenter = gpuPresenter;
+        _extDevicePtr = gpuPresenter != null ? GpuPresenter.SharedDevicePtr : IntPtr.Zero;
 
         var avCodecId = codecId switch
         {
@@ -212,6 +216,7 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
                     if (ret < 0)
                         break;
 
+                    Interlocked.Increment(ref _decodedFrames);
                     var src = _frame;
                     if (_frame->format == (int)AVPixelFormat.AV_PIX_FMT_D3D11)
                     {
@@ -409,6 +414,8 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
                 fixed (AVBufferRef** p = &_hwDeviceCtx)
                     ffmpeg.av_buffer_unref(p);
             }
+            if (_extDevicePtr != IntPtr.Zero)
+                Marshal.Release(_extDevicePtr);
         }
     }
 }

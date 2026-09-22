@@ -858,6 +858,11 @@
                                     <Rectangle.RenderTransform><ScaleTransform x:Name="Eq5" ScaleY="0.4" /></Rectangle.RenderTransform>
                                 </Rectangle>
                             </StackPanel>
+                            <Path Style="{StaticResource Ic}" Data="{StaticResource IcShieldError24}"
+                                  Width="11" Height="11" VerticalAlignment="Center" Margin="8,0,0,0"
+                                  Fill="{DynamicResource WarnBrush}"
+                                  ToolTip="{Binding HealthTooltip}"
+                                  Visibility="{Binding HasHealthWarnings, Converter={StaticResource BoolToVis}}" />
                         </StackPanel>
                         <StackPanel x:Name="IslandActs" Orientation="Horizontal" VerticalAlignment="Center" Width="0" Opacity="0"
                                     Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}">
@@ -987,25 +992,40 @@
         </Border>
 
 
-        <Border Grid.Row="2" Padding="16,8"
+        <Border Grid.Row="0" Grid.RowSpan="5" Panel.ZIndex="40"
+                HorizontalAlignment="Center" VerticalAlignment="Top"
+                Margin="0,62,0,0" Padding="7" CornerRadius="14"
                 Background="{DynamicResource AppGlassAltBrush}"
-                BorderThickness="0,0,0,1"
-                BorderBrush="{DynamicResource AppBorderBrush}"
+                BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="1"
                 Visibility="{Binding UpdateBannerVisibility}">
+            <Border.Effect>
+                <DropShadowEffect Color="#000000" BlurRadius="26" ShadowDepth="0" Opacity="0.45" />
+            </Border.Effect>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Path Style="{StaticResource Ic}" Data="{StaticResource IcArrowDownload24}" Width="14" Height="14"
+                <Border Width="30" Height="30" CornerRadius="{StaticResource RadiusControl}" Margin="3,0,11,0"
+                        Background="{DynamicResource IconTileBrush}"
+                        BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="1">
+                    <Path Style="{StaticResource Ic}" Data="{StaticResource IcArrowDownload24}" Width="14" Height="14"
                                Fill="{DynamicResource DofusAccentBrush}"
-                               VerticalAlignment="Center" />
-                <TextBlock FontSize="{StaticResource FsBody}" Margin="9,0,0,0" VerticalAlignment="Center">
-                    <Run Text="{loc:Loc nouvelle_version_disponible_v}" />
-                    <Run Text="{Binding UpdateVersion}" FontWeight="SemiBold" />
-                </TextBlock>
-                <ui:Button Style="{StaticResource BtnPrimary}" Height="26" Padding="12,0" Margin="10,0,0,0"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel VerticalAlignment="Center" Margin="0,0,14,0">
+                    <TextBlock FontSize="{StaticResource FsMeta}" FontWeight="SemiBold">
+                        <Run Text="{loc:Loc nouvelle_version_disponible_v}" />
+                        <Run Text="{Binding UpdateVersion}" Foreground="{DynamicResource DofusAccentBrush}" />
+                    </TextBlock>
+                    <TextBlock Text="{Binding UpdateSubtitle}" FontSize="{StaticResource FsCaption}" Margin="0,1,0,0"
+                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                </StackPanel>
+                <ui:Button Style="{StaticResource BtnPrimary}" Height="26" Padding="12,0"
                            FontSize="{StaticResource FsMeta}" FontWeight="SemiBold"
                            Command="{Binding OpenUpdateCommand}">
-                    Télécharger
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding UpdateActionLabel}" />
+                        <TextBlock Text="{Binding UpdateProgressText}" Margin="4,0,0,0" Opacity="0.7" />
+                    </StackPanel>
                 </ui:Button>
-                <ui:Button Style="{StaticResource ToolBtn}" Command="{Binding DismissUpdateCommand}"
+                <ui:Button Style="{StaticResource ToolBtn}" Command="{Binding DismissUpdateCommand}" Margin="7,0,3,0"
                            ToolTip="{loc:Loc ignorer}">
                     <Path Style="{StaticResource Ic}" Data="{StaticResource IcDismiss24}" Width="12" Height="12" />
                 </ui:Button>
@@ -1228,6 +1248,11 @@
                                                 </MenuItem>
                                             </ContextMenu>
                                         </ui:Button.ContextMenu>
+                                    </ui:Button>
+                                    <ui:Button Style="{StaticResource PillBtn}" Width="28" Height="28"
+                                               Command="{Binding OpenBenchCommand}"
+                                               ToolTip="{loc:Loc bench.tip}">
+                                        <Path Style="{StaticResource Ic}" Data="{StaticResource IcDataUsage24}" Width="16" Height="16" />
                                     </ui:Button>
                                     <ui:Button Style="{StaticResource PillBtn}" Width="28" Height="28"
                                                Click="OnMoreClick" ToolTip="{loc:Loc affichage_et_disposition}">
@@ -2345,7 +2370,7 @@
                                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                             <TextBlock x:Name="RailBattery" FontSize="{StaticResource FsMeta}" HorizontalAlignment="Right"
                                                        VerticalAlignment="Center" MaxWidth="150" TextTrimming="CharacterEllipsis"
-                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                       Foreground="{DynamicResource SageBrush}" />
                                         </Grid>
                                         <Grid Height="31">
                                             <Rectangle Height="1" Fill="{DynamicResource AppBorderSubtleBrush}" VerticalAlignment="Top" />
@@ -2353,7 +2378,7 @@
                                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                             <TextBlock x:Name="RailTransport" FontSize="{StaticResource FsMeta}" HorizontalAlignment="Right"
                                                        VerticalAlignment="Center" MaxWidth="150" TextTrimming="CharacterEllipsis"
-                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                       Foreground="{DynamicResource SageBrush}" />
                                         </Grid>
                                         <Grid Height="31">
                                             <Rectangle Height="1" Fill="{DynamicResource AppBorderSubtleBrush}" VerticalAlignment="Top" />
@@ -2384,7 +2409,7 @@
                                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                             <TextBlock x:Name="RailCodec" FontSize="{StaticResource FsMeta}" HorizontalAlignment="Right"
                                                        VerticalAlignment="Center" MaxWidth="150" TextTrimming="CharacterEllipsis"
-                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                       Foreground="{DynamicResource SageBrush}" />
                                         </Grid>
                                         <Grid Height="31">
                                             <Rectangle Height="1" Fill="{DynamicResource AppBorderSubtleBrush}" VerticalAlignment="Top" />
@@ -2392,7 +2417,7 @@
                                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                             <TextBlock x:Name="RailQuality" FontSize="{StaticResource FsMeta}" HorizontalAlignment="Right"
                                                        VerticalAlignment="Center" MaxWidth="150" TextTrimming="CharacterEllipsis"
-                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                       Foreground="{DynamicResource SageBrush}" />
                                         </Grid>
                                         <Grid Height="31">
                                             <Rectangle Height="1" Fill="{DynamicResource AppBorderSubtleBrush}" VerticalAlignment="Top" />
@@ -2400,7 +2425,7 @@
                                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                             <TextBlock x:Name="RailBitrate" FontSize="{StaticResource FsMeta}" HorizontalAlignment="Right"
                                                        VerticalAlignment="Center" MaxWidth="150" TextTrimming="CharacterEllipsis"
-                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                       Foreground="{DynamicResource SageBrush}" />
                                         </Grid>
                                     </StackPanel>
 
@@ -2927,13 +2952,6 @@
                                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
                                             </ui:Button>
                                             <ui:Button Style="{StaticResource PillBtn}" Width="30" Height="30" Padding="0" Margin="0,0,3,0"
-                                                       Command="{Binding OpenDebugCommand}"
-                                                       ToolTip="{loc:Loc dbg.open_tip}">
-                                                <Path Style="{StaticResource Ic}" Data="{StaticResource IcDocumentText24}" Width="14" Height="14"
-                                                           Fill="{DynamicResource DofusAccentBrush}"
-                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                            </ui:Button>
-                                            <ui:Button Style="{StaticResource PillBtn}" Width="30" Height="30" Padding="0" Margin="0,0,3,0"
                                                        Click="OnSettingsClick" ToolTip="{loc:Loc reglages}">
                                                 <Path Style="{StaticResource Ic}" Data="{StaticResource IcSettings24}" Width="14" Height="14"
                                                            Fill="{DynamicResource DofusAccentBrush}"
@@ -2973,6 +2991,46 @@
                     <DropShadowEffect Color="#000000" BlurRadius="30" ShadowDepth="0" Opacity="0.45" />
                 </Border.Effect>
                 <Grid>
+
+            <Border x:Name="DiagPanel" Grid.Column="1"
+                    Width="470" Visibility="Collapsed">
+                <Border.RenderTransform>
+                    <TranslateTransform X="-24" />
+                </Border.RenderTransform>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Border Grid.Row="0" Padding="16,12,10,12"
+                            BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="0,0,0,1">
+                        <Grid>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border Width="30" Height="30" CornerRadius="{StaticResource RadiusControl}" Margin="0,0,10,0"
+                                        Background="{DynamicResource IconTileBrush}"
+                                        BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="1">
+                                    <Path Style="{StaticResource Ic}" Data="{StaticResource IcShieldCheckmark24}" Width="14" Height="14"
+                                                   Fill="{DynamicResource DofusAccentBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel>
+                                    <TextBlock Text="{loc:Loc dbg.title}" FontSize="{StaticResource FsBody}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding DiagScore}" FontSize="{StaticResource FsMeta}"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                </StackPanel>
+                            </StackPanel>
+                            <ui:Button Style="{StaticResource PillBtn}" Width="28" Height="28" Padding="0"
+                                       HorizontalAlignment="Right" VerticalAlignment="Center"
+                                       Click="OnDiagClick" ToolTip="{loc:Loc fermer}">
+                                <Path Style="{StaticResource Ic}" Data="{StaticResource IcDismiss24}" Width="14" Height="14" />
+                            </ui:Button>
+                        </Grid>
+                    </Border>
+                    <ScrollViewer Grid.Row="1" Padding="16,14,16,16" VerticalScrollBarVisibility="Auto">
+                        <views:DiagContent />
+                    </ScrollViewer>
+                </Grid>
+            </Border>
 
             <Border x:Name="SettingsDock" Grid.Column="1"
                     Width="340" Visibility="Collapsed">
@@ -4438,7 +4496,7 @@
                                                     </StackPanel.Style>
                                                     <TextBlock Text="{Binding BatteryText}" FontFamily="Consolas" FontSize="10"
                                                                HorizontalAlignment="Right"
-                                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                               Foreground="{DynamicResource SageBrush}" />
                                                     <TextBlock Text="{Binding LiveText}" FontFamily="Consolas" FontSize="9"
                                                                Margin="0,3,0,0" HorizontalAlignment="Right">
                                                         <TextBlock.Style>
@@ -4465,6 +4523,23 @@
                     <StackPanel Grid.Row="1">
                         <Border Height="1" Margin="2,0,2,8"
                                 Background="{DynamicResource AppBorderSubtleBrush}" />
+                        <ui:Button x:Name="RailDiag" Style="{StaticResource NavItem}"
+                                   Click="OnDiagClick" ToolTip="{loc:Loc dbg.title}">
+                            <Grid>
+                                <Border x:Name="RailDiagIndicator" Width="3" Height="16" CornerRadius="1.5"
+                                        HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-7,0,0,0"
+                                        Background="{DynamicResource DofusAccentBrush}"
+                                        Visibility="Collapsed" />
+                                <StackPanel Orientation="Horizontal">
+                                    <Border x:Name="RailDiagTile" Style="{StaticResource NavTile}">
+                                        <Path Style="{StaticResource Ic}" x:Name="RailDiagIcon" Data="{StaticResource IcShieldCheckmark24}" Width="14" Height="14"
+                                                       Fill="{DynamicResource TextFillColorSecondaryBrush}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="{loc:Loc dbg.title}" Style="{StaticResource NavLabel}" />
+                                </StackPanel>
+                            </Grid>
+                        </ui:Button>
                         <ui:Button x:Name="RailSettings" Style="{StaticResource NavItem}"
                                    Click="OnSettingsClick" ToolTip="{loc:Loc reglages}">
                             <Grid>
@@ -4489,7 +4564,7 @@
             <Border x:Name="StatusChip" Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Bottom"
                     Margin="12" Padding="11,5" CornerRadius="{StaticResource RadiusControl}"
                     Background="{DynamicResource AppGlassAltBrush}" BorderBrush="{DynamicResource AppBorderSubtleBrush}"
-                    BorderThickness="1" Opacity="0" IsHitTestVisible="False"
+                    BorderThickness="1" Opacity="0"
                     Visibility="{Binding ShowMirrorSurface, Converter={StaticResource BoolToVis}}">
                 <Border.Effect>
                     <DropShadowEffect Color="#000000" BlurRadius="18" ShadowDepth="0" Opacity="0.35" />
@@ -4504,6 +4579,19 @@
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <TextBlock Text="{Binding WifiStatus}" FontSize="{StaticResource FsMeta}" Margin="12,0,0,0"
                                Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                    <Border Width="1" Height="10" Margin="10,0,9,0"
+                            Background="{DynamicResource AppBorderSubtleBrush}"
+                            VerticalAlignment="Center" />
+                    <ui:Button Appearance="Transparent" Padding="6,1" VerticalAlignment="Center"
+                               Command="{Binding OpenDebugCommand}" ToolTip="{loc:Loc dbg.open_tip}">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Style="{StaticResource Ic}" Data="{StaticResource IcDocumentText24}" Width="11" Height="11"
+                                  Margin="0,0,5,0" VerticalAlignment="Center"
+                                  Fill="{DynamicResource TextFillColorTertiaryBrush}" />
+                            <TextBlock Text="{loc:Loc dbg.title}" FontSize="{StaticResource FsCaption}"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                        </StackPanel>
+                    </ui:Button>
                 </StackPanel>
             </Border>
         </Grid>
@@ -4640,6 +4728,7 @@
                 <Border.Effect>
                     <DropShadowEffect Color="#000000" BlurRadius="42" ShadowDepth="0" Opacity="0.6" />
                 </Border.Effect>
+                <Grid>
                 <StackPanel>
                     <Grid Margin="0,0,0,4">
                         <TextBlock Text="{loc:Loc dbg.title}" FontSize="{StaticResource FsSection}" FontWeight="SemiBold"
@@ -4650,44 +4739,144 @@
                                   Fill="{DynamicResource TextFillColorSecondaryBrush}" />
                         </ui:Button>
                     </Grid>
-                    <TextBlock Text="{loc:Loc dbg.sub}" TextWrapping="Wrap" FontSize="{StaticResource FsCaption}"
-                               LineHeight="17" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                    <Border Margin="0,12,0,0" CornerRadius="6" Padding="2"
-                            Background="{DynamicResource SurfaceFaintBrush}"
-                            BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="1">
-                        <TextBox Text="{Binding DebugReport, Mode=OneWay}" IsReadOnly="True" Height="300"
-                                 FontFamily="Consolas" FontSize="11" TextWrapping="NoWrap" AcceptsReturn="True"
-                                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                                 Background="Transparent" BorderThickness="0" Padding="8,6"
-                                 Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                    </Border>
-                    <Grid Margin="0,10,0,0">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <ui:ProgressRing IsIndeterminate="True" Width="13" Height="13"
-                                             Visibility="{Binding DebugBusy, Converter={StaticResource BoolToVis}}" />
-                            <TextBlock Text="{Binding DebugNote}" FontSize="{StaticResource FsCaption}" Margin="8,0,0,0"
-                                       Foreground="{DynamicResource DofusAccentBrush}" />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <ui:Button Style="{StaticResource BtnAction}" Height="30" Padding="10,0" Margin="0,0,6,0"
-                                       Command="{Binding OpenLogsFolderCommand}" ToolTip="{loc:Loc dbg.logs_tip}">
-                                <Path Style="{StaticResource Ic}" Data="{StaticResource IcFolderOpen24}" Width="13" Height="13" />
-                            </ui:Button>
-                            <ui:Button Style="{StaticResource BtnAction}" Height="30" Padding="10,0" Margin="0,0,6,0"
-                                       Command="{Binding RefreshDebugCommand}" IsEnabled="{Binding DebugIdle}"
-                                       ToolTip="{loc:Loc dbg.refresh_tip}">
-                                <Path Style="{StaticResource Ic}" Data="{StaticResource IcArrowSync24}" Width="13" Height="13" />
-                            </ui:Button>
-                            <ui:Button Style="{StaticResource BtnPrimary}" Height="30" Padding="14,0"
-                                       FontSize="{StaticResource FsCaption}" FontWeight="SemiBold"
-                                       Command="{Binding CopyDebugCommand}" IsEnabled="{Binding DebugIdle}">
-                                <StackPanel Orientation="Horizontal">
-                                    <Path Style="{StaticResource Ic}" Data="{StaticResource IcCopy24}" Width="12" Height="12" Margin="0,0,6,0" />
-                                    <TextBlock Text="{loc:Loc dbg.copy}" />
-                                </StackPanel>
-                            </ui:Button>
-                        </StackPanel>
+                    <views:DiagContent />
+                </StackPanel>
+                </Grid>
+            </Border>
+        </Border>
+
+        <Border Grid.RowSpan="5" Panel.ZIndex="51"
+                Background="{DynamicResource AppModalSolidBrush}"
+                Visibility="{Binding BenchOpen, Converter={StaticResource BoolToVis}}">
+            <Border Width="440" Padding="24,20" VerticalAlignment="Center" HorizontalAlignment="Center"
+                    Background="{DynamicResource AppModalBrush}"
+                    BorderBrush="{DynamicResource AppBorderStrongBrush}" BorderThickness="1"
+                    CornerRadius="{StaticResource RadiusPanel}">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" BlurRadius="42" ShadowDepth="0" Opacity="0.6" />
+                </Border.Effect>
+                <StackPanel>
+                    <Grid Margin="0,0,0,4">
+                        <TextBlock Text="{Binding BenchTitle}" FontSize="{StaticResource FsSection}"
+                                   FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <ui:Button Appearance="Transparent" Padding="7,0" Height="24" HorizontalAlignment="Right"
+                                   Command="{Binding CloseBenchCommand}">
+                            <Path Style="{StaticResource Ic}" Data="{StaticResource IcDismiss24}" Width="12" Height="12"
+                                  Fill="{DynamicResource TextFillColorSecondaryBrush}" />
+                        </ui:Button>
                     </Grid>
+                    <TextBlock Text="{loc:Loc bench.sub}" TextWrapping="Wrap" FontSize="{StaticResource FsCaption}"
+                               LineHeight="17" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                    <Grid Margin="0,14,0,0"
+                          Visibility="{Binding BenchBigFps, Converter={StaticResource NullToCollapsed}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding BenchBigFps}" FontFamily="Consolas" FontSize="32"
+                                       FontWeight="Bold" Foreground="{DynamicResource SageBrush}" />
+                            <TextBlock Text=" fps" FontSize="{StaticResource FsCaption}" VerticalAlignment="Bottom"
+                                       Margin="2,0,0,7" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding BenchRange}" FontFamily="Consolas" FontSize="{StaticResource FsCaption}"
+                                   HorizontalAlignment="Right" VerticalAlignment="Bottom" TextAlignment="Right"
+                                   LineHeight="15" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </Grid>
+                    <Viewbox Height="70" Stretch="Fill" Margin="0,8,0,0"
+                             Visibility="{Binding BenchBigFps, Converter={StaticResource NullToCollapsed}}">
+                        <Canvas Width="392" Height="72">
+                            <Polygon Points="{Binding BenchFillPoints}">
+                                <Polygon.Fill>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="#524EC98E" Offset="0" />
+                                        <GradientStop Color="#004EC98E" Offset="1" />
+                                    </LinearGradientBrush>
+                                </Polygon.Fill>
+                            </Polygon>
+                            <Polyline Points="{Binding BenchFpsPoints}" Stroke="{DynamicResource SageBrush}"
+                                      StrokeThickness="1.5" StrokeLineJoin="Round" />
+                        </Canvas>
+                    </Viewbox>
+                    <Grid Visibility="{Binding BenchBigFps, Converter={StaticResource NullToCollapsed}}">
+                        <TextBlock Text="0 s" FontFamily="Consolas" FontSize="9"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                        <TextBlock Text="15 s" FontFamily="Consolas" FontSize="9" HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                        <TextBlock Text="{Binding BenchAxisEnd}" FontFamily="Consolas" FontSize="9"
+                                   HorizontalAlignment="Right"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                    </Grid>
+                    <ProgressBar Maximum="30" Value="{Binding BenchSeconds}" Height="3" Margin="0,10,0,0"
+                                 Visibility="{Binding DiagBenchBusy, Converter={StaticResource BoolToVis}}" />
+
+                    <Border BorderThickness="0,1,0,0" BorderBrush="{DynamicResource AppBorderSubtleBrush}"
+                            Margin="0,14,0,0"
+                            Visibility="{Binding BenchHasResult, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <Border Padding="2,7" BorderThickness="0,0,0,1"
+                                    BorderBrush="{DynamicResource AppBorderSubtleBrush}">
+                                <Grid>
+                                    <TextBlock Text="{loc:Loc bench.row_mbps}" FontSize="{StaticResource FsCaption}"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Text="{Binding BenchMbps}" FontFamily="Consolas"
+                                               FontSize="{StaticResource FsCaption}" HorizontalAlignment="Right"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                </Grid>
+                            </Border>
+                            <Border Padding="2,7" BorderThickness="0,0,0,1"
+                                    BorderBrush="{DynamicResource AppBorderSubtleBrush}">
+                                <Grid>
+                                    <TextBlock Text="{loc:Loc bench.row_lat}" FontSize="{StaticResource FsCaption}"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Text="{Binding BenchLat}" FontFamily="Consolas"
+                                               FontSize="{StaticResource FsCaption}" HorizontalAlignment="Right"
+                                               Foreground="{DynamicResource SageBrush}" />
+                                </Grid>
+                            </Border>
+                            <Border Padding="2,7" BorderThickness="0,0,0,1"
+                                    BorderBrush="{DynamicResource AppBorderSubtleBrush}">
+                                <Grid>
+                                    <TextBlock Text="{loc:Loc bench.row_adb}" FontSize="{StaticResource FsCaption}"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Text="{Binding BenchAdb}" FontFamily="Consolas"
+                                               FontSize="{StaticResource FsCaption}" HorizontalAlignment="Right"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                </Grid>
+                            </Border>
+                            <Border Padding="2,7">
+                                <Grid>
+                                    <TextBlock Text="{loc:Loc bench.row_cpu}" FontSize="{StaticResource FsCaption}"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Text="{Binding BenchCpu}" FontFamily="Consolas"
+                                               FontSize="{StaticResource FsCaption}" HorizontalAlignment="Right"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="{Binding BenchLive}" TextWrapping="Wrap" Margin="0,10,0,0"
+                               FontFamily="Consolas" FontSize="{StaticResource FsCaption}"
+                               HorizontalAlignment="Center" Foreground="{DynamicResource SageBrush}"
+                               Visibility="{Binding BenchLive, Converter={StaticResource NullToCollapsed}}" />
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+                        <ui:Button Style="{StaticResource BtnAction}" Height="30" Padding="12,0" Margin="0,8,0,0"
+                                   FontSize="{StaticResource FsCaption}" Command="{Binding CancelBenchCommand}"
+                                   Visibility="{Binding DiagBenchBusy, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="{loc:Loc annuler}" />
+                        </ui:Button>
+                        <ui:Button Style="{StaticResource BtnPrimary}" Height="30" Padding="16,0"
+                                   FontSize="{StaticResource FsCaption}" FontWeight="SemiBold"
+                                   Command="{Binding RunBenchCommand}" IsEnabled="{Binding BenchIdle}"
+                                   Visibility="{Binding BenchHasResult, Converter={StaticResource NotBoolToVis}}">
+                            <TextBlock Text="{loc:Loc bench.launch}" />
+                        </ui:Button>
+                        <ui:Button Style="{StaticResource BtnPrimary}" Height="30" Padding="16,0"
+                                   FontSize="{StaticResource FsCaption}" FontWeight="SemiBold"
+                                   Command="{Binding RunBenchCommand}" IsEnabled="{Binding BenchIdle}"
+                                   Visibility="{Binding BenchHasResult, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="{loc:Loc bench.relancer}" />
+                        </ui:Button>
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </Border>

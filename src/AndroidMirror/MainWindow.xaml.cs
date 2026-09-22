@@ -178,6 +178,7 @@ public partial class MainWindow : FluentWindow
             L("dlg.install_title"),
             string.Format(L("dlg.install_body"), item.Name, item.Entry.Author, item.Entry.Version),
             L("installer"));
+
         _vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MainViewModel.SelectedPlugin)
@@ -250,19 +251,37 @@ public partial class MainWindow : FluentWindow
                 ShowDock("settings");
             await _vm.InitializeAsync();
         };
-        Closed += async (_, _) =>
+        Closing += OnClosing;
+        Deactivated += (_, _) => ReleaseAllKeys();
+        _vm.ConfirmKill = targets => ConfirmAsync(
+            L("dbg.kill_title"),
+            string.Format(L("dbg.kill_body"), string.Join("\n", targets)),
+            L("dbg.kill_confirm"), danger: true);
+    }
+
+    private bool _closing;
+
+    private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (_closing) return;
+        _closing = true;
+        e.Cancel = true;
+        _ = FinishClosingAsync();
+    }
+
+    private async Task FinishClosingAsync()
+    {
+        _vm.StopTracking();
+        _vm.StopPlugins();
+        _vm.SaveNow();
+        _vm.StopAirPlay();
+        await _vm.ShutdownApiAsync();
+        foreach (var m in _vm.Mirrors.ToList())
         {
-            _vm.StopTracking();
-            _vm.StopPlugins();
-            _vm.SaveNow();
-            _vm.StopAirPlay();
-            await _vm.ShutdownApiAsync();
-            foreach (var m in _vm.Mirrors.ToList())
-            {
-                m.ManualDisconnect = true;
-                await m.DisconnectAsync();
-            }
-        };
+            m.ManualDisconnect = true;
+            await m.DisconnectAsync();
+        }
+        Application.Current.Shutdown();
     }
 
     private void OnFullscreenClick(object sender, RoutedEventArgs e) => ToggleFullscreen();
@@ -437,6 +456,14 @@ public partial class MainWindow : FluentWindow
     private void OnSettingsClick(object sender, RoutedEventArgs e)
         => ShowDock(_activeDock == "settings" ? null : "settings");
 
+    private void OnDiagClick(object sender, RoutedEventArgs e)
+    {
+        var show = _activeDock != "diag";
+        ShowDock(show ? "diag" : null);
+        if (show)
+            _vm.RefreshDebugCommand.Execute(null);
+    }
+
     private void ShowDock(string? panel)
     {
         _activeDock = panel;
@@ -445,11 +472,13 @@ public partial class MainWindow : FluentWindow
         PluginsPanel.Visibility = panel == "plugins" ? Visibility.Visible : Visibility.Collapsed;
         MarketPanel.Visibility = panel == "market" ? Visibility.Visible : Visibility.Collapsed;
         SettingsDock.Visibility = panel == "settings" ? Visibility.Visible : Visibility.Collapsed;
+        DiagPanel.Visibility = panel == "diag" ? Visibility.Visible : Visibility.Collapsed;
 
         SetRailState(RailHub, RailHubIndicator, RailHubTile, RailHubIcon, panel == null);
         SetRailState(RailGuides, RailGuidesIndicator, RailGuidesTile, RailGuidesIcon, panel == "guides");
         SetRailState(RailPlugins, RailPluginsIndicator, RailPluginsTile, RailPluginsIcon, panel == "plugins");
         SetRailState(RailMarket, RailMarketIndicator, RailMarketTile, RailMarketIcon, panel == "market");
+        SetRailState(RailDiag, RailDiagIndicator, RailDiagTile, RailDiagIcon, panel == "diag");
         SetRailState(RailSettings, RailSettingsIndicator, RailSettingsTile, RailSettingsIcon, panel == "settings");
 
         var wantSettings = panel == "settings";
@@ -463,6 +492,7 @@ public partial class MainWindow : FluentWindow
             "guides" => HelpPanel,
             "plugins" => PluginsPanel,
             "market" => MarketPanel,
+            "diag" => DiagPanel,
             _ => SettingsDock
         };
         var sb = new System.Windows.Media.Animation.Storyboard();
@@ -535,10 +565,7 @@ public partial class MainWindow : FluentWindow
         if (mirror != null)
             _vm.SetActive(mirror);
         else
-        {
-            _vm.SelectedDevice = d;
             _vm.ShowHub = true;
-        }
     }
 
 
@@ -620,6 +647,8 @@ public partial class MainWindow : FluentWindow
         RailState.Foreground = d.IsReady ? accent : sec;
         RailBatteryRow.Visibility = d.HasBattery ? Visibility.Visible : Visibility.Collapsed;
         RailBattery.Text = d.BatteryText;
+        RailBattery.Foreground = d.Battery is <= 20
+            ? (Brush)FindResource("WarnBrush") : (Brush)FindResource("SageBrush");
         RailTransport.Text = d.TransportText;
         RailSerial.Text = d.MaskedSerial;
         RailAdb.Text = _vm.AdbStatus;
@@ -810,7 +839,7 @@ public partial class MainWindow : FluentWindow
     {
         if (sender is FrameworkElement fe
             && fe.DataContext is Services.AdbDevice d
-            && !ReferenceEquals(d, _vm.SelectedDevice))
+            && d.DeviceKey != _vm.SelectedDevice?.DeviceKey)
         {
             _vm.SelectedDevice = d;
             e.Handled = true;
@@ -1047,7 +1076,11 @@ public partial class MainWindow : FluentWindow
             var entry = new System.Windows.Controls.MenuItem { Header = p.Name };
             var open = new System.Windows.Controls.MenuItem { Header = p.Running ? L("menu.open") : L("menu.open_stopped") };
             open.Click += async (_, _) => await _vm.OpenAccountAsync(device, p);
-            var remove = new System.Windows.Controls.MenuItem { Header = L("menu.del_account") };
+            var remove = new System.Windows.Controls.MenuItem
+            {
+                Header = L("menu.del_account"),
+                IsEnabled = p.Owned
+            };
             remove.Click += async (_, _) =>
             {
                 if (await ConfirmAsync(L("dlg.del_account_title"),
@@ -1339,11 +1372,29 @@ public partial class MainWindow : FluentWindow
         }
 
         if (view.HandleKey(e.Key, true, e.IsRepeat))
+        {
+            _keyTargets[e.Key] = view;
             e.Handled = true;
+        }
+    }
+
+    private readonly Dictionary<Key, Views.MirrorView> _keyTargets = new();
+
+    private void ReleaseAllKeys()
+    {
+        foreach (var v in _keyTargets.Values.Distinct())
+            v.ReleaseHeldKeys();
+        _keyTargets.Clear();
     }
 
     private void OnPreviewKeyUp(object sender, KeyEventArgs e)
     {
+        if (_keyTargets.Remove(e.Key, out var target))
+        {
+            if (target.HandleKey(e.Key, false, e.IsRepeat))
+                e.Handled = true;
+            return;
+        }
         var view = _vm.ShowMirrorSurface && _confirmTcs == null ? _vm.ActiveMirror?.View : null;
         if (view == null || IsTextInputTarget(e.OriginalSource))
             return;
