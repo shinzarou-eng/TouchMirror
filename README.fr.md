@@ -6,6 +6,9 @@
 
 </div>
 
+> [!WARNING]
+> **Attention aux copies** — le seul site officiel est **[touchmirror.xyz](https://www.touchmirror.xyz/)** et le seul dépôt officiel est **[github.com/shinzarou-eng/TouchMirror](https://github.com/shinzarou-eng/TouchMirror)**. Toute autre adresse (ex. domaines avec tiret) n'est pas affiliée au projet : ne télécharge l'app que depuis la page [Releases](https://github.com/shinzarou-eng/TouchMirror/releases).
+
 ---
 
 <div align="center">
@@ -29,13 +32,8 @@ Gratuit, open source, sans compte, sans pub.
 [![Dofus Touch](https://img.shields.io/badge/optimis%C3%A9%20pour-Dofus%20Touch-D9A94E?style=flat-square)](https://www.dofus-touch.com)
 [![Discord](https://img.shields.io/badge/Discord-rejoins--nous-5865F2?style=flat-square)](https://discord.gg/DBJ9kNCdX)
 
-<img src="docs/screenshot-multiaccount.png" width="780" alt="TouchMirror — Dofus Touch en miroir en direct, second téléphone dans sa propre tuile">
+<img src="docs/demo.gif" width="780" alt="TouchMirror - vrai mirroring Android en action, changement de map en direct depuis le tel">
 
-<p>
-<img src="docs/screenshot-hub.png" width="252" alt="Hub — appareils détectés et carrousel en direct">
-<img src="docs/screenshot-marketplace.png" width="252" alt="Marketplace — catalogue d'extensions officielles">
-<img src="docs/screenshot-plugins.png" width="252" alt="Panneau des plugins installés">
-</p>
 
 **[Télécharger la dernière version](https://github.com/shinzarou-eng/TouchMirror/releases/latest)** · **[Site — touchmirror.xyz](https://www.touchmirror.xyz/)** · [Discord](https://discord.gg/DBJ9kNCdX) · [Documentation](docs/wiki/Home.md) · [Roadmap](ROADMAP.md) · [Signaler un bug](https://github.com/shinzarou-eng/TouchMirror/issues) · [Proposer une idée](https://github.com/shinzarou-eng/TouchMirror/issues/new)
 
@@ -103,18 +101,24 @@ L'alternative open source à scrcpy pensée pour les joueurs : affiche et contr�
 |---|---|---|
 | 🔗 | **API locale** | HTTP + SSE sur localhost avec token — pilotage Stream Deck, OBS, scripts. Pilote l'app seulement : connexion, enregistrement, capture — aucun endpoint n'envoie de tactile ou de touches au jeu |
 | 🧩 | **Plugins** | Moteur JavaScript embarqué (sandbox) — manifest `plugin.json`, plugins officiels vérifiés par hash |
-| 🩺 | **Diagnostics intégrés** | Rapport copiable en un clic : verdicts `[OK]`/`[!!]` automatiques, sonde mDNS réelle et conseils par marque (Xiaomi, Samsung, Oppo, Vivo, Huawei) — à coller sur Discord |
+| 🩺 | **Diagnostics intégrés** | Panneau complet : score de santé, rapport copiable (version masquée dispo), réparations en un clic (adb, pare-feu, RSA), benchmark 30 s et test WiFi — guides par marque (Xiaomi, Samsung, Oppo, Vivo, Huawei) |
 | �️ | **Pare-feu automatique** | La règle entrante est créée quand tu actives le mirroring AirPlay — une seule invite UAC, limitée à ton réseau local |
-| ⬆️ | **Mises à jour** | L'app détecte les nouvelles releases GitHub au démarrage |
+| ⬆️ | **Mises à jour auto** | Avec le Setup : chaque nouvelle version est détectée au démarrage, téléchargée en delta (seul le diff) et appliquée au redémarrage — plus rien à retélécharger à la main |
 | 🍎 | **iPhone / AirPlay** (*bêta*) | Miroir d’un iPhone/iPad en Wi-Fi — l’app héberge un récepteur AirPlay local. *Pas encore dans le zip GitHub — builds locales uniquement* · [état d'avancement](docs/airplay.md) |
 
 ## Installation
 
 ### Version prête à l'emploi (recommandé)
 
-1. Télécharge **`TouchMirror-win-x64.zip`** depuis la [dernière release](https://github.com/shinzarou-eng/TouchMirror/releases/latest)
-2. Dézippe où tu veux, lance **`TouchMirror.exe`**
-3. C'est tout — **adb est embarqué**, le runtime .NET est inclus et FFmpeg s'extrait au premier lancement
+**Installateur — mises à jour automatiques :**
+
+1. Télécharge **`TouchMirror-win-Setup.exe`** depuis la [dernière release](https://github.com/shinzarou-eng/TouchMirror/releases/latest)
+2. Lance-le une fois — ensuite l'app se met à jour toute seule : nouvelle version détectée au démarrage, **delta** téléchargé, redémarrage et c'est à jour
+
+**Portable (zip) — sans installation :**
+
+1. Télécharge **`TouchMirror-win-x64.zip`**, dézippe où tu veux, lance **`TouchMirror.exe`**
+2. **adb est embarqué**, le runtime .NET est inclus et FFmpeg s'extrait au premier lancement — les màj se font en re-téléchargeant le zip (la bannière ouvre la release)
 
 ### Configuration du téléphone
 
@@ -199,6 +203,11 @@ Réglages → **API locale** : expose `http://127.0.0.1:<port>` protégé par to
 **Conformité :** l'API pilote l'app, jamais le jeu — aucun endpoint n'envoie de tactile, de touches ou de presse-papiers au téléphone. `connect` peut réveiller l'écran et lancer l'app configurée, comme un branchement manuel.
 
 ### Plugins
+
+<p>
+<img src="docs/screenshot-marketplace.png" width="380" alt="Marketplace — catalogue d'extensions officielles">
+<img src="docs/screenshot-plugins.png" width="380" alt="Panneau des plugins installés">
+</p>
 
 Panneau **🧩 Plugins** dans la barre latérale : un plugin = un dossier `plugins/<nom>/` avec un manifest `plugin.json` (nom, version, description) et un `plugin.js`. Le code tourne dans un **moteur JavaScript embarqué et sandboxé** — pas de process externe, pas de shell : le plugin ne voit que l'objet `tm`.
 

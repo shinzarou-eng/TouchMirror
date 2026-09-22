@@ -27,19 +27,17 @@ Free, open source, no account, no ads.
 [![Dofus Touch](https://img.shields.io/badge/optimized%20for-Dofus%20Touch-D9A94E?style=flat-square)](https://www.dofus-touch.com)
 [![Discord](https://img.shields.io/badge/Discord-join%20us-5865F2?style=flat-square)](https://discord.gg/DBJ9kNCdX)
 
-<img src="docs/screenshot-multiaccount.png" width="780" alt="TouchMirror — Dofus Touch mirrored live, second phone in its own tile">
+<img src="docs/demo.gif" width="780" alt="TouchMirror — real Android mirroring in action, map change streamed live from the phone">
 
-<p>
-<img src="docs/screenshot-hub.png" width="252" alt="Hub — detected devices and live carousel">
-<img src="docs/screenshot-marketplace.png" width="252" alt="Marketplace — official extensions catalog">
-<img src="docs/screenshot-plugins.png" width="252" alt="Installed plugins panel">
-</p>
 
 **[Download the latest release](https://github.com/shinzarou-eng/TouchMirror/releases/latest)** · **[Site — touchmirror.xyz](https://www.touchmirror.xyz/)** · [Discord](https://discord.gg/DBJ9kNCdX) · [Documentation](docs/wiki/Home.md) · [Roadmap](ROADMAP.md) · [Report a bug](https://github.com/shinzarou-eng/TouchMirror/issues) · [Suggest a feature](https://github.com/shinzarou-eng/TouchMirror/issues/new)
 
 🧪 **[Looking for testers — join the Discord](https://discord.gg/DBJ9kNCdX)** — bugs, ideas, multi-phone testing: community feedback shapes the roadmap.
 
 </div>
+
+> [!WARNING]
+> **Beware of copies** — the only official website is **[touchmirror.xyz](https://www.touchmirror.xyz/)** and the only official repository is **[github.com/shinzarou-eng/TouchMirror](https://github.com/shinzarou-eng/TouchMirror)**. Any other address (e.g. hyphenated domains) is not affiliated with the project: only download the app from the [Releases](https://github.com/shinzarou-eng/TouchMirror/releases) page.
 
 ---
 
@@ -101,9 +99,9 @@ Think of it as an open-source scrcpy alternative made for players: mirror and co
 |---|---|---|
 | 🔗 | **Local API** | HTTP + SSE on localhost with a token — Stream Deck, OBS, scripts. Drives the app only: connect/disconnect, record, screenshot — no endpoint can send touch or keys into the game |
 | 🧩 | **Plugins** | Embedded JavaScript engine (sandbox) — `plugin.json` manifest, official plugins verified by hash |
-| 🩺 | **Built-in diagnostics** | One-click copyable report: automatic `[OK]`/`[!!]` verdicts, real mDNS probe and per-brand hints (Xiaomi, Samsung, Oppo, Vivo, Huawei) — paste it straight into Discord |
+| 🩺 | **Built-in diagnostics** | Full panel: health score, copyable report (masked variant available), one-click repairs (adb, firewall, RSA), 30 s benchmark and WiFi test — per-brand guides (Xiaomi, Samsung, Oppo, Vivo, Huawei) |
 | �️ | **Automatic firewall** | The inbound rule is created when you enable AirPlay mirroring — a single UAC prompt, restricted to your local network |
-| ⬆️ | **Updates** | The app detects new GitHub releases at startup |
+| ⬆️ | **Auto-updates** | With the Setup build: each new release is detected at startup, downloaded as a delta (only what changed) and applied on restart — never download by hand again |
 | 🍎 | **iPhone / AirPlay** (*beta*) | Mirror an iPhone/iPad over Wi-Fi — the app hosts a local AirPlay receiver. *Not yet bundled in the GitHub zip — local builds only* · [progress notes](docs/airplay.md) |
 
 ## Installation
@@ -112,9 +110,15 @@ Think of it as an open-source scrcpy alternative made for players: mirror and co
 
 > **Note:** the app is bilingual FR/EN — pick your language in *Settings → Language*. Strings live in `lang/en.json` and `lang/fr.json`.
 
-1. Download **`TouchMirror-win-x64.zip`** from the [latest release](https://github.com/shinzarou-eng/TouchMirror/releases/latest)
-2. Unzip anywhere, run **`TouchMirror.exe`**
-3. That's it — **adb is bundled**, the .NET runtime is included and FFmpeg extracts on first launch
+**Installer — automatic updates:**
+
+1. Download **`TouchMirror-win-Setup.exe`** from the [latest release](https://github.com/shinzarou-eng/TouchMirror/releases/latest)
+2. Run it once — from then on the app updates itself: new version detected at startup, **delta** downloaded, restart and you're up to date
+
+**Portable (zip) — no install:**
+
+1. Download **`TouchMirror-win-x64.zip`**, unzip anywhere, run **`TouchMirror.exe`**
+2. **adb is bundled**, the .NET runtime is included and FFmpeg extracts on first launch — updates mean re-downloading the zip (the banner opens the release)
 
 ### Phone setup
 
@@ -159,6 +163,10 @@ Allowed by Ankama: as many physical devices as you want, one account per phone.
 3. Click a thumbnail to target it — only the active tile receives actions and plays audio; inactive ones stop decoding to save CPU
 4. From the keyboard: `Ctrl`+`Tab` to cycle, `Ctrl`+`1…9` to target directly
 
+<div align="center">
+<img src="docs/screenshot-multiaccount.png" width="780" alt="TouchMirror — Dofus Touch mirrored live, second phone in its own tile">
+</div>
+
 ### Second account on the same phone
 
 TouchMirror can also create a **secondary Android profile** from the app — the phone then runs Dofus Touch twice, each account on its own virtual display and mirror tile:
@@ -199,6 +207,11 @@ Settings → **Local API**: exposes `http://127.0.0.1:<port>` protected by a tok
 **Compliance:** the API drives the app, never the game — no endpoint sends touch, keys or clipboard to the phone. `connect` can wake the screen and launch the configured app, the same as a manual plug-in.
 
 ### Plugins
+
+<p>
+<img src="docs/screenshot-marketplace.png" width="380" alt="Marketplace — official extensions catalog">
+<img src="docs/screenshot-plugins.png" width="380" alt="Installed plugins panel">
+</p>
 
 **🧩 Plugins** panel in the side rail: a plugin = a `plugins/<name>/` folder with a `plugin.json` manifest (name, version, description) and a `plugin.js`. Code runs in an **embedded, sandboxed JavaScript engine** — no external process, no shell: the plugin only sees the `tm` object.
 

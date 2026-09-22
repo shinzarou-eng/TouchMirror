@@ -18,6 +18,7 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        Velopack.VelopackApp.Build().Run();
         _singleInstance = new Mutex(true, @"Local\TouchMirror.SingleInstance", out var created);
         if (!created)
         {

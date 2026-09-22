@@ -8,7 +8,7 @@ using TouchMirror.Services;
 
 namespace TouchMirror.Engine;
 
-public sealed class EngineOptions
+public sealed record EngineOptions
 {
     public int MaxSize { get; init; } = 0;
     public int MaxFps { get; init; } = 60;
@@ -56,6 +56,7 @@ public sealed class EngineSession : IAsyncDisposable
     private const byte KindCodec = 0;
     private const byte KindPacket = 1;
     private const byte KindSession = 2;
+    private const byte KindEnd = 3;
 
     private readonly AdbDevice _device;
     private readonly EngineOptions _options;
@@ -78,13 +79,26 @@ public sealed class EngineSession : IAsyncDisposable
     public string? AudioCodecId { get; private set; }
     public int VideoWidth { get; private set; }
     public int VideoHeight { get; private set; }
+    private long _rxBytes;
+    public long RxBytes => Interlocked.Read(ref _rxBytes);
+    private long _lastPacketAt;
+    public long LastPacketAt => Interlocked.Read(ref _lastPacketAt);
+    private long _videoPackets;
+    public long VideoPackets => Interlocked.Read(ref _videoPackets);
+    public long ConnectedAt { get; private set; }
 
     public event Action<VideoPacket>? VideoPacketReceived;
     public event Action<VideoPacket>? AudioPacketReceived;
+    public event Action<bool>? AudioEnded;
     public event Action<int, int>? VideoSizeChanged;
     public event Action<string>? ServerLog;
     public event Action<string>? DeviceClipboard;
     public event Action? Disconnected;
+
+    public void BreakConnection()
+    {
+        try { _socket?.Dispose(); } catch { }
+    }
 
     public ControlChannel? Control => _control;
 
@@ -164,11 +178,17 @@ public sealed class EngineSession : IAsyncDisposable
 
         _control = new ControlChannel(_socket);
         _control.ClipboardReceived += t => DeviceClipboard?.Invoke(t);
+        _control.SendQueueFaulted += () =>
+        {
+            ServerLog?.Invoke("session: control queue saturated — forcing reconnect");
+            BreakConnection();
+        };
         _control.SendConfig(_options);
 
         if (!string.IsNullOrWhiteSpace(_options.AutoLaunchPackage) && _options.NewDisplay != null)
             try { _control.StartApp(_options.AutoLaunchPackage); } catch { }
 
+        ConnectedAt = Environment.TickCount64;
         _muxTask = Task.Run(DemuxLoopAsync);
     }
 
@@ -210,6 +230,7 @@ public sealed class EngineSession : IAsyncDisposable
                 var size = (int)BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(1));
                 if (size is <= 0 or > 64 << 20)
                     throw new InvalidDataException($"Invalid stream frame size: {size}");
+                Interlocked.Add(ref _rxBytes, size + 5);
                 var payload = System.Buffers.ArrayPool<byte>.Shared.Rent(size);
                 try
                 {
@@ -278,9 +299,24 @@ public sealed class EngineSession : IAsyncDisposable
                     VideoSizeChanged?.Invoke(VideoWidth, VideoHeight);
                 }
                 break;
+            case KindEnd:
+                if (size >= 2)
+                {
+                    var isError = payload[1] != 0;
+                    if (video)
+                        ServerLog?.Invoke(isError
+                            ? "session: flux vidéo terminé en erreur"
+                            : "session: flux vidéo terminé");
+                    else
+                        AudioEnded?.Invoke(isError);
+                }
+                break;
             case KindPacket:
                 if (size < 10)
                     return;
+                Interlocked.Exchange(ref _lastPacketAt, Environment.TickCount64);
+                if (video)
+                    Interlocked.Increment(ref _videoPackets);
                 var flags = payload[9];
                 var packetSize = size - 10;
                 var data = System.Buffers.ArrayPool<byte>.Shared.Rent(packetSize);

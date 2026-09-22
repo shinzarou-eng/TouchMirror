@@ -30,7 +30,7 @@ public sealed record AdbDevice(string Serial, string Model, string State, int? B
     };
     public bool HasBattery => Battery.HasValue;
     public string BatteryText => Battery.HasValue ? $"{Battery} %" : "";
-    public bool IsWifi => Serial.Contains(':');
+    public bool IsWifi => Serial.Contains(':') || Serial.Contains("._tcp");
     public bool HasDualTransport => AltSerial != null;
     public string TransportText => IsRememberedOnly ? L("dev.memorized")
         : HasDualTransport
@@ -76,10 +76,12 @@ public sealed record AdbDevice(string Serial, string Model, string State, int? B
            || MatchesSerial(o.Serial) || (o.AltSerial != null && MatchesSerial(o.AltSerial));
 
     public AdbDevice Preferring(string serial)
-        => Serial == serial ? this : AltSerial == serial ? this with { Serial = serial } : this;
+        => Serial == serial ? this
+            : AltSerial == serial ? this with { Serial = serial, AltSerial = Serial }
+            : this;
 }
 
-public sealed record AndroidProfile(int Id, string Name, bool Running);
+public sealed record AndroidProfile(int Id, string Name, bool Running, bool Owned = false);
 
 public static class AdbService
 {
@@ -141,6 +143,9 @@ public static class AdbService
         return null;
     }
 
+    public static Task<string> RunTextAsync(string args, CancellationToken ct = default)
+        => RunAsync(args, ct);
+
     private static async Task<string> RunAsync(string args, CancellationToken ct = default)
     {
         var adb = FindAdb() ?? throw new InvalidOperationException("adb introuvable (platform-tools du SDK Android requis)");
@@ -200,6 +205,41 @@ public static class AdbService
         {
             try { p.Kill(); } catch { }
             return null;
+        }
+    }
+
+    public static async Task<double> MeasureAdbMbpsAsync(string serial, int mb, CancellationToken ct = default)
+    {
+        var adb = FindAdb();
+        if (adb == null)
+            return -1;
+        var psi = new ProcessStartInfo(adb, $"-s {S(serial)} exec-out dd if=/dev/zero bs=1M count={mb}")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        using var p = Process.Start(psi)!;
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(20));
+        try
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            long total = 0;
+            var buf = new byte[256 * 1024];
+            var stream = p.StandardOutput.BaseStream;
+            int n;
+            while ((n = await stream.ReadAsync(buf, timeout.Token)) > 0)
+                total += n;
+            sw.Stop();
+            await p.WaitForExitAsync(timeout.Token);
+            return sw.Elapsed.TotalSeconds > 0.1 ? total * 8.0 / 1e6 / sw.Elapsed.TotalSeconds : -1;
+        }
+        catch
+        {
+            try { p.Kill(); } catch { }
+            return -1;
         }
     }
 
@@ -386,6 +426,27 @@ public static class AdbService
         await RunAsync($"-s {S(serial)} shell settings put system screen_brightness {value}", ct);
     }
 
+    public static async Task<int> GetBrightnessModeAsync(string serial, CancellationToken ct = default)
+    {
+        var output = await RunAsync($"-s {S(serial)} shell settings get system screen_brightness_mode", ct);
+        return int.TryParse(output.Trim(), out var v) ? v : -1;
+    }
+
+    public static async Task SetBrightnessModeAsync(string serial, int value, CancellationToken ct = default)
+    {
+        await RunAsync($"-s {S(serial)} shell settings put system screen_brightness_mode {value}", ct);
+    }
+
+    public static async Task<AdbDevice?> ResolveAsync(AdbDevice device, CancellationToken ct = default)
+    {
+        try
+        {
+            var list = await GetDevicesAsync(ct);
+            return list.FirstOrDefault(d => d.SharesIdentity(device));
+        }
+        catch { return null; }
+    }
+
     public static async Task<int> GetStayOnWhilePluggedInAsync(string serial, CancellationToken ct = default)
     {
         var output = await RunAsync($"-s {S(serial)} shell settings get global stay_on_while_plugged_in", ct);
@@ -412,15 +473,38 @@ public static class AdbService
     public static async Task<List<AndroidProfile>> ListProfilesAsync(string serial, CancellationToken ct = default)
     {
         var output = await RunAsync($"-s {S(serial)} shell pm list users", ct);
+        var types = new Dictionary<int, string>();
+        try
+        {
+            var dump = await RunAsync($"-s {S(serial)} shell dumpsys user", ct);
+            var lastId = -1;
+            foreach (var line in dump.Split('\n'))
+            {
+                var um = Regex.Match(line, @"UserInfo\{(\d+):");
+                if (um.Success)
+                {
+                    lastId = int.Parse(um.Groups[1].Value);
+                    continue;
+                }
+                var tm = Regex.Match(line, @"Type:\s*(\S+)");
+                if (tm.Success && lastId >= 0)
+                    types[lastId] = tm.Groups[1].Value;
+            }
+        }
+        catch { }
         var list = new List<AndroidProfile>();
         foreach (var line in output.Split('\n', StringSplitOptions.TrimEntries))
         {
             var m = Regex.Match(line, @"UserInfo\{(\d+):([^:}]*):[0-9a-fA-F]+\}\s*(.*)");
             if (!m.Success || int.Parse(m.Groups[1].Value) == 0)
                 continue;
+            var id = int.Parse(m.Groups[1].Value);
+            if (types.Count > 0 && types.TryGetValue(id, out var t)
+                && !t.EndsWith("profile.CLONE", StringComparison.Ordinal))
+                continue;
             var name = m.Groups[2].Value;
-            list.Add(new AndroidProfile(int.Parse(m.Groups[1].Value),
-                string.IsNullOrEmpty(name) ? $"Profil {m.Groups[1].Value}" : name,
+            list.Add(new AndroidProfile(id,
+                string.IsNullOrEmpty(name) ? $"Profil {id}" : name,
                 m.Groups[3].Value.Contains("running")));
         }
         return list;
@@ -553,7 +637,7 @@ public static class AdbService
         catch (Exception ex) { return ex.Message; }
     }
 
-    public sealed record ForeignAdbProcess(string Name, string? Path);
+    public sealed record ForeignAdbProcess(string Name, string? Path, int Pid = 0);
 
     private static readonly string[] CompetingProcessNames =
     {
@@ -576,19 +660,20 @@ public static class AdbService
             {
                 string? path = null;
                 try { path = p.MainModule?.FileName; } catch { }
+                var pid = p.Id;
                 var isOwnAdb = name == "adb" && path != null && ownDir != null
                     && Path.GetDirectoryName(path)!.TrimEnd('\\').Equals(ownDir, StringComparison.OrdinalIgnoreCase);
                 try { p.Dispose(); } catch { }
                 if (isOwnAdb)
                     continue;
                 if (seen.Add(path ?? name))
-                    found.Add(new ForeignAdbProcess(name, path));
+                    found.Add(new ForeignAdbProcess(name, path, pid));
             }
         }
         return found;
     }
 
-    public sealed record PnpAndroidDevice(string Name, string Vid, string? Brand);
+    public sealed record PnpAndroidDevice(string Name, string Vid, string? Brand, string? UsbSerial = null);
 
     private static readonly Dictionary<string, string> AndroidVendorVids = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -614,8 +699,12 @@ public static class AdbService
         var adb = ids.Contains("Class_ff&SubClass_42&Prot_01", StringComparison.OrdinalIgnoreCase);
         var mtp = ids.Contains("MS_COMP_MTP", StringComparison.OrdinalIgnoreCase)
             || name.Contains("MTP", StringComparison.OrdinalIgnoreCase);
+        var parts = id.Split('\\', '#');
+        var vi = Array.FindIndex(parts, s => s.Contains("VID_", StringComparison.OrdinalIgnoreCase));
+        var seg = vi >= 0 && vi + 1 < parts.Length ? parts[vi + 1] : "";
+        var serial = seg.Length >= 6 && SerialOk.IsMatch(seg) ? seg : null;
         return AndroidName.IsMatch(name) || adb || (brand != null && mtp)
-            ? new PnpAndroidDevice(name, vid, brand) : null;
+            ? new PnpAndroidDevice(name, vid, brand, serial) : null;
     }
 
     public static async Task<List<PnpAndroidDevice>> DetectPnpAndroidAsync(CancellationToken ct = default)

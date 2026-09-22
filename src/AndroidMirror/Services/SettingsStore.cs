@@ -32,6 +32,7 @@ public sealed class DevicePrefs
     public bool? TurnScreenOff { get; set; }
     public string? NewDisplay { get; set; }
     public bool? AdaptiveBitrate { get; set; }
+    public List<int> OwnedUserIds { get; set; } = new();
 }
 
 public sealed class WorkspaceDevice

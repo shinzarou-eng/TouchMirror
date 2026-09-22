@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using TouchMirror.Engine;
 using TouchMirror.Services;
@@ -118,8 +119,10 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     private readonly object _decoderLock = new();
     private readonly object _audioLock = new();
     private bool _screenDimmed;
-    private int _savedBrightness = -1;
-    private int _savedStayOn = -1;
+    private bool _audioBroken;
+    private AdbDevice _resolvedDevice;
+    private DispatcherTimer? _watchdog;
+    private string? _codecOverride;
 
     public Func<bool>? ShouldSyncClipboard { get; set; }
 
@@ -134,6 +137,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public MirrorInstance(AdbDevice device)
     {
         Device = device;
+        _resolvedDevice = device;
         DeviceName = device.DisplayName;
         View.DataContext = this;
         View.BindKeybinds(Keybinds);
@@ -164,7 +168,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         await _sessionGate.WaitAsync(_lifetime.Token);
         try
         {
-            _lastOptions = options;
+            _codecOverride = null;
+            _reconnectAttempts = 0;
             await StartSessionAsync(options);
         }
         catch
@@ -178,7 +183,10 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     private async Task StartSessionAsync(EngineOptions options)
     {
         _lifetime.Token.ThrowIfCancellationRequested();
-        var session = new EngineSession(Device, options, _lifetime.Token);
+        if (_codecOverride is { } oc)
+            options = options with { VideoCodec = oc };
+        _lastOptions = options;
+        var session = new EngineSession(_resolvedDevice, options, _lifetime.Token);
         Session = session;
         _videoBitRate = options.VideoBitRate;
         _currentBitRate = options.VideoBitRate;
@@ -284,17 +292,48 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             }
             catch { }
         };
-        session.AudioPacketReceived += packet =>
+        session.AudioEnded += _ =>
         {
+            if (_audioBroken)
+                return;
+            _audioBroken = true;
+            RaiseLog(L("log.audio_unavailable"));
             lock (_audioLock)
             {
-                if (Audio == null)
+                Audio?.Dispose();
+                Audio = null;
+            }
+        };
+        session.AudioPacketReceived += packet =>
+        {
+            if (_audioBroken)
+                return;
+            try
+            {
+                lock (_audioLock)
                 {
-                    Audio = new AudioPlayer(session.AudioCodecId ?? "opus");
-                    Audio.Error += m => Log?.Invoke($"audio: {m}");
-                    Audio.Volume = _audioMuted ? 0f : 1f;
+                    if (Audio == null)
+                    {
+                        Audio = new AudioPlayer(session.AudioCodecId ?? "opus");
+                        Audio.Error += m =>
+                        {
+                            Log?.Invoke($"audio: {m}");
+                            _audioBroken = true;
+                        };
+                        Audio.Volume = _audioMuted ? 0f : 1f;
+                    }
+                    Audio.Feed(packet.Data, packet.IsConfig, packet.Length);
                 }
-                Audio.Feed(packet.Data, packet.IsConfig, packet.Length);
+            }
+            catch (Exception ex)
+            {
+                _audioBroken = true;
+                lock (_audioLock)
+                {
+                    Audio?.Dispose();
+                    Audio = null;
+                }
+                RaiseLog(string.Format(L("log.audio_fail"), ex.Message));
             }
         };
 
@@ -314,8 +353,58 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             session.Control?.SetVideoParams(ThrottleBitRate, suspend: true);
         Connected?.Invoke(this);
 
+        if (_watchdog == null)
+        {
+            _watchdog = new DispatcherTimer(DispatcherPriority.Background, View.Dispatcher)
+            {
+                Interval = TimeSpan.FromSeconds(4)
+            };
+            _watchdog.Tick += (_, _) => CheckStream();
+        }
+        _watchdog.Start();
+
         if (options.TurnScreenOff)
             AppLogger.Forget(SetScreenDimmedAsync(true));
+    }
+
+    private void CheckStream()
+    {
+        var s = Session;
+        if (s == null || !IsConnected || _videoHidden || _stopping || _disposed)
+            return;
+        var now = Environment.TickCount64;
+        var last = s.LastPacketAt;
+        var idle = now - (last == 0 ? s.ConnectedAt : last);
+        long decoded;
+        lock (_decoderLock)
+            decoded = Decoder?.DecodedFrames ?? 0;
+        if (decoded == 0 && s.VideoPackets >= 30 && now - s.ConnectedAt > 8000)
+        {
+            var current = _codecOverride ?? s.VideoCodecId ?? "h264";
+            var next = current switch { "av1" => "h265", "h265" => "h264", _ => null };
+            if (next != null)
+            {
+                _codecOverride = next;
+                RaiseLog(string.Format(L("log.codec_fallback"), current, next));
+            }
+            else
+            {
+                RaiseLog(L("log.stream_stalled"));
+            }
+            s.BreakConnection();
+            return;
+        }
+        if (s.VideoPackets == 0 && now - s.ConnectedAt > 15000)
+        {
+            RaiseLog(L("log.no_frames"));
+            s.BreakConnection();
+            return;
+        }
+        if (idle > 25000)
+        {
+            RaiseLog(L("log.stream_stalled"));
+            s.BreakConnection();
+        }
     }
 
     public async Task SetScreenDimmedAsync(bool dimmed)
@@ -327,31 +416,15 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             if (dimmed && !_screenDimmed)
             {
                 _screenDimmed = true;
-                var pending = DimmedScreenStore.Pending().FirstOrDefault(s =>
-                    s.DeviceKey == Device.DeviceKey || s.Serial == Device.Serial);
-                _savedBrightness = pending is { Brightness: >= 0 } pb
-                    ? pb.Brightness
-                    : await AdbService.GetBrightnessAsync(Device.Serial);
-                _savedStayOn = pending is { StayOn: >= 0 } ps
-                    ? ps.StayOn
-                    : await AdbService.GetStayOnWhilePluggedInAsync(Device.Serial);
-                DimmedScreenStore.Mark(Device.Serial, Device.DeviceKey, _savedBrightness, _savedStayOn);
-                await AdbService.SetStayOnWhilePluggedInAsync(Device.Serial, 7);
                 try { Session?.Control?.SetDisplayPower(true); } catch { }
-                await AdbService.WakeScreenAsync(Device.Serial);
-                await AdbService.SetBrightnessAsync(Device.Serial, 0);
-                Log?.Invoke(L("log.screen_dimmed"));
+                var applied = await ScreenDimmer.DimAsync(Device, _resolvedDevice.Serial);
+                if (applied)
+                    Log?.Invoke(L("log.screen_dimmed"));
             }
             else if (!dimmed && _screenDimmed)
             {
                 _screenDimmed = false;
-                if (_savedStayOn >= 0)
-                    await AdbService.SetStayOnWhilePluggedInAsync(Device.Serial, _savedStayOn);
-                if (_savedBrightness >= 0)
-                    await AdbService.SetBrightnessAsync(Device.Serial, _savedBrightness);
-                _savedBrightness = -1;
-                _savedStayOn = -1;
-                DimmedScreenStore.Clear(Device.DeviceKey);
+                await ScreenDimmer.RestoreAsync(Device, _resolvedDevice.Serial);
                 Log?.Invoke(L("log.screen_restored"));
             }
         }
@@ -381,6 +454,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
 
     private long _mBasePts = -1, _mBaseArrival, _mLastPts, _mLastArrival;
     private double _mLagEma, _mJitterEma;
+    private long _videoFrames;
+    public long VideoFrames => Interlocked.Read(ref _videoFrames);
 
     private const int AdaptMinBitRate = 1_500_000;
     private int _currentBitRate = 8_000_000;
@@ -393,6 +468,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     {
         if (p.IsConfig || p.Pts <= 0)
             return;
+        Interlocked.Increment(ref _videoFrames);
         var now = Environment.TickCount64;
         var ptsMs = p.Pts / 1000;
         if (_mBasePts < 0 || ptsMs < _mLastPts - 500)
@@ -497,6 +573,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             _recorder = rec;
         IsRecording = true;
         RecordingSince = DateTime.Now;
+        if (_videoHidden)
+            try { Session?.Control?.SetVideoParams(_videoBitRate, suspend: false); } catch { }
         try { Session?.Control?.SendSimple(ControlMsgType.ResetVideo); } catch { }
         return string.Format(L("rec.started"), _recordPath);
     }
@@ -511,6 +589,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             try { _recorder?.Dispose(); } catch { }
             _recorder = null;
         }
+        if (_videoHidden)
+            try { Session?.Control?.SetVideoParams(ThrottleBitRate, suspend: true); } catch { }
     }
 
     public virtual Task DisconnectAsync()
@@ -537,6 +617,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
 
     private async Task ClearSessionAsync()
     {
+        _watchdog?.Stop();
         var session = Session;
         Session = null;
         IsConnected = false;
@@ -570,7 +651,16 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         {
             do
             {
-                state = await AdbService.GetDeviceStateAsync(Device.Serial, timeout.Token);
+                state = await AdbService.GetDeviceStateAsync(_resolvedDevice.Serial, timeout.Token);
+                if (state == "missing")
+                {
+                    var resolved = await AdbService.ResolveAsync(Device, timeout.Token);
+                    if (resolved != null)
+                    {
+                        _resolvedDevice = resolved;
+                        state = resolved.State;
+                    }
+                }
                 if (state is "device" or "unauthorized")
                     return state;
                 await Task.Delay(500, timeout.Token);
@@ -639,7 +729,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                 if (path.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
                 {
                     RaiseLog($"drop: install {name}…");
-                    var output = await AdbService.InstallApkAsync(Device.Serial, path);
+                    var output = await AdbService.InstallApkAsync(_resolvedDevice.Serial, path);
                     var tail = output.Trim().Split('\n').LastOrDefault()?.Trim();
                     RaiseLog($"drop: {name} — {(string.IsNullOrEmpty(tail) ? "installé" : tail)}");
                 }
@@ -647,7 +737,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                 {
                     var remote = $"/sdcard/Download/{name}";
                     RaiseLog($"drop: push {name}…");
-                    await AdbService.PushAsync(Device.Serial, path, remote);
+                    await AdbService.PushAsync(_resolvedDevice.Serial, path, remote);
                     try { Session?.Control?.ScanFile(remote); } catch { }
                     RaiseLog($"drop: {name} → {remote}");
                 }

@@ -10,18 +10,18 @@ public static class DimmedScreenStore
         "TouchMirror", "dimmed");
 
     public sealed record State(string File, string Serial, string DeviceKey,
-        int Brightness, int StayOn);
+        int Brightness, int StayOn, int BrightnessMode);
 
     private static string Safe(string key)
         => string.Concat(key.Select(c => char.IsLetterOrDigit(c) || c is '-' or '_' ? c : '_'));
 
-    public static void Mark(string serial, string deviceKey, int brightness, int stayOn)
+    public static void Mark(string serial, string deviceKey, int brightness, int stayOn, int brightnessMode = -1)
     {
         try
         {
             Directory.CreateDirectory(Dir);
             File.WriteAllText(Path.Combine(Dir, Safe(deviceKey) + ".json"),
-                JsonSerializer.Serialize(new { serial, deviceKey, brightness, stayOn }));
+                JsonSerializer.Serialize(new { serial, deviceKey, brightness, stayOn, brightnessMode }));
         }
         catch (Exception ex) { AppLogger.Write($"dimmed-store: {ex.Message}"); }
     }
@@ -49,7 +49,8 @@ public static class DimmedScreenStore
                         r.GetProperty("serial").GetString() ?? "",
                         r.GetProperty("deviceKey").GetString() ?? "",
                         r.TryGetProperty("brightness", out var b) ? b.GetInt32() : -1,
-                        r.TryGetProperty("stayOn", out var s) ? s.GetInt32() : -1));
+                        r.TryGetProperty("stayOn", out var s) ? s.GetInt32() : -1,
+                        r.TryGetProperty("brightnessMode", out var bm) ? bm.GetInt32() : -1));
                 }
                 catch { }
             }

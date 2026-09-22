@@ -99,6 +99,9 @@ public sealed class ControlChannel : IDisposable
     private volatile bool _disposed;
 
     public event Action<string>? ClipboardReceived;
+    public event Action? SendQueueFaulted;
+
+    private int _faulted;
 
     public ControlChannel(Socket socket)
     {
@@ -114,7 +117,9 @@ public sealed class ControlChannel : IDisposable
         frame[0] = ChanControl;
         BinaryPrimitives.WriteUInt32BigEndian(frame.AsSpan(1), (uint)msg.Length);
         msg.CopyTo(frame.AsSpan(5));
-        _sendQueue.Writer.TryWrite(frame);
+        if (!_sendQueue.Writer.TryWrite(frame)
+            && Interlocked.Exchange(ref _faulted, 1) == 0)
+            SendQueueFaulted?.Invoke();
     }
 
     private async Task SendLoop()

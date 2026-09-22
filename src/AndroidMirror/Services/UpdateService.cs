@@ -1,11 +1,14 @@
 using System.Net.Http;
 using System.Reflection;
 using System.Text.Json;
+using Velopack;
+using Velopack.Sources;
 
 namespace TouchMirror.Services;
 
 public static class UpdateService
 {
+    private const string RepoUrl = "https://github.com/shinzarou-eng/TouchMirror";
     private const string LatestReleaseApi =
         "https://api.github.com/repos/shinzarou-eng/TouchMirror/releases/latest";
 
@@ -18,7 +21,57 @@ public static class UpdateService
             ? v
             : new Version(0, 0, 0);
 
-    public static async Task<(Version Version, string Url)?> CheckAsync(CancellationToken ct = default)
+    private static UpdateManager? _mgr;
+    private static UpdateManager? Mgr
+    {
+        get
+        {
+            if (_mgr == null)
+            {
+                try { _mgr = new UpdateManager(new GithubSource(RepoUrl, null, false)); }
+                catch { }
+            }
+            return _mgr;
+        }
+    }
+
+    public static UpdateInfo? Pending { get; private set; }
+
+    public static async Task<(Version Version, string Url, bool SelfUpdate)?> CheckAsync(CancellationToken ct = default)
+    {
+        var mgr = Mgr;
+        if (mgr?.IsInstalled == true)
+        {
+            try
+            {
+                Pending = await mgr.CheckForUpdatesAsync().WaitAsync(ct);
+                if (Pending != null
+                    && Version.TryParse(Pending.TargetFullRelease.Version.ToString(), out var pv))
+                    return (pv, $"{RepoUrl}/releases/latest", true);
+            }
+            catch { }
+        }
+        return await CheckGithubAsync(ct) is { } l ? (l.Version, l.Url, false) : null;
+    }
+
+    public static Task DownloadAsync(IProgress<int> progress, CancellationToken ct = default)
+        => Mgr == null || Pending == null
+            ? Task.CompletedTask
+            : Mgr.DownloadUpdatesAsync(Pending, p => progress.Report(p), ct);
+
+    public static void ApplyAndRestart()
+    {
+        if (Mgr != null && Pending != null)
+            Mgr.ApplyUpdatesAndRestart(Pending);
+    }
+
+    public static void ApplyOnExit()
+    {
+        if (Mgr != null && Pending != null)
+            Mgr.WaitExitThenApplyUpdates(Pending.TargetFullRelease);
+    }
+
+    private static async Task<(Version Version, string Url)?> CheckGithubAsync(CancellationToken ct)
     {
         try
         {
