@@ -315,10 +315,8 @@ public static class AdbService
         {
             if (!d.IsReady)
                 return d;
-            var battery = GetBatteryLevelAsync(d.Serial, ct);
-            var hw = GetHardwareSerialAsync(d.Serial, ct);
-            await Task.WhenAll(battery, hw);
-            return d with { Battery = battery.Result, HardwareSerial = hw.Result };
+            var (hw, battery) = await GetSerialAndBatteryAsync(d.Serial, ct);
+            return d with { Battery = battery, HardwareSerial = hw };
         }));
 
         var result = new List<AdbDevice>();
@@ -338,27 +336,26 @@ public static class AdbService
         return result;
     }
 
-    public static async Task<string?> GetHardwareSerialAsync(string serial, CancellationToken ct = default)
-    {
-        try
-        {
-            var output = await RunAsync($"-s {S(serial)} shell getprop ro.serialno", ct);
-            var s = output.Trim();
-            return SerialOk.IsMatch(s) && !s.Equals("unknown", StringComparison.OrdinalIgnoreCase)
-                && !s.Equals("null", StringComparison.OrdinalIgnoreCase) && s.Any(c => c != '0') ? s : null;
-        }
-        catch { return null; }
-    }
+    private static async Task<int?> GetBatteryLevelAsync(string serial, CancellationToken ct = default)
+        => (await GetSerialAndBatteryAsync(serial, ct)).Battery;
 
-    public static async Task<int?> GetBatteryLevelAsync(string serial, CancellationToken ct = default)
+    private static async Task<(string? Serial, int? Battery)> GetSerialAndBatteryAsync(
+        string serial, CancellationToken ct = default)
     {
         try
         {
-            var output = await RunAsync($"-s {S(serial)} shell dumpsys battery", ct);
+            var output = await RunAsync(
+                $"-s {S(serial)} shell getprop ro.serialno; dumpsys battery", ct);
+            var nl = output.IndexOf('\n');
+            var s = (nl >= 0 ? output[..nl] : output).Trim();
+            string? hw = SerialOk.IsMatch(s)
+                && !s.Equals("unknown", StringComparison.OrdinalIgnoreCase)
+                && !s.Equals("null", StringComparison.OrdinalIgnoreCase)
+                && s.Any(c => c != '0') ? s : null;
             var m = Regex.Match(output, @"level:\s*(\d+)");
-            return m.Success ? int.Parse(m.Groups[1].Value) : null;
+            return (hw, m.Success ? int.Parse(m.Groups[1].Value) : null);
         }
-        catch { return null; }
+        catch { return (null, null); }
     }
 
     internal static string Q(string path)
