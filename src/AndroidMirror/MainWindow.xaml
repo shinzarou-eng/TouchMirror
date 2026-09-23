@@ -1127,6 +1127,7 @@
                                                     <Condition Binding="{Binding ActiveMirror.IsConnected}" Value="False" />
                                                     <Condition Binding="{Binding ActiveMirror.IsIos}" Value="False" />
                                                     <Condition Binding="{Binding IsBusy}" Value="False" />
+                                                    <Condition Binding="{Binding ActiveMirror.IsReconnecting}" Value="False" />
                                                 </MultiDataTrigger.Conditions>
                                                 <Setter Property="Visibility" Value="Visible" />
                                             </MultiDataTrigger>
@@ -1259,9 +1260,6 @@
                                     <ui:Button Style="{StaticResource PillBtn}" Width="28" Height="28"
                                                ToolTip="{loc:Loc comptes_secondaires_un_2e_dofus_touch_avec_son_p}"
                                                Click="OnDeviceAccountsClick">
-                                        <ui:Button.ContextMenu>
-                                            <ContextMenu Opened="OnAccountsContextMenuOpened" />
-                                        </ui:Button.ContextMenu>
                                         <Path Style="{StaticResource Ic}" Data="{StaticResource IcPersonAdd24}" Width="16" Height="16" />
                                     </ui:Button>
                                     <ui:Button Style="{StaticResource PillBtn}" Width="28" Height="28"
@@ -1503,6 +1501,21 @@
                                                                  Fill="{Binding AccentHex, Converter={StaticResource HexToBrush}}"
                                                                  VerticalAlignment="Center" Margin="0,0,6,0"
                                                                  Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}" />
+                                                        <Border Width="16" Height="16" CornerRadius="5" Margin="0,0,6,0"
+                                                                VerticalAlignment="Center"
+                                                                Background="{Binding AccountAvatarHex, Converter={StaticResource HexToBrush}}"
+                                                                Visibility="{Binding ShowAccountLetterAvatar, Converter={StaticResource BoolToVis}}">
+                                                            <TextBlock Text="{Binding AccountInitial}" FontSize="9"
+                                                                       FontWeight="Bold" Foreground="#0B0E11"
+                                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                        </Border>
+                                                        <Border Width="16" Height="16" CornerRadius="5" Margin="0,0,6,0"
+                                                                VerticalAlignment="Center"
+                                                                Visibility="{Binding HasAccountAvatar, Converter={StaticResource BoolToVis}}">
+                                                            <Border.Background>
+                                                                <ImageBrush ImageSource="{Binding AccountAvatarPath}" Stretch="UniformToFill" />
+                                                            </Border.Background>
+                                                        </Border>
                                                         <TextBox Text="{Binding DeviceName, Mode=OneWay}"
                                                                  FontSize="{StaticResource FsMeta}" Padding="0" MinWidth="30"
                                                                  Background="Transparent" BorderThickness="0"
@@ -1526,6 +1539,18 @@
                                             <Border VerticalAlignment="Bottom" HorizontalAlignment="Left"
                                                     Margin="6" CornerRadius="{StaticResource RadiusControl}"
                                                     Background="{DynamicResource AppGlassAltBrush}">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Opacity" Value="0" />
+                                                        <Setter Property="IsHitTestVisible" Value="False" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType={x:Type Border}}}" Value="True">
+                                                                <Setter Property="Opacity" Value="1" />
+                                                                <Setter Property="IsHitTestVisible" Value="True" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
                                                 <StackPanel Orientation="Horizontal">
                                                     <ui:Button Appearance="Transparent" Width="20" Height="16" Padding="0"
                                                                Command="{Binding DataContext.MoveMirrorLeftCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
@@ -1539,15 +1564,39 @@
                                                                ToolTip="{loc:Loc descendre_dans_la_liste}">
                                                         <Path Style="{StaticResource Ic}" Data="{StaticResource IcArrowDown24}" Width="12" Height="12" />
                                                     </ui:Button>
+                                                    <ui:Button Appearance="Transparent" Width="20" Height="16" Padding="0"
+                                                               Command="{Binding DataContext.PinMirrorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                               CommandParameter="{Binding}"
+                                                               ToolTip="{loc:Loc epingler_dans_une_mini_fenetre_toujours_visible}">
+                                                        <Path Style="{StaticResource Ic}" Data="{StaticResource IcPin24}" Width="12" Height="12" />
+                                                    </ui:Button>
                                                 </StackPanel>
                                             </Border>
-                                            <Border VerticalAlignment="Bottom" HorizontalAlignment="Right"
-                                                    Margin="6" Padding="7,2" CornerRadius="{StaticResource RadiusBadge}"
-                                                    Background="{DynamicResource AppGlassAltBrush}">
-                                                <TextBlock FontSize="{StaticResource FsMeta}"
-                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}">
-                                                    <Run Text="{loc:Loc ctrl}" /><Run Text="+" /><Run Text="{Binding Slot, Mode=OneWay}" />
-                                                </TextBlock>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom"
+                                                        HorizontalAlignment="Right" Margin="6">
+                                                <Border Padding="7,2" CornerRadius="{StaticResource RadiusBadge}"
+                                                        Background="{DynamicResource AppGlassAltBrush}"
+                                                        Visibility="{Binding HasSessionElapsed, Converter={StaticResource BoolToVis}}">
+                                                    <TextBlock Text="{Binding SessionElapsed}" FontSize="{StaticResource FsMeta}"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                </Border>
+                                                <Border Margin="5,0,0,0" Padding="7,2" CornerRadius="{StaticResource RadiusBadge}"
+                                                        Background="{DynamicResource AppGlassAltBrush}">
+                                                    <TextBlock FontSize="{StaticResource FsMeta}"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                                        <Run Text="{loc:Loc ctrl}" /><Run Text="+" /><Run Text="{Binding Slot, Mode=OneWay}" />
+                                                    </TextBlock>
+                                                </Border>
+                                            </StackPanel>
+                                            <Border Background="#C80B0E11" IsHitTestVisible="False"
+                                                    Visibility="{Binding IsReconnecting, Converter={StaticResource BoolToVis}}">
+                                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <ui:ProgressRing IsIndeterminate="True" Width="18" Height="18"
+                                                                     HorizontalAlignment="Center" />
+                                                    <TextBlock Text="{loc:Loc tile.reconnecting}" Margin="0,7,0,0"
+                                                               FontSize="{StaticResource FsCaption}" HorizontalAlignment="Center"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                </StackPanel>
                                             </Border>
                                         </Grid>
                                     </Border>
@@ -1822,13 +1871,12 @@
                                                             </MenuItem>
                                                         </MenuItem>
                                                         <MenuItem Header="{loc:Loc comptes_secondaires}"
-                                                                  SubmenuOpened="OnAccountsMenuOpened"
+                                                                  Click="OnAccountsFlyoutClick"
                                                                   Visibility="{Binding IsRememberedOnly, Converter={StaticResource NotBoolToVis}}"
                                                                   ToolTip="{loc:Loc un_profil_android_separe_un_2e_dofus_touch_avec_}">
                                                             <MenuItem.Icon>
                                                                 <Path Style="{StaticResource Ic}" Data="{StaticResource IcPeople24}" Width="14" Height="14" />
                                                             </MenuItem.Icon>
-                                                            <MenuItem Header="{loc:Loc chargement}" IsEnabled="False" />
                                                         </MenuItem>
                                                         <Separator />
                                                         <MenuItem Header="{Binding PinMenuText}" Click="OnDevicePinClick">
@@ -2654,18 +2702,368 @@
                                     <TextBlock Text="{loc:Loc connecter}" />
                                 </StackPanel>
                             </ui:Button>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0"
+                                        Cursor="Hand" MouseLeftButtonUp="OnHubStackClick"
+                                        Visibility="{Binding HasHubAccounts, Converter={StaticResource BoolToVis}}"
+                                        ToolTip="{loc:Loc comptes_secondaires_un_2e_dofus_touch_avec_son_p}">
+                                <ItemsControl ItemsSource="{Binding HubAccounts}" Margin="6,0,0,0">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Width="22" Height="22" Margin="-6,0,0,0">
+                                                <Border CornerRadius="7"
+                                                        Background="{Binding AvatarHex, Converter={StaticResource HexToBrush}}"
+                                                        BorderBrush="{DynamicResource AppWindowBrush}" BorderThickness="2"
+                                                        Visibility="{Binding HasAvatar, Converter={StaticResource NotBoolToVis}}">
+                                                    <TextBlock Text="{Binding Initial}" FontSize="9" FontWeight="Bold"
+                                                               Foreground="#0B0E11" HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center" />
+                                                </Border>
+                                                <Border CornerRadius="7"
+                                                        BorderBrush="{DynamicResource AppWindowBrush}" BorderThickness="2"
+                                                        Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVis}}">
+                                                    <Border.Background>
+                                                        <ImageBrush ImageSource="{Binding AvatarPath}" Stretch="UniformToFill" />
+                                                    </Border.Background>
+                                                </Border>
+                                                <Ellipse Width="8" Height="8" HorizontalAlignment="Right"
+                                                         VerticalAlignment="Bottom" Margin="0,0,-2,-2"
+                                                         Fill="{Binding DotHex, Converter={StaticResource HexToBrush}}"
+                                                         Stroke="{DynamicResource AppWindowBrush}" StrokeThickness="2" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="{Binding HubAccountsText}" FontSize="{StaticResource FsCaption}"
+                                           VerticalAlignment="Center" Margin="9,0,0,0"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
                             <ui:Button x:Name="HubAccountsBtn" Style="{StaticResource BtnAction}" Height="32" Padding="12,0"
-                                       Margin="10,0,0,0" FontSize="{StaticResource FsMeta}" FontWeight="SemiBold"
+                                       FontSize="{StaticResource FsMeta}" FontWeight="SemiBold"
                                        Click="OnDeviceAccountsClick"
                                        ToolTip="{loc:Loc comptes_secondaires_un_2e_dofus_touch_avec_son_p}">
-                                <ui:Button.ContextMenu>
-                                    <ContextMenu Opened="OnAccountsContextMenuOpened" />
-                                </ui:Button.ContextMenu>
                                 <StackPanel Orientation="Horizontal">
                                     <Path Style="{StaticResource Ic}" Data="{StaticResource IcPersonAdd24}" Width="14" Height="14" Margin="0,0,7,0" />
                                     <TextBlock Text="{loc:Loc comptes}" />
                                 </StackPanel>
                             </ui:Button>
+                            <Popup x:Name="AccountsPopup" Placement="Bottom" StaysOpen="False"
+                                   AllowsTransparency="True" PopupAnimation="Fade">
+                                <Border Width="322" Padding="6" CornerRadius="13"
+                                        Background="{DynamicResource AppCardBrush}"
+                                        BorderBrush="{DynamicResource AppBorderStrongBrush}" BorderThickness="1">
+                                    <Border.Resources>
+                                        <DataTemplate x:Key="AcctRow">
+                                            <Border Padding="10,8" CornerRadius="10" Margin="0,0,0,2">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Style.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter Property="Background" Value="{DynamicResource SurfaceFaintBrush}" />
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid Width="34" Height="34" VerticalAlignment="Center" Cursor="Hand"
+                                                          MouseLeftButtonUp="OnAccountAvatarClick"
+                                                          ToolTip="{loc:Loc acct.avatar}">
+                                                        <Border Margin="-2" CornerRadius="12" BorderThickness="1.5"
+                                                                BorderBrush="{Binding RingHex, Converter={StaticResource HexToBrush}}" />
+                                                        <Border CornerRadius="10"
+                                                                Background="{Binding AvatarHex, Converter={StaticResource HexToBrush}}"
+                                                                Visibility="{Binding HasAvatar, Converter={StaticResource NotBoolToVis}}">
+                                                            <TextBlock Text="{Binding Initial}" FontSize="13"
+                                                                       FontWeight="Bold" Foreground="#0B0E11"
+                                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                        </Border>
+                                                        <Border CornerRadius="10"
+                                                                Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVis}}">
+                                                            <Border.Background>
+                                                                <ImageBrush ImageSource="{Binding AvatarPath}" Stretch="UniformToFill" />
+                                                            </Border.Background>
+                                                        </Border>
+                                                    </Grid>
+                                                    <StackPanel Grid.Column="1" Margin="11,0,0,0" VerticalAlignment="Center"
+                                                                Visibility="{Binding IsConfirming, Converter={StaticResource NotBoolToVis}}">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding Name}" FontSize="{StaticResource FsBody}"
+                                                                       FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                                                       Cursor="IBeam" MouseLeftButtonDown="OnAccountNameMouseDown"
+                                                                       Visibility="{Binding IsRenaming, Converter={StaticResource NotBoolToVis}}"
+                                                                       ToolTip="{loc:Loc double_clic_pour_renommer}" />
+                                                            <TextBox Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}"
+                                                                     FontSize="{StaticResource FsBody}" FontWeight="SemiBold"
+                                                                     Padding="3,0" MinWidth="60" MaxLength="24"
+                                                                     Background="{DynamicResource SurfaceFaintBrush}"
+                                                                     BorderBrush="{DynamicResource AppBorderStrongBrush}"
+                                                                     Visibility="{Binding IsRenaming, Converter={StaticResource BoolToVis}}"
+                                                                     IsVisibleChanged="OnWorkspaceNameVisible"
+                                                                     KeyDown="OnAccountNameKeyDown"
+                                                                     LostFocus="OnAccountNameLostFocus" />
+                                                            <Border Padding="5,1" Margin="6,0,0,0" CornerRadius="{StaticResource RadiusBadge}"
+                                                                    Background="{Binding TagBgHex, Converter={StaticResource HexToBrush}}"
+                                                                    Visibility="{Binding HasTypeTag, Converter={StaticResource BoolToVis}}">
+                                                                <TextBlock Text="{Binding TypeTag}" FontSize="8" FontWeight="Bold"
+                                                                           Foreground="{Binding TagFgHex, Converter={StaticResource HexToBrush}}" />
+                                                            </Border>
+                                                        </StackPanel>
+                                                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                            <Ellipse Width="4" Height="4" Fill="#5BD98B" Margin="0,0,5,0"
+                                                                     VerticalAlignment="Center"
+                                                                     Visibility="{Binding HasStatusDot, Converter={StaticResource BoolToVis}}" />
+                                                            <TextBlock Text="{Binding StatusText}" FontSize="{StaticResource FsCaption}"
+                                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                            <TextBlock Text="{Binding PlayText}" FontSize="{StaticResource FsCaption}"
+                                                                       Margin="6,0,0,0"
+                                                                       Visibility="{Binding HasPlayText, Converter={StaticResource BoolToVis}}"
+                                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1" Margin="11,0,0,0" VerticalAlignment="Center"
+                                                                Visibility="{Binding IsConfirming, Converter={StaticResource BoolToVis}}">
+                                                        <TextBlock Text="{Binding ConfirmTitle}" FontSize="{StaticResource FsBody}"
+                                                                   FontWeight="SemiBold" Foreground="{DynamicResource DangerBrush}" />
+                                                        <TextBlock Text="{loc:Loc acct.confirm.sub}" FontSize="{StaticResource FsCaption}"
+                                                                   Margin="0,2,0,0"
+                                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                                                                Visibility="{Binding IsConfirming, Converter={StaticResource NotBoolToVis}}">
+                                                        <ui:Button Style="{StaticResource BtnAction}" Height="26" Padding="10,0"
+                                                                   FontSize="{StaticResource FsCaption}" FontWeight="SemiBold"
+                                                                   Content="{loc:Loc menu.open}" Click="OnAccountOpenClick" />
+                                                        <ui:Button Width="24" Height="26" Padding="0" Margin="5,0,0,0"
+                                                                   Click="OnAccountDeleteClick"
+                                                                   ToolTip="{loc:Loc menu.del_account}"
+                                                                   Visibility="{Binding CanDelete, Converter={StaticResource BoolToVis}}">
+                                                            <ui:Button.Style>
+                                                                <Style BasedOn="{StaticResource BtnAction}" TargetType="ui:Button">
+                                                                    <Setter Property="Opacity" Value="0" />
+                                                                    <Setter Property="IsHitTestVisible" Value="False" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType={x:Type Border}}}" Value="True">
+                                                                            <Setter Property="Opacity" Value="1" />
+                                                                            <Setter Property="IsHitTestVisible" Value="True" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </ui:Button.Style>
+                                                            <Path Style="{StaticResource Ic}" Data="{StaticResource IcDismiss24}" Width="11" Height="11" />
+                                                        </ui:Button>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                                                                Visibility="{Binding IsConfirming, Converter={StaticResource BoolToVis}}">
+                                                        <ui:Button Height="26" Padding="10,0" FontSize="{StaticResource FsCaption}"
+                                                                   FontWeight="SemiBold" Content="{loc:Loc supprimer}"
+                                                                   Click="OnAccountDeleteConfirmClick">
+                                                            <ui:Button.Style>
+                                                                <Style BasedOn="{StaticResource BtnAction}" TargetType="ui:Button">
+                                                                    <Setter Property="Background" Value="{DynamicResource DangerBrush}" />
+                                                                    <Setter Property="Foreground" Value="White" />
+                                                                </Style>
+                                                            </ui:Button.Style>
+                                                        </ui:Button>
+                                                        <ui:Button Style="{StaticResource BtnAction}" Height="26" Padding="10,0"
+                                                                   Margin="5,0,0,0" FontSize="{StaticResource FsCaption}"
+                                                                   Content="{loc:Loc annuler}" Click="OnAccountDeleteCancelClick" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </Border.Resources>
+                                    <Border.Effect>
+                                        <DropShadowEffect Color="Black" BlurRadius="28" ShadowDepth="10" Opacity="0.5" />
+                                    </Border.Effect>
+                                    <StackPanel>
+                                        <Grid Margin="8,6,8,2">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border Width="32" Height="32" CornerRadius="9"
+                                                        Background="{DynamicResource IconTileBrush}">
+                                                    <Path Style="{StaticResource Ic}" Data="{StaticResource IcPhone24}"
+                                                          Width="15" Height="15" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                          Fill="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                </Border>
+                                                <StackPanel Margin="11,0,0,0" VerticalAlignment="Center">
+                                                    <TextBlock Text="{loc:Loc comptes}" FontSize="{StaticResource FsBody}"
+                                                               FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding AccountsSub}"
+                                                               FontSize="{StaticResource FsCaption}"
+                                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <ui:ProgressRing IsIndeterminate="True" Width="13" Height="13" Margin="0,0,8,0"
+                                                                 Visibility="{Binding AccountsBusy, Converter={StaticResource BoolToVis}}" />
+                                                <Border Padding="8,2" CornerRadius="{StaticResource RadiusBadge}"
+                                                        Background="{DynamicResource SurfaceFaintBrush}">
+                                                    <TextBlock Text="{Binding AccountsCount}" FontSize="{StaticResource FsCaption}"
+                                                               FontWeight="Bold"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                </Border>
+                                            </StackPanel>
+                                        </Grid>
+                                        <Border Margin="4,8,4,4" Padding="10" CornerRadius="9" Background="#14E8A33D"
+                                                BorderBrush="#2EE8A33D" BorderThickness="1"
+                                                Visibility="{Binding HasAccountNotice, Converter={StaticResource BoolToVis}}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Width="15" Height="15" CornerRadius="8" Margin="0,1,0,0"
+                                                        BorderBrush="#E8A33D" BorderThickness="1.2">
+                                                    <TextBlock Text="!" FontSize="9" FontWeight="Bold" Foreground="#E8A33D"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </Border>
+                                                <TextBlock Grid.Column="1" Margin="9,0,0,0" Text="{Binding AccountNotice}"
+                                                           TextWrapping="Wrap" FontSize="{StaticResource FsCaption}"
+                                                           Foreground="#E8A33D" />
+                                            </Grid>
+                                        </Border>
+                                        <TextBlock Text="{Binding AccountsRunningHeader}" FontSize="8" FontWeight="Bold"
+                                                   Margin="10,8,0,4"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                        <ItemsControl ItemsSource="{Binding AccountsRunningItems}"
+                                                      ItemTemplate="{StaticResource AcctRow}" />
+                                        <TextBlock Text="{Binding AccountsStoppedHeader}" FontSize="8" FontWeight="Bold"
+                                                   Margin="10,8,0,4"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                   Visibility="{Binding HasStoppedAccounts, Converter={StaticResource BoolToVis}}" />
+                                        <ItemsControl ItemsSource="{Binding AccountsStoppedItems}"
+                                                      ItemTemplate="{StaticResource AcctRow}" />
+                                        <Border Margin="0,4,0,0" Padding="6,10,6,4" BorderThickness="0,1,0,0"
+                                                BorderBrush="{DynamicResource AppBorderSubtleBrush}">
+                                            <StackPanel>
+                                                <Border Margin="0,0,0,10" Padding="8" CornerRadius="9"
+                                                        Background="{DynamicResource SurfaceFaintBrush}"
+                                                        BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="1"
+                                                        Visibility="{Binding AvatarPickerOpen, Converter={StaticResource BoolToVis}}">
+                                                    <StackPanel>
+                                                        <Grid Margin="1,0,1,8">
+                                                            <TextBlock Text="{Binding AvatarPickerTitle}"
+                                                                       FontSize="{StaticResource FsCaption}" FontWeight="SemiBold"
+                                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                       VerticalAlignment="Center" />
+                                                            <ui:Button Width="20" Height="20" Padding="0" HorizontalAlignment="Right"
+                                                                       Click="OnAvatarPickerCloseClick">
+                                                                <ui:Button.Style>
+                                                                    <Style BasedOn="{StaticResource BtnAction}" TargetType="ui:Button">
+                                                                        <Setter Property="Background" Value="Transparent" />
+                                                                        <Setter Property="BorderThickness" Value="0" />
+                                                                    </Style>
+                                                                </ui:Button.Style>
+                                                                <Path Style="{StaticResource Ic}" Data="{StaticResource IcDismiss24}"
+                                                                      Width="9" Height="9"
+                                                                      Fill="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                            </ui:Button>
+                                                        </Grid>
+                                                        <ScrollViewer MaxHeight="152" VerticalScrollBarVisibility="Auto">
+                                                            <ItemsControl ItemsSource="{Binding BreedAvatars}">
+                                                                <ItemsControl.ItemsPanel>
+                                                                    <ItemsPanelTemplate>
+                                                                        <WrapPanel />
+                                                                    </ItemsPanelTemplate>
+                                                                </ItemsControl.ItemsPanel>
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border Width="32" Height="32" Margin="3" CornerRadius="8"
+                                                                                Cursor="Hand" BorderThickness="1.5"
+                                                                                MouseLeftButtonUp="OnAvatarPickClick"
+                                                                                ToolTip="{Binding Name}">
+                                                                            <Border.Style>
+                                                                                <Style TargetType="Border">
+                                                                                    <Setter Property="BorderBrush" Value="{DynamicResource AppBorderSubtleBrush}" />
+                                                                                    <Setter Property="Background" Value="{DynamicResource AppCardBrush}" />
+                                                                                    <Style.Triggers>
+                                                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                                                            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderStrongBrush}" />
+                                                                                        </Trigger>
+                                                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                                            <Setter Property="BorderBrush" Value="#C9D1D9" />
+                                                                                            <Setter Property="Background" Value="#1FC9D1D9" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Border.Style>
+                                                                            <Border CornerRadius="6" Margin="1.5">
+                                                                                <Border.Background>
+                                                                                    <ImageBrush ImageSource="{Binding Path}" Stretch="UniformToFill" />
+                                                                                </Border.Background>
+                                                                            </Border>
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </ScrollViewer>
+                                                    </StackPanel>
+                                                </Border>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Width="34" Height="34" Margin="0,0,9,0" CornerRadius="9"
+                                                            Cursor="Hand" BorderThickness="1"
+                                                            Background="{DynamicResource SurfaceFaintBrush}"
+                                                            BorderBrush="{DynamicResource AppBorderSubtleBrush}"
+                                                            MouseLeftButtonUp="OnAvatarPickerToggle"
+                                                            ToolTip="{loc:Loc acct.avatar}">
+                                                        <Grid>
+                                                            <Border CornerRadius="8"
+                                                                    Visibility="{Binding HasPendingAvatar, Converter={StaticResource BoolToVis}}">
+                                                                <Border.Background>
+                                                                    <ImageBrush ImageSource="{Binding PendingAvatarPath}" Stretch="UniformToFill" />
+                                                                </Border.Background>
+                                                            </Border>
+                                                            <Path Style="{StaticResource Ic}" Data="{StaticResource IcPersonAdd24}"
+                                                                  Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                  Fill="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                  Visibility="{Binding HasPendingAvatar, Converter={StaticResource NotBoolToVis}}" />
+                                                        </Grid>
+                                                    </Border>
+                                                    <TextBox Grid.Column="1"
+                                                             Text="{Binding NewAccountName, UpdateSourceTrigger=PropertyChanged}"
+                                                             Height="32" FontSize="{StaticResource FsMeta}" Padding="10,0"
+                                                             VerticalContentAlignment="Center"
+                                                             IsEnabled="{Binding CanEditAccount}" />
+                                                    <ui:Button Grid.Column="2" Style="{StaticResource BtnPrimary}" Height="32"
+                                                               Padding="14,0" Margin="9,0,0,0" FontSize="{StaticResource FsMeta}"
+                                                               FontWeight="SemiBold" Click="OnAccountCreateClick"
+                                                               IsEnabled="{Binding CanEditAccount}">
+                                                        <Grid>
+                                                            <StackPanel Orientation="Horizontal"
+                                                                        Visibility="{Binding AccountCreating, Converter={StaticResource NotBoolToVis}}">
+                                                                <Path Style="{StaticResource Ic}" Data="{StaticResource IcPersonAdd24}"
+                                                                      Width="11" Height="11" Margin="0,0,5,0" />
+                                                                <TextBlock Text="{loc:Loc acct.create}" />
+                                                            </StackPanel>
+                                                            <StackPanel Orientation="Horizontal"
+                                                                        Visibility="{Binding AccountCreating, Converter={StaticResource BoolToVis}}">
+                                                                <ui:ProgressRing IsIndeterminate="True" Width="11" Height="11"
+                                                                                 Margin="0,0,5,0" />
+                                                                <TextBlock Text="{loc:Loc acct.creating}" />
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </ui:Button>
+                                                </Grid>
+                                                <TextBlock Text="{Binding AccountsHint}" FontSize="8" Margin="2,7,0,0"
+                                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
                         </StackPanel>
                         <Border Grid.Row="1" Background="{DynamicResource AppWindowBrush}"
                                 BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="0,1,0,0">
@@ -3305,6 +3703,15 @@
                                     <StackPanel>
                                         <TextBlock Style="{StaticResource TileTitle}" Text="{loc:Loc tile.discord}" />
                                         <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.discord.c}" />
+                                    </StackPanel>
+                                </ToggleButton>
+                            </UniformGrid>
+                            <UniformGrid Columns="1" Margin="0,0,0,7">
+                                <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding AnonymousStatsEnabled}"
+                                              Margin="0" ToolTip="{loc:Loc tile.stats.tip}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource TileTitle}" Text="{loc:Loc tile.stats}" />
+                                        <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.stats.c}" />
                                     </StackPanel>
                                 </ToggleButton>
                             </UniformGrid>

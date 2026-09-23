@@ -7,7 +7,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Version>0.8.3</Version>
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <Version>0.8.6</Version>
     <ApplicationIcon>..\..\assets\app.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -37,7 +38,15 @@
     <None Include="..\..\plugins\**\*.js;..\..\plugins\**\*.json" Link="assets\plugins\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\ffmpeg.zip" Link="assets\ffmpeg.zip" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\ffmpeg\*.dll" Link="assets\ffmpeg\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\assets\ffmpeg')" />
+    <None Include="..\..\assets\breeds\*.png" Link="assets\breeds\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\lang\*.json" Link="lang\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <Target Name="SignPlugins" BeforeTargets="CoreCompile"
+          Inputs="$(MSBuildProjectDirectory)\..\..\marketplace\**\plugin.js;$(MSBuildProjectDirectory)\..\..\marketplace\**\plugin.json;$(MSBuildProjectDirectory)\..\..\plugins\**\*.js;$(MSBuildProjectDirectory)\..\..\plugins\**\*.json"
+          Outputs="$(MSBuildProjectDirectory)\..\..\marketplace\index.json;$(MSBuildProjectDirectory)\Services\VerifiedPlugins.cs">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\tools\build-marketplace.ps1&quot;" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\tools\sign-plugins.ps1&quot;" />
+  </Target>
 
 </Project>

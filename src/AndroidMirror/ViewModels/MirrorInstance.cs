@@ -43,6 +43,12 @@ public partial class MirrorInstance : ObservableObject, IDisposable
 
     public int? AccountUserId { get; set; }
     public string? AccountName { get; set; }
+    public bool HasAccount => AccountName != null;
+    public string AccountInitial => AvatarPalette.Initial(AccountName);
+    public string AccountAvatarHex => AvatarPalette.For(AccountName);
+    public string? AccountAvatarPath { get; set; }
+    public bool HasAccountAvatar => AccountAvatarPath != null;
+    public bool ShowAccountLetterAvatar => HasAccount && !HasAccountAvatar;
     public string IdentityKey => AccountUserId is { } id ? $"{Device.DeviceKey}#{id}" : Device.DeviceKey;
 
     public bool ManualDisconnect { get; set; }
@@ -50,6 +56,10 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public string LastDeviceState { get; private set; } = "unknown";
     [ObservableProperty] private bool _isReconnecting;
     [ObservableProperty] private string? _reconnectStatus;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSessionElapsed))]
+    private string? _sessionElapsed;
+    public bool HasSessionElapsed => SessionElapsed != null;
     private EngineOptions? _lastOptions;
     private int _reconnectAttempts;
     private int _incidents;
@@ -88,6 +98,12 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public event Action? EditModeExitRequested;
 
     public event Action<MirrorInstance, string, int>? OverlayLineClicked;
+    public event Action<MirrorInstance, string, double, double>? OverlayMoved;
+    public Func<string, (double X, double Y)?>? OverlayPositionOf
+    {
+        get => View.OverlayPositionOf;
+        set => View.OverlayPositionOf = value;
+    }
 
     partial void OnKeybindEditModeChanged(bool value) =>
         View.Dispatcher.Invoke(() => View.SetKeybindEditMode(value));
@@ -122,11 +138,19 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public DateTime? RecordingSince { get; private set; }
     public DateTime? ConnectedSince { get; private set; }
     public TimeSpan? SessionDuration => _sessionDuration;
+    public void TickSessionElapsed()
+    {
+        var d = IsConnected && ConnectedSince is { } cs ? DateTime.Now - cs : _sessionDuration;
+        SessionElapsed = d is { } t
+            ? t.TotalHours >= 1 ? $"{(int)t.TotalHours}h{t.Minutes:00}" : $"{t.Minutes} min"
+            : null;
+    }
     public double FpsAvg => _fpsSamples > 0 ? _fpsSum / _fpsSamples : 0;
     public double FpsMin => _fpsMin == double.MaxValue ? 0 : _fpsMin;
     public long RxBytesFinal => _rxBytesFinal;
     public int Incidents => _incidents;
     private readonly object _decoderLock = new();
+    private long _decoderBornAt;
     private readonly object _audioLock = new();
     private bool _screenDimmed;
     private bool _audioBroken;
@@ -153,6 +177,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         View.BindKeybinds(Keybinds);
         View.EditModeExitRequested += () => EditModeExitRequested?.Invoke();
         View.OverlayLineClicked += (id, idx) => OverlayLineClicked?.Invoke(this, id, idx);
+        View.OverlayMoved += (id, rx, ry) => OverlayMoved?.Invoke(this, id, rx, ry);
         Keybinds.CollectionChanged += OnKeybindsCollectionChanged;
     }
 
@@ -227,7 +252,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         session.VideoPacketReceived += packet =>
         {
             TrackStreamMetrics(packet);
-            if (!_videoHidden)
+            if (!_videoHidden || !_encoderSuspended)
             {
                 lock (_decoderLock)
                 {
@@ -279,6 +304,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                                 View.AttachDecoder(d, p);
                         });
                         _codecHwSeen = false;
+                        _decoderBornAt = Environment.TickCount64;
                         CodecBadge = (session.VideoCodecId ?? "h264").ToUpperInvariant();
                     }
                     Decoder.Feed(packet.Data, packet.Length);
@@ -355,12 +381,17 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         IsConnected = true;
         ConnectedSince = DateTime.Now;
         _connectedAt = Environment.TickCount64;
+        lock (_decoderLock)
+            _decoderBornAt = _connectedAt;
         DeviceName = AccountName != null
             ? $"{Device.CustomName ?? session.DeviceName ?? Device.ShortName} · {AccountName}"
             : Device.CustomName ?? session.DeviceName ?? Device.DisplayName;
         View.Dispatcher.Invoke(() => View.AttachControl(session.Control!));
         if (_videoHidden)
+        {
             session.Control?.SetVideoParams(ThrottleBitRate, suspend: true);
+            _encoderSuspended = true;
+        }
         Connected?.Invoke(this);
 
         if (_watchdog == null)
@@ -397,9 +428,13 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         var last = s.LastPacketAt;
         var idle = now - (last == 0 ? s.ConnectedAt : last);
         long decoded;
+        long decoderBorn;
         lock (_decoderLock)
+        {
             decoded = Decoder?.DecodedFrames ?? 0;
-        if (decoded == 0 && s.VideoPackets >= 30 && now - s.ConnectedAt > 8000)
+            decoderBorn = _decoderBornAt;
+        }
+        if (decoded == 0 && s.VideoPackets >= 30 && now - decoderBorn > 8000)
         {
             var current = _codecOverride ?? s.VideoCodecId ?? "h264";
             var next = current switch { "av1" => "h265", "h265" => "h264", _ => null };
@@ -558,6 +593,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     }
 
     private const int ThrottleBitRate = 500_000;
+    private CancellationTokenSource? _suspendCts;
+    private bool _encoderSuspended;
 
     public virtual void SetVideoHidden(bool hidden)
     {
@@ -566,13 +603,20 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         _videoHidden = hidden;
         if (hidden)
         {
-            if (_recorder == null)
+            var cts = new CancellationTokenSource();
+            Interlocked.Exchange(ref _suspendCts, cts)?.Cancel();
+            _ = Task.Delay(1500, cts.Token).ContinueWith(t =>
             {
-                try { Session?.Control?.SetVideoParams(ThrottleBitRate, suspend: true); } catch { }
-                RaiseLog(L("log.throttled"));
-            }
+                if (t.IsCanceled)
+                    return;
+                try { View.Dispatcher.Invoke(ApplySuspended); } catch { }
+            }, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
             return;
         }
+        Interlocked.Exchange(ref _suspendCts, null)?.Cancel();
+        if (!_encoderSuspended)
+            return;
+        _encoderSuspended = false;
         _currentBitRate = _videoBitRate;
         try { Session?.Control?.SetVideoParams(_videoBitRate, suspend: false); } catch { }
         RaiseLog(L("log.unthrottled"));
@@ -580,10 +624,23 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         {
             Decoder?.Dispose();
             Decoder = null;
+            _decoderBornAt = Environment.TickCount64;
             _presenter?.Dispose();
             _presenter = null;
         }
         try { Session?.Control?.SendSimple(ControlMsgType.ResetVideo); } catch { }
+    }
+
+    private void ApplySuspended()
+    {
+        if (!_videoHidden || _stopping || _disposed || _recorder != null)
+            return;
+        var ctrl = Session?.Control;
+        if (ctrl == null)
+            return;
+        try { ctrl.SetVideoParams(ThrottleBitRate, suspend: true); } catch { }
+        _encoderSuspended = true;
+        RaiseLog(L("log.throttled"));
     }
 
     public virtual string ToggleRecording(string videoCodec)
@@ -607,7 +664,10 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         IsRecording = true;
         RecordingSince = DateTime.Now;
         if (_videoHidden)
+        {
             try { Session?.Control?.SetVideoParams(_videoBitRate, suspend: false); } catch { }
+            _encoderSuspended = false;
+        }
         try { Session?.Control?.SendSimple(ControlMsgType.ResetVideo); } catch { }
         return string.Format(L("rec.started"), _recordPath);
     }
@@ -631,7 +691,10 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             _recorder = null;
         }
         if (_videoHidden)
+        {
             try { Session?.Control?.SetVideoParams(ThrottleBitRate, suspend: true); } catch { }
+            _encoderSuspended = true;
+        }
     }
 
     public virtual Task DisconnectAsync()
@@ -659,6 +722,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     private async Task ClearSessionAsync()
     {
         _watchdog?.Stop();
+        Interlocked.Exchange(ref _suspendCts, null)?.Cancel();
+        _encoderSuspended = false;
         var session = Session;
         Session = null;
         IsConnected = false;

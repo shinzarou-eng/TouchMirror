@@ -246,8 +246,6 @@ public sealed class Pairing
         switch (state)
         {
             case 1:
-                if (!tlv.TryGetValue(Tlv8.Method, out var m) || m.Length != 1 || m[0] != 0)
-                    return null;
                 _srpHap = new Srp6aHap(CurrentPin());
                 return Tlv8.Format(
                     (Tlv8.State, new byte[] { 2 }),
@@ -373,13 +371,6 @@ public sealed class Pairing
 
     public byte[]? HandlePairVerify(byte[] body)
     {
-        if (body.Length >= 3 && body[0] == Tlv8.State)
-        {
-            var tlv = Tlv8.Parse(body);
-            if (tlv.TryGetValue(Tlv8.State, out var stateV) && stateV.Length == 1)
-                return HandleTlvPairVerify(tlv, stateV[0]);
-        }
-
         if (body.Length == 4 + 32 + 32 && body[0] == 1)
         {
             var presented = body[36..68];
@@ -418,8 +409,14 @@ public sealed class Pairing
             return Array.Empty<byte>();
         }
 
+        var tlv = Tlv8.Parse(body);
+        if (tlv.TryGetValue(Tlv8.State, out var stateV) && stateV.Length == 1)
+            return HandleTlvPairVerify(tlv, stateV[0]);
+
         return null;
     }
+
+    public void StartPinPairing() => _ = CurrentPin();
 
     public bool Verified { get; private set; }
     public byte[]? EcdhSecret => _ecdhSecret;

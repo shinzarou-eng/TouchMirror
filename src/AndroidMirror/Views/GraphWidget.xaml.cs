@@ -70,9 +70,50 @@ public partial class GraphWidget : UserControl
 
     public Canvas? Host { get; set; }
     public event Action? DragBegan;
+    public event Action? DragEnded;
     public bool Dragged { get; private set; }
     public bool On { get; set; } = true;
     public event Action<int>? LineClicked;
+
+    private bool _moved;
+    private (double X, double Y)? _pendingPos;
+
+    public void RestorePosition(double rx, double ry)
+    {
+        Dragged = true;
+        _pendingPos = (Math.Clamp(rx, 0, 1), Math.Clamp(ry, 0, 1));
+        if (!TryApplyPending())
+            ArmPending();
+    }
+
+    private void ArmPending()
+    {
+        if (Host != null) Host.SizeChanged += OnPendingSize;
+        SizeChanged += OnPendingSize;
+    }
+
+    private void OnPendingSize(object? sender, SizeChangedEventArgs e)
+    {
+        if (!TryApplyPending())
+            return;
+        if (Host != null) Host.SizeChanged -= OnPendingSize;
+        SizeChanged -= OnPendingSize;
+    }
+
+    private bool TryApplyPending()
+    {
+        if (_pendingPos is not { } p || Host == null
+            || Host.ActualWidth <= 0 || ActualWidth <= 0)
+            return false;
+        _pendingPos = null;
+        ClearValue(Canvas.RightProperty);
+        ClearValue(Canvas.BottomProperty);
+        Canvas.SetLeft(this, Math.Clamp(p.X * (Host.ActualWidth - ActualWidth), 0,
+            Math.Max(0, Host.ActualWidth - ActualWidth)));
+        Canvas.SetTop(this, Math.Clamp(p.Y * (Host.ActualHeight - ActualHeight), 0,
+            Math.Max(0, Host.ActualHeight - ActualHeight)));
+        return true;
+    }
 
     public GraphWidget()
     {
@@ -417,6 +458,7 @@ public partial class GraphWidget : UserControl
     {
         DragBegan?.Invoke();
         _dragging = true;
+        _moved = false;
         _grab = e.GetPosition(this);
         if (Host != null)
         {
@@ -442,6 +484,7 @@ public partial class GraphWidget : UserControl
         if (!_dragging || e.LeftButton != MouseButtonState.Pressed || Host == null)
             return;
         Dragged = true;
+        _moved = true;
         var p = e.GetPosition(Host);
         Canvas.SetLeft(this, Math.Clamp(p.X - _grab.X, 0,
             Math.Max(0, Host.ActualWidth - ActualWidth)));
@@ -454,6 +497,8 @@ public partial class GraphWidget : UserControl
     {
         _dragging = false;
         ReleaseMouseCapture();
+        if (_moved)
+            DragEnded?.Invoke();
         e.Handled = true;
     }
 }

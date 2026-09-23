@@ -10,7 +10,7 @@
     <Grid x:Name="Container" Background="Black">
         <Image x:Name="VideoImage"
                Stretch="Uniform"
-               RenderOptions.BitmapScalingMode="HighQuality" />
+               RenderOptions.BitmapScalingMode="LowQuality" />
 
         <Grid x:Name="InputSurface"
               Background="Transparent"

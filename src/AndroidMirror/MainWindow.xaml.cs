@@ -153,6 +153,7 @@ public partial class MainWindow : FluentWindow
 
         _vm.MirrorAdded += instance =>
             instance.View.Activated += _ => _vm.SetActive(instance);
+        _vm.PipChanged += () => Dispatcher.Invoke(OnPipChanged);
         _vm.ScreenshotRequested += instance =>
             Dispatcher.Invoke(() =>
             {
@@ -257,6 +258,30 @@ public partial class MainWindow : FluentWindow
             L("dbg.kill_title"),
             string.Format(L("dbg.kill_body"), string.Join("\n", targets)),
             L("dbg.kill_confirm"), danger: true);
+    }
+
+    private Views.PipWindow? _pipWindow;
+
+    private void OnPipChanged()
+    {
+        var m = _vm.PipMirror;
+        if (m == null || !_vm.Mirrors.Contains(m))
+        {
+            _pipWindow?.Close();
+            _pipWindow = null;
+            return;
+        }
+        if (_pipWindow == null)
+        {
+            _pipWindow = new Views.PipWindow { Owner = this };
+            _pipWindow.Closed += (_, _) =>
+            {
+                _pipWindow = null;
+                _vm.ClosePip();
+            };
+            _pipWindow.Show();
+        }
+        _pipWindow.Bind(m, () => _vm.SetActive(m));
     }
 
     private bool _closing;
@@ -689,6 +714,8 @@ public partial class MainWindow : FluentWindow
             HubCapName.Text = d.ShortName;
         HubCapState.Text = $"{d.StateText} · {d.TransportText}";
         HubAccountsBtn.DataContext = d;
+        if (!d.IsRememberedOnly)
+            AppLogger.Forget(_vm.RefreshHubAccountsAsync(d));
         HubConnectBtn.Visibility = HubAccountsBtn.Visibility =
             d.IsRememberedOnly ? Visibility.Collapsed : Visibility.Visible;
         HubConnectBtn.CommandParameter = d;
@@ -1047,78 +1074,142 @@ public partial class MainWindow : FluentWindow
 
     private void OnWorkspaceExitClick(object sender, RoutedEventArgs e) => _vm.ExitWorkspace();
 
-    private void OnDeviceAccountsClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is not System.Windows.Controls.Button btn || btn.ContextMenu == null)
-            return;
-        btn.ContextMenu.PlacementTarget = btn;
-        btn.ContextMenu.IsOpen = true;
-    }
+    private async void OnDeviceAccountsClick(object sender, RoutedEventArgs e)
+        => await OpenAccountsPopupAsync(sender as FrameworkElement);
 
-    private async void OnAccountsContextMenuOpened(object sender, RoutedEventArgs e)
-    {
-        if (sender is not System.Windows.Controls.ContextMenu cm)
-            return;
-        var device = cm.DataContext as Services.AdbDevice ?? _vm.ActiveMirror?.Device;
-        if (device == null || device.IsRememberedOnly)
-            return;
-        await PopulateAccountsAsync(cm, device);
-    }
+    private async void OnHubStackClick(object sender, MouseButtonEventArgs e)
+        => await OpenAccountsPopupAsync(sender as FrameworkElement);
 
-    private async void OnAccountsMenuOpened(object sender, RoutedEventArgs e)
+    private async Task OpenAccountsPopupAsync(FrameworkElement? anchor)
     {
-        if (sender is not System.Windows.Controls.MenuItem menu)
-            return;
-        var device = menu.DataContext as Services.AdbDevice ?? _vm.ActiveMirror?.Device;
-        if (device == null || device.IsRememberedOnly)
-            return;
-        await PopulateAccountsAsync(menu, device);
-    }
-
-    private async Task PopulateAccountsAsync(System.Windows.Controls.ItemsControl menu, Services.AdbDevice device)
-    {
-        menu.Items.Clear();
-        menu.Items.Add(new System.Windows.Controls.MenuItem { Header = L("menu.loading"), IsEnabled = false });
-
-        var profiles = await _vm.ListProfilesAsync(device);
-        var stillOpen = menu switch
+        var device = anchor?.DataContext switch
         {
-            System.Windows.Controls.MenuItem mi => mi.IsSubmenuOpen,
-            System.Windows.Controls.ContextMenu cm => cm.IsOpen,
-            _ => true
+            Services.AdbDevice d => d,
+            ViewModels.MirrorInstance m => m.Device,
+            _ => _vm.SelectedDevice ?? _vm.ActiveMirror?.Device
         };
-        if (!stillOpen)
+        if (device == null || device.IsRememberedOnly)
             return;
-        menu.Items.Clear();
+        AccountsPopup.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        AccountsPopup.PlacementTarget = anchor;
+        AccountsPopup.IsOpen = true;
+        _vm.AccountNotice = null;
+        await _vm.OpenAccountsPopupAsync(device);
+    }
 
-        var create = new System.Windows.Controls.MenuItem { Header = L("menu.new_account") };
-        create.Click += async (_, _) =>
-            await _vm.CreateAccountAsync(device, string.Format(L("account.default_name"), profiles.Count + 2));
-        menu.Items.Add(create);
-
-        if (profiles.Count == 0)
+    private async void OnAccountsFlyoutClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.MenuItem mi)
             return;
-        menu.Items.Add(new Separator());
-        foreach (var p in profiles)
+        var device = mi.DataContext as Services.AdbDevice ?? _vm.SelectedDevice;
+        if (device == null || device.IsRememberedOnly)
+            return;
+        AccountsPopup.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+        AccountsPopup.PlacementTarget = null;
+        AccountsPopup.IsOpen = true;
+        _vm.AccountNotice = null;
+        await _vm.OpenAccountsPopupAsync(device);
+    }
+
+    private async void OnAccountOpenClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not ViewModels.AccountItem item)
+            return;
+        AccountsPopup.IsOpen = false;
+        if (item.IsPrimary)
+            await _vm.ConnectExistingDeviceAsync(item.Device);
+        else if (item.Profile != null)
+            await _vm.OpenAccountAsync(item.Device, item.Profile);
+    }
+
+    private void OnAccountDeleteClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is ViewModels.AccountItem { Profile: not null } item)
+            item.IsConfirming = true;
+    }
+
+    private void OnAccountDeleteCancelClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is ViewModels.AccountItem item)
+            item.IsConfirming = false;
+    }
+
+    private async void OnAccountDeleteConfirmClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not ViewModels.AccountItem item
+            || item.Profile == null)
+            return;
+        item.IsConfirming = false;
+        await _vm.RemoveAccountAsync(item.Device, item.Profile);
+    }
+
+    private void OnAvatarPickerToggle(object sender, MouseButtonEventArgs e)
+    {
+        _vm.ToggleAvatarPicker();
+        e.Handled = true;
+    }
+
+    private void OnAvatarPickerCloseClick(object sender, RoutedEventArgs e)
+        => _vm.CloseAvatarPicker();
+
+    private void OnAccountAvatarClick(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is ViewModels.AccountItem item)
+            _vm.OpenAvatarEdit(item);
+        e.Handled = true;
+    }
+
+    private void OnAccountNameMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount < 2
+            || (sender as FrameworkElement)?.DataContext is not ViewModels.AccountItem item)
+            return;
+        item.IsRenaming = true;
+        e.Handled = true;
+    }
+
+    private void OnAccountNameKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.TextBox tb
+            || tb.DataContext is not ViewModels.AccountItem item)
+            return;
+        if (e.Key is Key.Enter or Key.Return)
         {
-            var entry = new System.Windows.Controls.MenuItem { Header = p.Name };
-            var open = new System.Windows.Controls.MenuItem { Header = p.Running ? L("menu.open") : L("menu.open_stopped") };
-            open.Click += async (_, _) => await _vm.OpenAccountAsync(device, p);
-            var remove = new System.Windows.Controls.MenuItem
-            {
-                Header = L("menu.del_account"),
-                IsEnabled = p.Owned
-            };
-            remove.Click += async (_, _) =>
-            {
-                if (await ConfirmAsync(L("dlg.del_account_title"),
-                        string.Format(L("dlg.del_account"), p.Name), L("supprimer"), danger: true))
-                    await _vm.RemoveAccountAsync(device, p);
-            };
-            entry.Items.Add(open);
-            entry.Items.Add(remove);
-            menu.Items.Add(entry);
+            _vm.CommitAccountRename(item);
+            e.Handled = true;
         }
+        else if (e.Key == Key.Escape)
+        {
+            item.IsRenaming = false;
+            e.Handled = true;
+        }
+    }
+
+    private void OnAccountNameLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.TextBox tb
+            && tb.DataContext is ViewModels.AccountItem { IsRenaming: true } item)
+            _vm.CommitAccountRename(item);
+    }
+
+    private async void OnAvatarPickClick(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is ViewModels.BreedAvatar av)
+            await _vm.PickAvatarAsync(av);
+        e.Handled = true;
+    }
+
+    private async void OnAccountCreateClick(object sender, RoutedEventArgs e)
+    {
+        var device = _vm.AccountsDevice;
+        if (device == null || _vm.IsBusy)
+            return;
+        var name = _vm.NewAccountName.Trim();
+        if (name.Length == 0)
+            name = "Compte";
+        await _vm.CreateAccountAsync(device, name);
+        if (_vm.AccountNotice == null)
+            AccountsPopup.IsOpen = false;
     }
 
     private void OnWorkspaceNameVisible(object sender, DependencyPropertyChangedEventArgs e)

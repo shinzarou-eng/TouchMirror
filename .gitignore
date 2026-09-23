@@ -16,7 +16,6 @@ assets/ffmpeg/
 assets/ffmpeg.zip
 assets/platform-tools/
 
-mockups/
 wiki/
 *_wpftmp.csproj
 assets/airplay/
@@ -30,10 +29,6 @@ engine/bin/
 
 .relnotes/*.draft.md
 
-AGENTS.local.md
-AUDIT.local.md
-MEMORY.md
-GRAPHISME.md
 publish/
 /*.tmp.html
 /hub-assets/
