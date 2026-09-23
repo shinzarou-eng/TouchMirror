@@ -613,21 +613,27 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
     }
 
     private void resetVideo() {
-        if (surfaceCapture != null) {
+        CaptureControl control = surfaceCapture != null ? surfaceCapture.getCaptureControl() : null;
+        if (control != null) {
             Ln.i("Video capture reset");
-            surfaceCapture.getCaptureControl().reset(CaptureControl.RESET_REASON_CLIENT_RESET);
+            control.reset(CaptureControl.RESET_REASON_CLIENT_RESET);
         }
     }
 
     private void setVideoParams(int bitRate, boolean suspend) {
         if (surfaceCapture != null) {
             surfaceCapture.setSuspended(suspend);
-            surfaceCapture.getCaptureControl().setVideoParams(bitRate, suspend);
+            CaptureControl control = surfaceCapture.getCaptureControl();
+            if (control != null) {
+                control.setVideoParams(bitRate, suspend);
+            }
         }
     }
 
     private void resizeDisplay(int width, int height) {
-        ((NewDisplayCapture) surfaceCapture).requestResize(width, height);
+        if (surfaceCapture instanceof NewDisplayCapture) {
+            ((NewDisplayCapture) surfaceCapture).requestResize(width, height);
+        }
     }
 
     private void scanFile(String path) {
