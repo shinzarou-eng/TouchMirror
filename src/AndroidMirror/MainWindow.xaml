@@ -1564,6 +1564,12 @@
                                                                ToolTip="{loc:Loc descendre_dans_la_liste}">
                                                         <Path Style="{StaticResource Ic}" Data="{StaticResource IcArrowDown24}" Width="12" Height="12" />
                                                     </ui:Button>
+                                                    <ui:Button Appearance="Transparent" Width="20" Height="16" Padding="0"
+                                                               Command="{Binding DataContext.PinMirrorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                               CommandParameter="{Binding}"
+                                                               ToolTip="{loc:Loc epingler_dans_une_mini_fenetre_toujours_visible}">
+                                                        <Path Style="{StaticResource Ic}" Data="{StaticResource IcPin24}" Width="12" Height="12" />
+                                                    </ui:Button>
                                                 </StackPanel>
                                             </Border>
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom"
@@ -2791,7 +2797,19 @@
                                                                 Visibility="{Binding IsConfirming, Converter={StaticResource NotBoolToVis}}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <TextBlock Text="{Binding Name}" FontSize="{StaticResource FsBody}"
-                                                                       FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                                       FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                                                       Cursor="IBeam" MouseLeftButtonDown="OnAccountNameMouseDown"
+                                                                       Visibility="{Binding IsRenaming, Converter={StaticResource NotBoolToVis}}"
+                                                                       ToolTip="{loc:Loc double_clic_pour_renommer}" />
+                                                            <TextBox Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}"
+                                                                     FontSize="{StaticResource FsBody}" FontWeight="SemiBold"
+                                                                     Padding="3,0" MinWidth="60" MaxLength="24"
+                                                                     Background="{DynamicResource SurfaceFaintBrush}"
+                                                                     BorderBrush="{DynamicResource AppBorderStrongBrush}"
+                                                                     Visibility="{Binding IsRenaming, Converter={StaticResource BoolToVis}}"
+                                                                     IsVisibleChanged="OnWorkspaceNameVisible"
+                                                                     KeyDown="OnAccountNameKeyDown"
+                                                                     LostFocus="OnAccountNameLostFocus" />
                                                             <Border Padding="5,1" Margin="6,0,0,0" CornerRadius="{StaticResource RadiusBadge}"
                                                                     Background="{Binding TagBgHex, Converter={StaticResource HexToBrush}}"
                                                                     Visibility="{Binding HasTypeTag, Converter={StaticResource BoolToVis}}">
@@ -2804,6 +2822,10 @@
                                                                      VerticalAlignment="Center"
                                                                      Visibility="{Binding HasStatusDot, Converter={StaticResource BoolToVis}}" />
                                                             <TextBlock Text="{Binding StatusText}" FontSize="{StaticResource FsCaption}"
+                                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                            <TextBlock Text="{Binding PlayText}" FontSize="{StaticResource FsCaption}"
+                                                                       Margin="6,0,0,0"
+                                                                       Visibility="{Binding HasPlayText, Converter={StaticResource BoolToVis}}"
                                                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                                         </StackPanel>
                                                     </StackPanel>

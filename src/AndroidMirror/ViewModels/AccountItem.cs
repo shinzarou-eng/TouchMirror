@@ -29,9 +29,10 @@ public sealed class AccountItem : INotifyPropertyChanged
         Device = device;
         Profile = profile;
         IsPrimary = profile == null;
-        Name = profile?.Name ?? L("acct.primary");
-        Initial = AvatarPalette.Initial(Name);
-        AvatarHex = IsPrimary ? "#C9D1D9" : AvatarPalette.For(Name);
+        _name = profile?.Name ?? L("acct.primary");
+        _editName = _name;
+        Initial = AvatarPalette.Initial(_name);
+        AvatarHex = IsPrimary ? "#C9D1D9" : AvatarPalette.For(_name);
         var t = profile?.Type ?? "";
         if (IsPrimary)
         {
@@ -63,7 +64,64 @@ public sealed class AccountItem : INotifyPropertyChanged
     public AdbDevice Device { get; }
     public AndroidProfile? Profile { get; }
     public bool IsPrimary { get; }
-    public string Name { get; }
+
+    private string _name;
+    public string Name
+    {
+        get => _name;
+        private set
+        {
+            if (_name == value)
+                return;
+            _name = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Name)));
+        }
+    }
+    public void SetDisplayName(string name) => Name = name;
+
+    private bool _isRenaming;
+    public bool IsRenaming
+    {
+        get => _isRenaming;
+        set
+        {
+            if (_isRenaming == value)
+                return;
+            _isRenaming = value;
+            if (value)
+                EditName = Name;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsRenaming)));
+        }
+    }
+
+    private string _editName;
+    public string EditName
+    {
+        get => _editName;
+        set
+        {
+            if (_editName == value)
+                return;
+            _editName = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(EditName)));
+        }
+    }
+
+    private string? _playText;
+    public string? PlayText
+    {
+        get => _playText;
+        set
+        {
+            if (_playText == value)
+                return;
+            _playText = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PlayText)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasPlayText)));
+        }
+    }
+    public bool HasPlayText => PlayText != null;
+
     public string Initial { get; }
     public string AvatarHex { get; }
 

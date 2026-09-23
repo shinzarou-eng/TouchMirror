@@ -153,6 +153,7 @@ public partial class MainWindow : FluentWindow
 
         _vm.MirrorAdded += instance =>
             instance.View.Activated += _ => _vm.SetActive(instance);
+        _vm.PipChanged += () => Dispatcher.Invoke(OnPipChanged);
         _vm.ScreenshotRequested += instance =>
             Dispatcher.Invoke(() =>
             {
@@ -257,6 +258,30 @@ public partial class MainWindow : FluentWindow
             L("dbg.kill_title"),
             string.Format(L("dbg.kill_body"), string.Join("\n", targets)),
             L("dbg.kill_confirm"), danger: true);
+    }
+
+    private Views.PipWindow? _pipWindow;
+
+    private void OnPipChanged()
+    {
+        var m = _vm.PipMirror;
+        if (m == null || !_vm.Mirrors.Contains(m))
+        {
+            _pipWindow?.Close();
+            _pipWindow = null;
+            return;
+        }
+        if (_pipWindow == null)
+        {
+            _pipWindow = new Views.PipWindow { Owner = this };
+            _pipWindow.Closed += (_, _) =>
+            {
+                _pipWindow = null;
+                _vm.ClosePip();
+            };
+            _pipWindow.Show();
+        }
+        _pipWindow.Bind(m, () => _vm.SetActive(m));
     }
 
     private bool _closing;
@@ -1132,6 +1157,39 @@ public partial class MainWindow : FluentWindow
         if ((sender as FrameworkElement)?.DataContext is ViewModels.AccountItem item)
             _vm.OpenAvatarEdit(item);
         e.Handled = true;
+    }
+
+    private void OnAccountNameMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount < 2
+            || (sender as FrameworkElement)?.DataContext is not ViewModels.AccountItem item)
+            return;
+        item.IsRenaming = true;
+        e.Handled = true;
+    }
+
+    private void OnAccountNameKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.TextBox tb
+            || tb.DataContext is not ViewModels.AccountItem item)
+            return;
+        if (e.Key is Key.Enter or Key.Return)
+        {
+            _vm.CommitAccountRename(item);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            item.IsRenaming = false;
+            e.Handled = true;
+        }
+    }
+
+    private void OnAccountNameLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.TextBox tb
+            && tb.DataContext is ViewModels.AccountItem { IsRenaming: true } item)
+            _vm.CommitAccountRename(item);
     }
 
     private async void OnAvatarPickClick(object sender, MouseButtonEventArgs e)

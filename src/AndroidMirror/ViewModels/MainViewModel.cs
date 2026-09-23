@@ -510,10 +510,38 @@ public partial class MainViewModel : ObservableObject
             oldValue?.View.ReleaseHeldKeys();
     }
 
+    private MirrorInstance? _pipMirror;
+    public MirrorInstance? PipMirror => _pipMirror;
+    public event Action? PipChanged;
+
+    [RelayCommand]
+    private void PinMirror(MirrorInstance? m)
+    {
+        if (m == null || !m.IsConnected)
+            return;
+        _pipMirror = m;
+        PipChanged?.Invoke();
+    }
+
+    public void ClosePip()
+    {
+        if (_pipMirror == null)
+            return;
+        _pipMirror = null;
+        PipChanged?.Invoke();
+    }
+
     public void SetActive(MirrorInstance instance)
     {
+        var previous = ActiveMirror;
         InactiveMirrors.Remove(instance);
         ActiveMirror = instance;
+        if (ReferenceEquals(_pipMirror, instance))
+        {
+            _pipMirror = previous != null && !ReferenceEquals(previous, instance)
+                && Mirrors.Contains(previous) ? previous : null;
+            PipChanged?.Invoke();
+        }
         ShowHub = false;
         foreach (var m in Mirrors)
         {
@@ -896,7 +924,7 @@ public partial class MainViewModel : ObservableObject
                           : null);
             if (dev is { IsReady: true })
                 await ConnectDeviceAsync(dev, wd,
-                    userId is { } u ? new MirrorAccount(u, wd.AccountName ?? string.Format(L("account.default_name"), u)) : null);
+                    userId is { } u ? new MirrorAccount(u, AccountNameFor(dev, u) ?? wd.AccountName ?? string.Format(L("account.default_name"), u)) : null);
         }
 
         _settings.MirrorOrder = ws.Devices.Select(d => d.DeviceKey).ToList();
@@ -1035,7 +1063,7 @@ public partial class MainViewModel : ObservableObject
                 if (dev is { IsReady: true } && !_voluntaryDisconnects.Contains(dev.Serial)
                     && !_voluntaryDisconnects.Contains(wd.DeviceKey) && !_failedReconnects.Contains(wd.DeviceKey))
                     await ConnectDeviceAsync(dev, wd,
-                        userId is { } u ? new MirrorAccount(u, wd.AccountName ?? string.Format(L("account.default_name"), u)) : null);
+                        userId is { } u ? new MirrorAccount(u, AccountNameFor(dev, u) ?? wd.AccountName ?? string.Format(L("account.default_name"), u)) : null);
             }
             RefreshMissingDevices();
         }
@@ -1060,7 +1088,7 @@ public partial class MainViewModel : ObservableObject
                       : null);
         if (dev is { IsReady: true })
             await ConnectDeviceAsync(dev, wd,
-                userId is { } u ? new MirrorAccount(u, wd.AccountName ?? string.Format(L("account.default_name"), u)) : null);
+                userId is { } u ? new MirrorAccount(u, AccountNameFor(dev, u) ?? wd.AccountName ?? string.Format(L("account.default_name"), u)) : null);
         else
             Status = string.Format(L("st.not_detected"), item.Name);
     }
@@ -1834,7 +1862,7 @@ public partial class MainViewModel : ObservableObject
         var device = m.Device;
         var prefs = m.Prefs;
         var account = m.AccountUserId is { } uid
-            ? new MirrorAccount(uid, m.AccountName ?? string.Format(L("account.default_name"), uid))
+            ? new MirrorAccount(uid, AccountNameFor(device, uid) ?? m.AccountName ?? string.Format(L("account.default_name"), uid))
             : null;
         await RemoveMirrorInternalAsync(m);
         await ConnectDeviceAsync(device, prefs, account);
@@ -2023,6 +2051,21 @@ public partial class MainViewModel : ObservableObject
                 };
 
             var known = Devices.Where(d => d.IsReady).ToList();
+            foreach (var d in list.Where(d => d.IsReady && !known.Any(k => k.DeviceKey == d.DeviceKey)))
+            {
+                foreach (var key in _failedReconnects.ToList())
+                {
+                    var (baseKey, uid) = SplitIdentityKey(key);
+                    if (baseKey != d.DeviceKey && !d.MatchesSerial(baseKey))
+                        continue;
+                    _failedReconnects.Remove(key);
+                    var acc = uid is { } u
+                        ? new MirrorAccount(u, AccountNameFor(d, u) ?? string.Format(L("account.default_name"), u))
+                        : null;
+                    Status = string.Format(L("st.usb_reconnect"), d.ShortName);
+                    AppLogger.Forget(ConnectDeviceAsync(d, null, acc));
+                }
+            }
             foreach (var d in list.Where(d => d.IsReady && !known.Any(k => k.SharesIdentity(d))))
                 AddActivity("phone", L("act.device_detected"), d.ShortName);
 
@@ -2521,7 +2564,8 @@ public partial class MainViewModel : ObservableObject
         {
             if (!profile.Running)
                 await AdbService.StartUserAsync(device.Serial, profile.Id);
-            await ConnectDeviceAsync(device, null, new MirrorAccount(profile.Id, profile.Name));
+            await ConnectDeviceAsync(device, null,
+                new MirrorAccount(profile.Id, AccountNameFor(device, profile.Id) ?? profile.Name));
         }
         catch (Exception ex)
         {
@@ -2685,6 +2729,70 @@ public partial class MainViewModel : ObservableObject
         => AvatarKeyFor(device, userId) is { } k
             ? Path.Combine(AppContext.BaseDirectory, "assets", "breeds", k + ".png") : null;
 
+    private string? AccountNameFor(AdbDevice device, int userId)
+        => _settings.Devices.TryGetValue(device.DeviceKey, out var dp)
+            && dp.AccountNames.TryGetValue(userId, out var n) ? n : null;
+
+    public void CommitAccountRename(AccountItem item)
+    {
+        item.IsRenaming = false;
+        var uid = item.Profile?.Id ?? 0;
+        var trimmed = item.EditName.Trim();
+        var original = item.Profile?.Name ?? L("acct.primary");
+        var name = trimmed.Length == 0 || trimmed == original ? null : trimmed;
+        if (!_settings.Devices.TryGetValue(item.Device.DeviceKey, out var dp))
+            _settings.Devices[item.Device.DeviceKey] = dp = new DevicePrefs();
+        if (name == null)
+            dp.AccountNames.Remove(uid);
+        else
+            dp.AccountNames[uid] = name;
+        SaveNow();
+        item.SetDisplayName(name ?? original);
+        var m = Mirrors.FirstOrDefault(x => x.Device.SharesIdentity(item.Device)
+            && (x.AccountUserId ?? 0) == uid);
+        if (m != null && uid != 0)
+        {
+            m.AccountName = name ?? original;
+            m.DeviceName = $"{item.Device.ShortName} · {m.AccountName}";
+        }
+        _profilesCache.Remove(item.Device.DeviceKey);
+        _hubKey = null;
+        AppLogger.Forget(RefreshHubAccountsAsync(item.Device));
+    }
+
+    private void TrackPlaySeconds(MirrorInstance m, TimeSpan dur)
+    {
+        if (dur.TotalSeconds < 30)
+            return;
+        var uid = m.AccountUserId ?? 0;
+        var now = DateTime.Now;
+        var key = $"{uid}|{System.Globalization.ISOWeek.GetYear(now)}-W{System.Globalization.ISOWeek.GetWeekOfYear(now):D2}";
+        if (!_settings.Devices.TryGetValue(m.Device.DeviceKey, out var dp))
+            _settings.Devices[m.Device.DeviceKey] = dp = new DevicePrefs();
+        dp.AccountWeekSeconds[key] = dp.AccountWeekSeconds.TryGetValue(key, out var s)
+            ? s + (long)dur.TotalSeconds : (long)dur.TotalSeconds;
+        ScheduleSave();
+    }
+
+    private string? PlayTextFor(AdbDevice device, int userId)
+    {
+        var now = DateTime.Now;
+        var prefix = $"{userId}|{System.Globalization.ISOWeek.GetYear(now)}-W{System.Globalization.ISOWeek.GetWeekOfYear(now):D2}";
+        var secs = 0L;
+        if (_settings.Devices.TryGetValue(device.DeviceKey, out var dp))
+            dp.AccountWeekSeconds.TryGetValue(prefix, out secs);
+        var live = Mirrors.FirstOrDefault(m => m.IsConnected
+            && m.Device.SharesIdentity(device) && (m.AccountUserId ?? 0) == userId);
+        if (live?.ConnectedSince is { } cs)
+            secs += (long)(now - cs).TotalSeconds;
+        if (secs < 60)
+            return null;
+        var h = secs / 3600;
+        return h > 0
+            ? string.Format(L("acct.play.h"), h)
+            : string.Format(L("acct.play.min"), Math.Max(1, secs / 60));
+    }
+
     private void SetAvatarKey(AdbDevice device, int userId, string key)
     {
         if (!_settings.Devices.TryGetValue(device.DeviceKey, out var dp))
@@ -2728,7 +2836,11 @@ public partial class MainViewModel : ObservableObject
             PendingAvatarKey = BreedAvatars[Random.Shared.Next(BreedAvatars.Count)].Key;
         AccountsRunningItems.Clear();
         AccountsStoppedItems.Clear();
-        AccountsRunningItems.Add(new AccountItem(device, null) { AvatarKey = AvatarKeyFor(device, 0) });
+        var primary = new AccountItem(device, null) { AvatarKey = AvatarKeyFor(device, 0) };
+        if (AccountNameFor(device, 0) is { } pn)
+            primary.SetDisplayName(pn);
+        primary.PlayText = PlayTextFor(device, 0);
+        AccountsRunningItems.Add(primary);
         UpdateAccountGroups();
         try
         {
@@ -2737,8 +2849,13 @@ public partial class MainViewModel : ObservableObject
             AccountsSlotsLeft = (await GetLimitsAsync(device))?.ProfileSlotsLeft ?? -1;
             NewAccountName = string.Format(L("account.default_name"), profiles.Count + 2);
             foreach (var p in profiles)
-                (p.Running ? AccountsRunningItems : AccountsStoppedItems)
-                    .Add(new AccountItem(device, p) { AvatarKey = AvatarKeyFor(device, p.Id) });
+            {
+                var it = new AccountItem(device, p) { AvatarKey = AvatarKeyFor(device, p.Id) };
+                if (AccountNameFor(device, p.Id) is { } cn)
+                    it.SetDisplayName(cn);
+                it.PlayText = PlayTextFor(device, p.Id);
+                (p.Running ? AccountsRunningItems : AccountsStoppedItems).Add(it);
+            }
         }
         finally
         {
@@ -2773,7 +2890,13 @@ public partial class MainViewModel : ObservableObject
         }
         _hubKey = device.DeviceKey;
         HubAccounts = profiles
-            .Select(p => new AccountItem(device, p) { AvatarKey = AvatarKeyFor(device, p.Id) })
+            .Select(p =>
+            {
+                var it = new AccountItem(device, p) { AvatarKey = AvatarKeyFor(device, p.Id) };
+                if (AccountNameFor(device, p.Id) is { } cn)
+                    it.SetDisplayName(cn);
+                return it;
+            })
             .ToList();
         HubAccountsText = HubAccounts.Count == 0 ? ""
             : HubAccounts.Count == 1
@@ -3104,6 +3227,7 @@ public partial class MainViewModel : ObservableObject
             AddActivity("dismiss", L("act.mirror_stopped"), m.Device.ShortName);
             if (m.SessionDuration is { } dur && dur.TotalSeconds >= 30)
             {
+                TrackPlaySeconds(m, dur);
                 var h = (int)dur.TotalHours;
                 var durs = h > 0 ? $"{h}h{dur.Minutes:D2}" : $"{dur.Minutes}min{dur.Seconds:D2}";
                 var report = string.Format(L("act.session_report"),
@@ -3114,6 +3238,11 @@ public partial class MainViewModel : ObservableObject
             }
             _apiHost.Publish("mirror.disconnected",
                 new { name = m.DeviceName, serial = m.Device.Serial, manual = m.ManualDisconnect });
+            if (ReferenceEquals(_pipMirror, m))
+            {
+                _pipMirror = null;
+                PipChanged?.Invoke();
+            }
             Mirrors.Remove(m);
             if (Mirrors.Count == 0)
                 _health.Stop();

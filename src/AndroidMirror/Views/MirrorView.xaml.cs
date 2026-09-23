@@ -69,6 +69,8 @@ public partial class MirrorView : UserControl
         CompositionTarget.Rendering += OnRendering;
     }
 
+    public ImageSource? VideoSource => VideoImage.Source;
+
     public void AttachDecoder(IFrameSource decoder)
     {
         _decoder = decoder;

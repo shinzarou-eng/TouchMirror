@@ -34,6 +34,8 @@ public sealed class DevicePrefs
     public bool? AdaptiveBitrate { get; set; }
     public List<int> OwnedUserIds { get; set; } = new();
     public Dictionary<int, string> AccountAvatars { get; set; } = new();
+    public Dictionary<int, string> AccountNames { get; set; } = new();
+    public Dictionary<string, long> AccountWeekSeconds { get; set; } = new();
     public Dictionary<string, double[]> OverlayPositions { get; set; } = new();
 }
 
