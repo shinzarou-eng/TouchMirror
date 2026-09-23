@@ -290,6 +290,7 @@ public partial class MainViewModel : ObservableObject
             .Select(e => e.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase)
                 ? Path.GetFileNameWithoutExtension(e) : e).ToList();
         _apiHost = new LocalApiHost(this);
+        UpdateService.Log += Log;
         _discord = new DiscordPresence(() => Mirrors.Count(m => m.IsConnected), Log);
         _apiHost.PluginEvent += json =>
         {

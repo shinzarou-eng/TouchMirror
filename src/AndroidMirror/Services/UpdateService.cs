@@ -37,6 +37,8 @@ public static class UpdateService
 
     public static UpdateInfo? Pending { get; private set; }
 
+    public static event Action<string>? Log;
+
 #if DEBUG
     public const string DevSuffix = "-dev";
 #else
@@ -63,8 +65,13 @@ public static class UpdateService
                 if (Pending != null
                     && Version.TryParse(Pending.TargetFullRelease.Version.ToString(), out var pv))
                     return (pv, $"{RepoUrl}/releases/latest", true);
+                Log?.Invoke("update: aucune maj sur le canal Velopack");
             }
-            catch { }
+            catch (Exception ex) { Log?.Invoke($"update: check Velopack en échec — {ex.Message}"); }
+        }
+        else
+        {
+            Log?.Invoke("update: app non installée — canal Velopack inactif");
         }
         return await CheckGithubAsync(ct) is { } l ? (l.Version, l.Url, false) : null;
     }
@@ -82,8 +89,10 @@ public static class UpdateService
 
     public static void ApplyOnExit()
     {
-        if (Mgr != null && Pending != null)
-            Mgr.WaitExitThenApplyUpdates(Pending.TargetFullRelease);
+        if (Mgr == null || Pending == null)
+            return;
+        try { Mgr.WaitExitThenApplyUpdates(Pending.TargetFullRelease); }
+        catch (Exception ex) { Log?.Invoke($"update: apply en échec — {ex.Message}"); }
     }
 
     private static async Task<(Version Version, string Url)?> CheckGithubAsync(CancellationToken ct)
