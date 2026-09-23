@@ -76,16 +76,20 @@ public partial class App : Application
                 "halloween" => System.Windows.Media.Color.FromRgb(0xE0, 0x7B, 0x2C),
                 _ => System.Windows.Media.Color.FromRgb(0xC9, 0xD1, 0xD9),
             };
-            Wpf.Ui.Appearance.ApplicationThemeManager.Apply(
-                _themeId == "clair" ? Wpf.Ui.Appearance.ApplicationTheme.Light : Wpf.Ui.Appearance.ApplicationTheme.Dark);
-            Wpf.Ui.Appearance.ApplicationAccentColorManager.Apply(accent);
+            try
+            {
+                Wpf.Ui.Appearance.ApplicationThemeManager.Apply(
+                    _themeId == "clair" ? Wpf.Ui.Appearance.ApplicationTheme.Light : Wpf.Ui.Appearance.ApplicationTheme.Dark);
+                Wpf.Ui.Appearance.ApplicationAccentColorManager.Apply(accent);
+            }
+            catch (Exception ex) { AppLogger.Write($"theme wpfui: {ex.Message}"); }
             var dicts = Resources.MergedDictionaries;
             for (var i = dicts.Count - 1; i >= 0; i--)
                 if (dicts[i].Source?.OriginalString.Contains("/Themes/") == true)
                     dicts.RemoveAt(i);
             dicts.Add(new ResourceDictionary { Source = new Uri(source, UriKind.Relative) });
         }
-        catch { }
+        catch (Exception ex) { AppLogger.Write($"theme: {ex.Message}"); }
     }
 
     private static void EnsureFfmpegExtracted()

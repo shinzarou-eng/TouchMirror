@@ -1412,8 +1412,13 @@ public partial class MainViewModel : ObservableObject
             {
                 if (p.Running)
                     p.Stop();
-                if (Path.GetFileName(p.FilePath).Equals("plugin.js", StringComparison.OrdinalIgnoreCase))
-                    Directory.Delete(Path.GetDirectoryName(p.FilePath)!, true);
+                var pdir = Path.GetDirectoryName(p.FilePath)!;
+                var inSubdir = !Path.GetFullPath(pdir).TrimEnd(Path.DirectorySeparatorChar)
+                    .Equals(Path.GetFullPath(UserPluginsDir).TrimEnd(Path.DirectorySeparatorChar),
+                        StringComparison.OrdinalIgnoreCase);
+                if (inSubdir
+                    && Path.GetFileName(p.FilePath).Equals("plugin.js", StringComparison.OrdinalIgnoreCase))
+                    Directory.Delete(pdir, true);
                 else
                     File.Delete(p.FilePath);
             }
@@ -1843,9 +1848,10 @@ public partial class MainViewModel : ObservableObject
             UpdateProgress = -1;
             UpdateReady = true;
         }
-        catch
+        catch (Exception ex)
         {
             UpdateProgress = -1;
+            Log($"update: téléchargement en échec — {ex.Message}");
         }
     }
 

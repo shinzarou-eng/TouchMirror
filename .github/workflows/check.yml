@@ -1,0 +1,25 @@
+name: check
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Re-sign plugins
+        run: |
+          tools/build-marketplace.ps1
+          tools/sign-plugins.ps1
+
+      - name: Signatures à jour ?
+        run: |
+          $dirty = git status --porcelain -- marketplace/index.json src/AndroidMirror/Services/VerifiedPlugins.cs
+          if ($dirty) {
+            git diff -- marketplace/index.json src/AndroidMirror/Services/VerifiedPlugins.cs | Select-Object -First 40
+            throw "signatures plugins perimees — lancer tools/build-marketplace.ps1 et tools/sign-plugins.ps1 puis commit"
+          }

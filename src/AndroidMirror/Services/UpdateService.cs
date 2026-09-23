@@ -1,6 +1,5 @@
 using System.Net.Http;
 using System.Reflection;
-using System.Text.Json;
 using Velopack;
 using Velopack.Sources;
 
@@ -9,8 +8,6 @@ namespace TouchMirror.Services;
 public static class UpdateService
 {
     private const string RepoUrl = "https://github.com/shinzarou-eng/TouchMirror";
-    private const string LatestReleaseApi =
-        "https://api.github.com/repos/shinzarou-eng/TouchMirror/releases/latest";
 
     public static Version CurrentVersion { get; } =
         Version.TryParse(
@@ -112,12 +109,11 @@ public static class UpdateService
     {
         try
         {
-            using var http = new HttpClient();
+            using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });
             http.DefaultRequestHeaders.UserAgent.ParseAdd("TouchMirror");
             http.Timeout = TimeSpan.FromSeconds(8);
-            var json = await http.GetStringAsync(LatestReleaseApi, ct);
-            using var doc = JsonDocument.Parse(json);
-            var tag = doc.RootElement.GetProperty("tag_name").GetString() ?? "";
+            using var resp = await http.GetAsync($"{RepoUrl}/releases/latest", ct);
+            var tag = resp.Headers.Location?.Segments.LastOrDefault()?.TrimEnd('/') ?? "";
             var url = $"{RepoUrl}/releases/latest/download/TouchMirror-win-Setup.exe";
             if (!Version.TryParse(tag.TrimStart('v', 'V'), out var latest))
                 return null;

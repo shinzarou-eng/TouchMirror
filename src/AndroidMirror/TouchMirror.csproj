@@ -40,4 +40,11 @@
     <None Include="..\..\lang\*.json" Link="lang\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <Target Name="SignPlugins" BeforeTargets="CoreCompile"
+          Inputs="$(MSBuildProjectDirectory)\..\..\marketplace\**\plugin.js;$(MSBuildProjectDirectory)\..\..\marketplace\**\plugin.json;$(MSBuildProjectDirectory)\..\..\plugins\**\*.js;$(MSBuildProjectDirectory)\..\..\plugins\**\*.json"
+          Outputs="$(MSBuildProjectDirectory)\..\..\marketplace\index.json;$(MSBuildProjectDirectory)\Services\VerifiedPlugins.cs">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\tools\build-marketplace.ps1&quot;" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\tools\sign-plugins.ps1&quot;" />
+  </Target>
+
 </Project>
