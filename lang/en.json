@@ -306,7 +306,7 @@
   "maj_installer": "Install",
   "maj_redemarrer": "Restart",
   "maj_sous_delta": "Incremental download — auto relaunch",
-  "maj_sous_web": "Opens in your browser",
+  "maj_sous_web": "Downloads the installer — auto-updates after that",
   "marketplace": "Marketplace",
   "meme_reseau_wi_fi_affichage_seul_sans_le_control": "Same Wi-Fi network — display only without Bluetooth control",
   "menu.del_account": "Delete this account",

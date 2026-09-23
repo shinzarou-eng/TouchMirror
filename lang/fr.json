@@ -306,7 +306,7 @@
   "maj_installer": "Installer",
   "maj_redemarrer": "Redémarrer",
   "maj_sous_delta": "Téléchargement incrémental — relance automatique",
-  "maj_sous_web": "S'ouvre dans le navigateur",
+  "maj_sous_web": "Télécharge l’installateur — maj auto ensuite",
   "marketplace": "Marketplace",
   "meme_reseau_wi_fi_affichage_seul_sans_le_control": "Même réseau Wi-Fi — affichage seul sans le contrôle Bluetooth",
   "menu.del_account": "Supprimer ce compte",

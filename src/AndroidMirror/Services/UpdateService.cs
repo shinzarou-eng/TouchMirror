@@ -103,7 +103,7 @@ public static class UpdateService
             var json = await http.GetStringAsync(LatestReleaseApi, ct);
             using var doc = JsonDocument.Parse(json);
             var tag = doc.RootElement.GetProperty("tag_name").GetString() ?? "";
-            var url = doc.RootElement.GetProperty("html_url").GetString() ?? "";
+            var url = $"{RepoUrl}/releases/latest/download/TouchMirror-win-Setup.exe";
             if (!Version.TryParse(tag.TrimStart('v', 'V'), out var latest))
                 return null;
             return latest > CurrentVersion ? (latest, url) : null;
