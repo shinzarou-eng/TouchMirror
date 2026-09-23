@@ -68,11 +68,9 @@ public static class UpdateService
                 Log?.Invoke("update: aucune maj sur le canal Velopack");
             }
             catch (Exception ex) { Log?.Invoke($"update: check Velopack en échec — {ex.Message}"); }
+            return null;
         }
-        else
-        {
-            Log?.Invoke("update: app non installée — canal Velopack inactif");
-        }
+        Log?.Invoke("update: app non installée — canal Velopack inactif");
         return await CheckGithubAsync(ct) is { } l ? (l.Version, l.Url, false) : null;
     }
 
