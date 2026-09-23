@@ -38,6 +38,7 @@
     <None Include="..\..\plugins\**\*.js;..\..\plugins\**\*.json" Link="assets\plugins\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\ffmpeg.zip" Link="assets\ffmpeg.zip" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\ffmpeg\*.dll" Link="assets\ffmpeg\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\assets\ffmpeg')" />
+    <None Include="..\..\assets\breeds\*.png" Link="assets\breeds\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\lang\*.json" Link="lang\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

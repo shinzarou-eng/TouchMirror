@@ -107,6 +107,11 @@ public sealed class AirPlaySession
                 await Respond(req, 200, PlistHeaders(), PlistCodec.WriteXml(BuildInfoPlist()), ct);
                 break;
 
+            case "POST" when path == "/pair-pin-start":
+                _pairing.StartPinPairing();
+                await Respond(req, 200, ct: ct);
+                break;
+
             case "POST" when path is "/pair-setup" or "/pair-setup-pin":
                 var setupResp = _pairing.HandlePairSetup(req.Body);
                 if (setupResp == null || setupResp.Length == 0)

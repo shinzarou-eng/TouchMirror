@@ -267,6 +267,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         var dev = SharedDevice!;
 
         _srvY?.Dispose(); _srvUV?.Dispose(); _nv12?.Dispose();
+        _srvY = null; _srvUV = null; _nv12 = null;
         _frameRtv?.Dispose(); _frame?.Dispose(); _bgra?.Dispose();
         _preSrv?.Dispose(); _preRtv?.Dispose(); _pre?.Dispose();
         _frameRtv = null; _frame = null; _bgra = null;
@@ -641,8 +642,16 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         }
     }
 
+    private static void Drop<T>(ref T? obj) where T : class, IDisposable
+    {
+        try { obj?.Dispose(); } catch { }
+        obj = null;
+    }
+
     public void Dispose()
     {
+        if (_disposed)
+            return;
         _disposed = true;
         if (_image != null)
         {
@@ -653,15 +662,17 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         {
             foreach (var e in _srcCache.Values)
             {
-                e.y?.Dispose(); e.uv?.Dispose(); e.tex.Dispose();
+                try { e.y?.Dispose(); } catch { }
+                try { e.uv?.Dispose(); } catch { }
+                try { e.tex.Dispose(); } catch { }
             }
             _srcCache.Clear();
-            _srvY?.Dispose(); _srvUV?.Dispose(); _nv12?.Dispose();
-            _frameRtv?.Dispose(); _frame?.Dispose(); _bgra?.Dispose();
-            _preSrv?.Dispose(); _preRtv?.Dispose(); _pre?.Dispose();
-            _vs?.Dispose(); _ps?.Dispose(); _psFxaa?.Dispose(); _sampler?.Dispose();
-            _cb?.Dispose(); _cbFxaa?.Dispose();
+            Drop(ref _srvY); Drop(ref _srvUV); Drop(ref _nv12);
+            Drop(ref _frameRtv); Drop(ref _frame); Drop(ref _bgra);
+            Drop(ref _preSrv); Drop(ref _preRtv); Drop(ref _pre);
+            Drop(ref _vs); Drop(ref _ps); Drop(ref _psFxaa); Drop(ref _sampler);
+            Drop(ref _cb); Drop(ref _cbFxaa);
         }
-        _tex9?.Dispose();
+        Drop(ref _tex9);
     }
 }

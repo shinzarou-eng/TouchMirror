@@ -44,7 +44,7 @@ public sealed partial class IosMirrorInstance : MirrorInstance
                 DeviceName = "iPhone (AirPlay)";
                 View.SetWaitingOverlay(true);
             });
-        service.Log += m => RaiseLog(m);
+
 
         var already = service.ConnectedDeviceName;
         return View.Dispatcher.InvokeAsync(() =>

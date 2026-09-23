@@ -2,7 +2,7 @@ name: discord-stats
 
 on:
   schedule:
-    - cron: "23 */6 * * *"
+    - cron: "*/20 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -12,17 +12,26 @@ jobs:
   stats:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: Compute totals
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TOTAL=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" \
             "https://api.github.com/repos/${{ github.repository }}/releases?per_page=100" \
-            | jq '[.[].assets[].download_count] | add // 0')
+            | jq '[.[].assets[] | select(.name | test("^TouchMirror-win-(Setup\\.exe|x64\\.zip)$")) | .download_count] | add // 0')
           STARS=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" \
             "https://api.github.com/repos/${{ github.repository }}" | jq '.stargazers_count')
           echo "total=$TOTAL" >> "$GITHUB_ENV"
           echo "stars=$STARS" >> "$GITHUB_ENV"
+
+      - name: Count live sessions
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          CH_PINGS: "1552342316784812092"
+        run: |
+          node tools/presence-count.mjs | tee /dev/stderr >> "$GITHUB_ENV"
 
       - name: Sync Discord stats channels
         env:
@@ -45,5 +54,9 @@ jobs:
                 "https://discord.com/api/v10/channels/$ch" -o /dev/null
             fi
           }
-          rename "$CH_STATS" "⭐ ${{ env.stars }} stars · ⬇️ ${{ env.total }} dl"
+          STATS="⭐ ${{ env.stars }} · ⬇️ ${{ env.total }} dl"
+          if [ -n "${{ env.online }}" ]; then
+            STATS="$STATS · 🟢 ${{ env.online }} en ligne"
+          fi
+          rename "$CH_STATS" "$STATS"
           rename "$CH_MEMBERS" "👥・$MEMBERS membres"

@@ -33,6 +33,7 @@ public sealed class DevicePrefs
     public string? NewDisplay { get; set; }
     public bool? AdaptiveBitrate { get; set; }
     public List<int> OwnedUserIds { get; set; } = new();
+    public Dictionary<int, string> AccountAvatars { get; set; } = new();
     public Dictionary<string, double[]> OverlayPositions { get; set; } = new();
 }
 
@@ -90,6 +91,7 @@ public sealed class AppSettings
     public bool ShowSettings { get; set; }
     public bool LocalApiEnabled { get; set; }
     public bool DiscordPresence { get; set; }
+    public bool AnonymousStats { get; set; } = true;
     public int LocalApiPort { get; set; } = 47613;
     public string? LocalApiToken { get; set; }
     public string? LastSelectedDeviceKey { get; set; }

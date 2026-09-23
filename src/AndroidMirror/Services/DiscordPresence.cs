@@ -6,6 +6,8 @@ using System.Text.Json.Nodes;
 
 namespace TouchMirror.Services;
 
+public sealed record PresenceSnapshot(int Mirrors, string? Device, string? Account, int Plugins, string? Game);
+
 public sealed class DiscordPresence : IDisposable
 {
     private const string ClientId = "1549406208774115339";
@@ -14,7 +16,7 @@ public sealed class DiscordPresence : IDisposable
     private const int OpClose = 2;
     private const int OpPing = 3;
 
-    private readonly Func<int> _mirrorCount;
+    private readonly Func<PresenceSnapshot> _snapshot;
     private readonly Action<string> _log;
     private Thread? _thread;
     private CancellationTokenSource? _cts;
@@ -22,9 +24,9 @@ public sealed class DiscordPresence : IDisposable
     private long _startTs;
     private bool _announced;
 
-    public DiscordPresence(Func<int> mirrorCount, Action<string> log)
+    public DiscordPresence(Func<PresenceSnapshot> snapshot, Action<string> log)
     {
-        _mirrorCount = mirrorCount;
+        _snapshot = snapshot;
         _log = log;
     }
 
@@ -130,12 +132,15 @@ public sealed class DiscordPresence : IDisposable
 
     private void SendActivity()
     {
-        var n = Math.Max(0, _mirrorCount());
+        var s = _snapshot();
+        var n = Math.Max(0, s.Mirrors);
+        var state = n == 0 ? "En attente d'un téléphone" : BuildState(s, n);
         var activity = new JsonObject
         {
-            ["details"] = "Joue à Dofus Touch sur PC",
-            ["state"] = n == 0 ? "En attente d'un téléphone"
-                : n == 1 ? "1 miroir actif" : $"{n} miroirs — multicompte",
+            ["details"] = !string.IsNullOrWhiteSpace(s.Game)
+                ? $"Joue à {s.Game}"
+                : "Mirroring Android sur PC",
+            ["state"] = state.Length > 128 ? state[..128] : state,
             ["timestamps"] = new JsonObject { ["start"] = _startTs },
             ["assets"] = new JsonObject
             {
@@ -155,6 +160,22 @@ public sealed class DiscordPresence : IDisposable
             },
         };
         WriteFrame(_pipe!, OpFrame, payload.ToJsonString());
+    }
+
+    private static string BuildState(PresenceSnapshot s, int n)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(s.Device))
+            parts.Add(s.Device!);
+        if (!string.IsNullOrWhiteSpace(s.Account))
+            parts.Add(s.Account!);
+        if (parts.Count == 0)
+            parts.Add(n == 1 ? "1 miroir actif" : $"{n} miroirs — multicompte");
+        else if (n > 1)
+            parts.Add($"{n} miroirs");
+        if (s.Plugins > 0)
+            parts.Add(s.Plugins == 1 ? "1 plugin actif" : $"{s.Plugins} plugins actifs");
+        return string.Join(" · ", parts);
     }
 
     private static void WriteFrame(NamedPipeClientStream p, int op, string json)

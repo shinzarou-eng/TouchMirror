@@ -358,6 +358,24 @@ public static class AdbService
         catch { return (null, null); }
     }
 
+    private static readonly Regex FocusedPkg = new(
+        @"mCurrentFocus=Window\{[^ ]+ (?:u\d+ )?([A-Za-z0-9._]+)/", RegexOptions.Compiled);
+    private static readonly Regex ResumedPkg = new(
+        @"topResumedActivity=ActivityRecord\{[^ ]+ [^ ]+ ([A-Za-z0-9._]+)/", RegexOptions.Compiled);
+
+    public static async Task<string?> GetForegroundPackageAsync(string serial, CancellationToken ct = default)
+    {
+        try
+        {
+            var output = await RunAsync(
+                $"-s {S(serial)} shell \"dumpsys window | grep mCurrentFocus; dumpsys activity activities | grep topResumedActivity\"", ct);
+            var m = FocusedPkg.Match(output);
+            if (!m.Success) m = ResumedPkg.Match(output);
+            return m.Success ? m.Groups[1].Value : null;
+        }
+        catch { return null; }
+    }
+
     internal static string Q(string path)
     {
         if (path.Any(c => c is '"' or '\r' or '\n'))
@@ -491,7 +509,7 @@ public static class AdbService
                     continue;
                 }
                 var tm = Regex.Match(line, @"Type:\s*(\S+)");
-                if (tm.Success && lastId >= 0)
+                if (tm.Success && lastId >= 0 && !types.ContainsKey(lastId))
                     types[lastId] = tm.Groups[1].Value;
             }
         }
@@ -514,6 +532,85 @@ public static class AdbService
                 m.Groups[3].Value.Contains("running"), Type: t));
         }
         return list;
+    }
+
+    public sealed record DeviceLimits(int MaxUsers, int TotalUsers, int MaxRunningUsers,
+        int CloneCap, int ManagedCap, int UsedClone, int UsedManaged, long MemKb)
+    {
+        private int TypeSlots(int cap, int used)
+            => cap < 0 ? int.MaxValue
+                : used > cap ? MaxUsers
+                : cap - used;
+        public int ProfileSlotsLeft
+            => Math.Max(0, Math.Min(MaxUsers - TotalUsers,
+                TypeSlots(CloneCap, UsedClone) + TypeSlots(ManagedCap, UsedManaged)));
+        private int RamCap
+            => MemKb <= 0 ? 2
+                : MemKb < 3_000_000 ? 1
+                : MemKb < 5_000_000 ? 2
+                : MemKb < 7_000_000 ? 3
+                : 4;
+        public int MaxAccountMirrors => Math.Max(1, Math.Min(MaxRunningUsers - 1, RamCap));
+    }
+
+    public static async Task<DeviceLimits?> GetDeviceLimitsAsync(string serial, CancellationToken ct = default)
+    {
+        try
+        {
+            var dump = await RunAsync($"-s {S(serial)} shell dumpsys user", ct);
+            var maxUsers = 0;
+            var totalUsers = 0;
+            var usedClone = 0;
+            var usedManaged = 0;
+            var caps = new Dictionary<string, int>();
+            var capsParent = new Dictionary<string, int>();
+            var lastId = -1;
+            var seenType = new HashSet<int>();
+            string? typeBlock = null;
+            foreach (var line in dump.Split('\n'))
+            {
+                var mm = Regex.Match(line, @"Max users:\s*(\d+)");
+                if (mm.Success) { maxUsers = int.Parse(mm.Groups[1].Value); continue; }
+                var tb = Regex.Match(line, @"^\s+(android\.os\.usertype\.\S+):\s*$");
+                if (tb.Success) { typeBlock = tb.Groups[1].Value; continue; }
+                var mp = Regex.Match(line, @"mMaxAllowedPerParent:\s*(-?\d+)");
+                if (mp.Success && typeBlock != null)
+                    capsParent[typeBlock] = int.Parse(mp.Groups[1].Value);
+                var ma = Regex.Match(line, @"mMaxAllowed:\s*(-?\d+)");
+                if (ma.Success && typeBlock != null)
+                    caps[typeBlock] = int.Parse(ma.Groups[1].Value);
+                var um = Regex.Match(line, @"UserInfo\{(\d+):");
+                if (um.Success) { lastId = int.Parse(um.Groups[1].Value); totalUsers++; typeBlock = null; continue; }
+                var tm = Regex.Match(line, @"Type:\s*(\S+)");
+                if (tm.Success && lastId >= 0 && seenType.Add(lastId))
+                {
+                    var t = tm.Groups[1].Value;
+                    if (t.EndsWith("profile.CLONE", StringComparison.Ordinal)) usedClone++;
+                    else if (t.EndsWith("profile.MANAGED", StringComparison.Ordinal)) usedManaged++;
+                }
+            }
+            var running = 0;
+            var act = await RunAsync($"-s {S(serial)} shell \"dumpsys activity | grep -i mMaxRunningUsers\"", ct);
+            var rm = Regex.Match(act, @"mMaxRunningUsers:\s*(\d+)");
+            if (rm.Success) running = int.Parse(rm.Groups[1].Value);
+            long memKb = 0;
+            var mem = await RunAsync($"-s {S(serial)} shell \"cat /proc/meminfo | grep MemTotal\"", ct);
+            var km = Regex.Match(mem, @"MemTotal:\s*(\d+)\s*kB");
+            if (km.Success) memKb = long.Parse(km.Groups[1].Value);
+            int CapFor(string t)
+            {
+                if (capsParent.TryGetValue(t, out var pp) && pp >= 0) return pp;
+                return caps.TryGetValue(t, out var ga) ? ga : -1;
+            }
+            return new DeviceLimits(
+                maxUsers > 0 ? maxUsers : 4,
+                totalUsers,
+                running > 0 ? running : 3,
+                CapFor("android.os.usertype.profile.CLONE"),
+                CapFor("android.os.usertype.profile.MANAGED"),
+                usedClone, usedManaged, memKb);
+        }
+        catch { return null; }
     }
 
     private static readonly Regex ProfileNameOk = new(@"^[\p{L}\p{N} _\-]{1,32}$", RegexOptions.Compiled);
@@ -546,6 +643,14 @@ public static class AdbService
         var output = await RunAsync($"-s {S(serial)} shell pm install-existing --user {userId} {packageName}", ct);
         if (!output.Contains("installed for user"))
             throw new InvalidOperationException(string.Format(LocalizationService.Get("ex.install_denied"), output.Trim()));
+    }
+
+    public static async Task<bool> HasPackageForUserAsync(string serial, int userId, string packageName, CancellationToken ct = default)
+    {
+        if (!PackageOk.IsMatch(packageName))
+            return false;
+        var output = await RunAsync($"-s {S(serial)} shell pm list packages --user {userId}", ct);
+        return output.Contains($"package:{packageName}", StringComparison.Ordinal);
     }
 
     public static async Task StartUserAsync(string serial, int userId, CancellationToken ct = default)
