@@ -67,4 +67,7 @@
     <SolidColorBrush x:Key="MutedBrush" Color="#657284" />
     <SolidColorBrush x:Key="ScrollbarThumbBrush" Color="#2EC4E0F8" />
     <SolidColorBrush x:Key="ScrollbarThumbHoverBrush" Color="#52C4E0F8" />
+
+    <SolidColorBrush x:Key="DofusAccentBrush" Color="#C9D1D9" />
+    <SolidColorBrush x:Key="DofusAccentDimBrush" Color="#8B95A1" />
 </ResourceDictionary>

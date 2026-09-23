@@ -26,25 +26,25 @@
     <SolidColorBrush x:Key="AppGlassWindowBrush" Color="#B3F7F8FA" />
     <SolidColorBrush x:Key="AppGlassSurfaceBrush" Color="#E6FBFBFC" />
     <SolidColorBrush x:Key="AppGlassAltBrush" Color="#F2FAFBFC" />
-    <SolidColorBrush x:Key="AppBorderBrush" Color="#0F000000" />
-    <SolidColorBrush x:Key="AppBorderSubtleBrush" Color="#08000000" />
-    <SolidColorBrush x:Key="AppBorderStrongBrush" Color="#1F000000" />
+    <SolidColorBrush x:Key="AppBorderBrush" Color="#17000000" />
+    <SolidColorBrush x:Key="AppBorderSubtleBrush" Color="#0D000000" />
+    <SolidColorBrush x:Key="AppBorderStrongBrush" Color="#29000000" />
     <SolidColorBrush x:Key="SurfaceFaintBrush" Color="#07000000" />
     <SolidColorBrush x:Key="IconTileBrush" Color="#0C000000" />
     <SolidColorBrush x:Key="CodeBackgroundBrush" Color="#0A000000" />
-    <SolidColorBrush x:Key="SageBrush" Color="#2E9A6B" />
+    <SolidColorBrush x:Key="SageBrush" Color="#1F7A50" />
 
     <SolidColorBrush x:Key="TextFillColorPrimaryBrush" Color="#E4000000" />
-    <SolidColorBrush x:Key="TextFillColorSecondaryBrush" Color="#9B000000" />
-    <SolidColorBrush x:Key="TextFillColorTertiaryBrush" Color="#72000000" />
-    <SolidColorBrush x:Key="TextFillColorDisabledBrush" Color="#5C000000" />
+    <SolidColorBrush x:Key="TextFillColorSecondaryBrush" Color="#AD000000" />
+    <SolidColorBrush x:Key="TextFillColorTertiaryBrush" Color="#8A000000" />
+    <SolidColorBrush x:Key="TextFillColorDisabledBrush" Color="#66000000" />
     <SolidColorBrush x:Key="ControlFillColorDefaultBrush" Color="#B3FFFFFF" />
     <SolidColorBrush x:Key="ControlFillColorSecondaryBrush" Color="#80F9F9F9" />
     <SolidColorBrush x:Key="ControlFillColorTertiaryBrush" Color="#4DF9F9F9" />
     <SolidColorBrush x:Key="ControlFillColorDisabledBrush" Color="#4DF9F9F9" />
     <SolidColorBrush x:Key="ControlFillColorInputActiveBrush" Color="#FFFFFFFF" />
-    <SolidColorBrush x:Key="ControlStrokeColorDefaultBrush" Color="#0F000000" />
-    <SolidColorBrush x:Key="ControlStrokeColorSecondaryBrush" Color="#29000000" />
+    <SolidColorBrush x:Key="ControlStrokeColorDefaultBrush" Color="#1A000000" />
+    <SolidColorBrush x:Key="ControlStrokeColorSecondaryBrush" Color="#33000000" />
     <SolidColorBrush x:Key="SubtleFillColorSecondaryBrush" Color="#09000000" />
     <SolidColorBrush x:Key="SubtleFillColorTertiaryBrush" Color="#06000000" />
 
@@ -55,7 +55,10 @@
     <SolidColorBrush x:Key="GoldBrush" Color="#8A6D1A" />
     <SolidColorBrush x:Key="GoldBorderBrush" Color="#408A6D1A" />
     <SolidColorBrush x:Key="InfoBrush" Color="#0067C0" />
-    <SolidColorBrush x:Key="MutedBrush" Color="#9B000000" />
-    <SolidColorBrush x:Key="ScrollbarThumbBrush" Color="#2E000000" />
-    <SolidColorBrush x:Key="ScrollbarThumbHoverBrush" Color="#52000000" />
+    <SolidColorBrush x:Key="MutedBrush" Color="#8A000000" />
+    <SolidColorBrush x:Key="ScrollbarThumbBrush" Color="#3D000000" />
+    <SolidColorBrush x:Key="ScrollbarThumbHoverBrush" Color="#5C000000" />
+
+    <SolidColorBrush x:Key="DofusAccentBrush" Color="#5A6470" />
+    <SolidColorBrush x:Key="DofusAccentDimBrush" Color="#6B7684" />
 </ResourceDictionary>

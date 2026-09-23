@@ -45,10 +45,32 @@ public static class MarketplaceService
         return http;
     }
 
+    private static string? LocalCatalogDir()
+    {
+#if DEBUG
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null)
+        {
+            var cand = Path.Combine(dir.FullName, "marketplace");
+            if (File.Exists(Path.Combine(cand, "index.json")))
+                return cand;
+            dir = dir.Parent;
+        }
+#endif
+        return null;
+    }
+
     public static async Task<List<MarketplaceEntry>> FetchAsync(CancellationToken ct = default)
     {
-        using var http = NewHttp();
-        var json = await http.GetStringAsync(BaseUrl + "index.json", ct);
+        var local = LocalCatalogDir();
+        string json;
+        if (local != null)
+            json = await File.ReadAllTextAsync(Path.Combine(local, "index.json"), ct);
+        else
+        {
+            using var http = NewHttp();
+            json = await http.GetStringAsync(BaseUrl + "index.json", ct);
+        }
         using var doc = JsonDocument.Parse(json);
         if (!doc.RootElement.TryGetProperty("plugins", out var arr))
             return new List<MarketplaceEntry>();
@@ -62,6 +84,9 @@ public static class MarketplaceService
     {
         if (!IsValidId(id))
             throw new InvalidOperationException("id de catalogue invalide");
+        var local = LocalCatalogDir();
+        if (local != null)
+            return await File.ReadAllTextAsync(Path.Combine(local, id, "plugin.js"), ct);
         using var http = NewHttp();
         return await http.GetStringAsync($"{BaseUrl}{id}/plugin.js", ct);
     }
@@ -70,9 +95,19 @@ public static class MarketplaceService
     {
         if (!IsValidId(entry.Id))
             throw new InvalidOperationException("id de catalogue invalide");
-        using var http = NewHttp();
-        var js = await http.GetByteArrayAsync($"{BaseUrl}{entry.Id}/plugin.js", ct);
-        var manifest = await http.GetByteArrayAsync($"{BaseUrl}{entry.Id}/plugin.json", ct);
+        var local = LocalCatalogDir();
+        byte[] js, manifest;
+        if (local != null)
+        {
+            js = await File.ReadAllBytesAsync(Path.Combine(local, entry.Id, "plugin.js"), ct);
+            manifest = await File.ReadAllBytesAsync(Path.Combine(local, entry.Id, "plugin.json"), ct);
+        }
+        else
+        {
+            using var http = NewHttp();
+            js = await http.GetByteArrayAsync($"{BaseUrl}{entry.Id}/plugin.js", ct);
+            manifest = await http.GetByteArrayAsync($"{BaseUrl}{entry.Id}/plugin.json", ct);
+        }
 
         var hash = Convert.ToHexString(SHA256.HashData(js.Concat(manifest).ToArray()))
             .ToLowerInvariant();
@@ -80,8 +115,30 @@ public static class MarketplaceService
             throw new InvalidOperationException("hash non conforme au catalogue — installation refusée");
 
         var dir = Path.Combine(pluginsDir, entry.Id);
-        Directory.CreateDirectory(dir);
-        await File.WriteAllBytesAsync(Path.Combine(dir, "plugin.js"), js, ct);
-        await File.WriteAllBytesAsync(Path.Combine(dir, "plugin.json"), manifest, ct);
+        var staging = Path.Combine(pluginsDir, $".staging-{entry.Id}-{Guid.NewGuid():N}");
+        var backup = staging + ".bak";
+        Directory.CreateDirectory(staging);
+        try
+        {
+            await File.WriteAllBytesAsync(Path.Combine(staging, "plugin.js"), js, ct);
+            await File.WriteAllBytesAsync(Path.Combine(staging, "plugin.json"), manifest, ct);
+            if (Directory.Exists(dir))
+                Directory.Move(dir, backup);
+            Directory.Move(staging, dir);
+            if (Directory.Exists(backup))
+                Directory.Delete(backup, true);
+        }
+        catch
+        {
+            try
+            {
+                if (Directory.Exists(staging))
+                    Directory.Delete(staging, true);
+                if (!Directory.Exists(dir) && Directory.Exists(backup))
+                    Directory.Move(backup, dir);
+            }
+            catch { }
+            throw;
+        }
     }
 }

@@ -88,6 +88,7 @@ public sealed class AppSettings
     public bool Topmost { get; set; }
     public bool ShowSettings { get; set; }
     public bool LocalApiEnabled { get; set; }
+    public bool DiscordPresence { get; set; }
     public int LocalApiPort { get; set; } = 47613;
     public string? LocalApiToken { get; set; }
     public string? LastSelectedDeviceKey { get; set; }
@@ -98,6 +99,7 @@ public sealed class AppSettings
     public List<Workspace> Workspaces { get; set; } = new();
     public string? ActiveWorkspaceId { get; set; }
     public string Language { get; set; } = "fr";
+    public string Theme { get; set; } = "sombre";
 }
 
 public static class SettingsStore

@@ -21,6 +21,7 @@ public sealed class PluginApi
     private DateTime _windowStart = DateTime.UtcNow;
 
     private readonly HashSet<(int Slot, string Id)> _overlays = new();
+    private volatile bool _stopped;
 
     public PluginApi(LocalApiHost host, Action<string> log, string pluginId = "",
         string pluginDir = "")
@@ -44,10 +45,13 @@ public sealed class PluginApi
 
     public string? Call(string method, string? arg)
     {
+        if (_stopped)
+            return JsonSerializer.Serialize(
+                new LocalApiHost.ApiResult(false, "plugin arrêté"), JsonOpts);
         if (!TryAcquireCall())
             return JsonSerializer.Serialize(
                 new LocalApiHost.ApiResult(false, "limite d'appels dépassée"), JsonOpts);
-        if (method is "activate" or "record" or "screenshot" or "disconnect" or "connect" or "mute")
+        if (method is "activate" or "record" or "screenshot" or "disconnect" or "connect" or "mute" or "volume")
             _log($"[api] {method} {arg}");
         try
         {
@@ -63,6 +67,7 @@ public sealed class PluginApi
                 "disconnect" => Wait(_host.DisconnectMirrorAsync(Int(arg))),
                 "connect" => Wait(_host.ConnectAsync(arg ?? "")),
                 "mute" => Mute(arg),
+                "volume" => Volume(arg),
                 "overlay" => Wait(_host.SetOverlayAsync(WithId(arg))),
                 "push" => Wait(_host.PushOverlayValueAsync(WithId(arg))),
                 "read" => ReadFile(arg),
@@ -84,6 +89,7 @@ public sealed class PluginApi
     private static int Int(string? s) => int.TryParse(s, out var v) ? v : 0;
 
     private sealed record MuteArg(int Slot, bool Muted);
+    private sealed record VolumeArg(int Slot, double Volume);
 
     private LocalApiHost.ApiResult Mute(string? arg)
     {
@@ -93,6 +99,18 @@ public sealed class PluginApi
             return o == null
                 ? new LocalApiHost.ApiResult(false, "options invalides")
                 : Wait(_host.SetAudioMutedAsync(o.Slot, o.Muted));
+        }
+        catch (JsonException) { return new LocalApiHost.ApiResult(false, "options invalides"); }
+    }
+
+    private LocalApiHost.ApiResult Volume(string? arg)
+    {
+        try
+        {
+            var o = JsonSerializer.Deserialize<VolumeArg>(arg ?? "{}", JsonOpts);
+            return o == null
+                ? new LocalApiHost.ApiResult(false, "options invalides")
+                : Wait(_host.SetAudioVolumeAsync(o.Slot, Math.Clamp(o.Volume, 0, 1)));
         }
         catch (JsonException) { return new LocalApiHost.ApiResult(false, "options invalides"); }
     }
@@ -152,15 +170,14 @@ public sealed class PluginApi
         return new LocalApiHost.ApiResult(true);
     }
 
-    private string WithId(string? arg)
+    internal string WithId(string? arg)
     {
         try
         {
             var node = JsonNode.Parse(arg ?? "{}") as JsonObject;
             if (node == null)
                 return arg ?? "{}";
-            if (!node.ContainsKey("id"))
-                node["id"] = _pluginId;
+            node["id"] = _pluginId;
             return node.ToJsonString();
         }
         catch (JsonException) { return arg ?? "{}"; }
@@ -189,5 +206,6 @@ public sealed class PluginApi
             AppLogger.Forget(_host.SetOverlayAsync(
                 $"{{\"slot\":{slot},\"id\":\"{id}\",\"visible\":false}}"));
         _overlays.Clear();
+        _stopped = true;
     }
 }

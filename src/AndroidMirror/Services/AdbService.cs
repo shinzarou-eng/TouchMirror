@@ -361,11 +361,18 @@ public static class AdbService
         catch { return null; }
     }
 
+    internal static string Q(string path)
+    {
+        if (path.Any(c => c is '"' or '\r' or '\n'))
+            throw new ArgumentException($"chemin invalide : « {path} »");
+        return $"\"{path}\"";
+    }
+
     public static async Task PushAsync(string serial, string localPath, string remotePath, CancellationToken ct = default)
-        => await RunAsync($"-s {S(serial)} push \"{localPath}\" \"{remotePath}\"", ct);
+        => await RunAsync($"-s {S(serial)} push {Q(localPath)} {Q(remotePath)}", ct);
 
     public static async Task<string> InstallApkAsync(string serial, string localPath, CancellationToken ct = default)
-        => await RunAsync($"-s {S(serial)} install -r \"{localPath}\"", ct);
+        => await RunAsync($"-s {S(serial)} install -r {Q(localPath)}", ct);
 
     public static async Task ReverseAsync(string serial, string deviceSocket, int localPort, CancellationToken ct = default)
         => await RunAsync($"-s {S(serial)} reverse localabstract:{deviceSocket} tcp:{localPort}", ct);

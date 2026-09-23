@@ -106,6 +106,9 @@ Think of it as an open-source scrcpy alternative made for players: mirror and co
 
 ## Installation
 
+> [!TIP]
+> **Install once, always up to date.** With `TouchMirror-win-Setup.exe`, the app updates itself: new releases are detected at startup, downloaded as **deltas** — only changed files (v0.8.1 → v0.8.2: **2.5 MB** instead of ~180 MB) — then applied on restart. Nothing to fetch from GitHub, nothing to reinstall.
+
 ### Ready-to-use build (recommended)
 
 > **Note:** the app is bilingual FR/EN — pick your language in *Settings → Language*. Strings live in `lang/en.json` and `lang/fr.json`.
@@ -272,9 +275,13 @@ WPF / .NET 10 · WPF-UI · TouchMirror engine (scrcpy-server fork) · custom D3D
 
 ## Ankama compliance
 
-TouchMirror displays and controls the **official game** running on your **real phone** — no emulator, no modified client, no macros or automation. Every action maps to a human gesture: on-screen keybinds send one tap per keypress, nothing more. This is the use case Ankama support confirmed as allowed (see the [official FAQ](https://support.ankama.com/hc/en-us/articles/26840828168209)).
+**The difference that matters.** An emulator (BlueStacks, LDPlayer…) runs the game *on the PC* inside a virtual device — banned no matter how you play. TouchMirror runs nothing: the official game stays on your **real phone**, we only display and control its screen. Mirroring is explicitly allowed in the [official FAQ](https://support.ankama.com/hc/en-us/articles/26840828168209) — same as Bluetooth mice and keyboards.
+
+On-screen keybinds produce the exact same input a Bluetooth mouse does: **1 keypress = 1 tap**, a normal touch event for the game — no repetition, no macro, nothing that doesn't come from your hand.
 
 **TouchMirror will never offer automation, bots or macros** — not today, not in a future version. The local API and plugins drive the application (mirroring, capture, recording, reconnect), never in-game actions: no API route sends touch, keyboard input, text or clipboard toward Android. Connecting via API/plugin may start the configured app or wake the screen — the same thing a human does when plugging in. See the [roadmap out-of-scope section](ROADMAP.md).
+
+**Multi-account in PvP** — Ankama caps you at **2 accounts** in some fights (Ascension Island, perceptor, prism, Kolossium, AvA). The app shows all your phones; respecting that cap in those fights is on you.
 
 ## Roadmap
 

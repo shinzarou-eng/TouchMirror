@@ -97,6 +97,9 @@ public class ControlMessageReader {
 
     private byte[] parseByteArray(int sizeBytes) throws IOException {
         int len = parseBufferLength(sizeBytes);
+        if (len < 0 || len > MESSAGE_MAX_SIZE) {
+            throw new ControlProtocolException("buffer trop grand : " + len);
+        }
         byte[] data = new byte[len];
         dis.readFully(data);
         return data;

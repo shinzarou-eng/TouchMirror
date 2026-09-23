@@ -29,6 +29,7 @@ public sealed class RtspServer : IDisposable
     public event Action<string, string>? DeviceDisconnected;
     public event Action<TouchMirror.Video.IFrameSource>? StreamStarted;
     public event Action? StreamStopped;
+    public event Action<string>? PairingCode;
 
     public RtspServer(int port, string name)
     {
@@ -66,6 +67,7 @@ public sealed class RtspServer : IDisposable
                     session.DeviceDisconnected += (n, id) => DeviceDisconnected?.Invoke(n, id);
                     session.StreamStarted += src => StreamStarted?.Invoke(src);
                     session.StreamStopped += () => StreamStopped?.Invoke();
+                    session.PairingCodeReady += p => PairingCode?.Invoke(p);
                     _clients.Add(Task.Run(() => session.RunAsync(ct)));
                 }
             }

@@ -26,8 +26,6 @@
             <CornerRadius x:Key="RadiusControl">7</CornerRadius>
             <CornerRadius x:Key="RadiusPanel">10</CornerRadius>
 
-            <SolidColorBrush x:Key="DofusAccentBrush" Color="#C9D1D9" />
-            <SolidColorBrush x:Key="DofusAccentDimBrush" Color="#8B95A1" />
             <SolidColorBrush x:Key="OnDarkTextBrush" Color="#E9EAED" />
             <SolidColorBrush x:Key="OnDarkTextDimBrush" Color="#9AA1AC" />
             <SolidColorBrush x:Key="AppModalSolidBrush" Color="#D8101319" />

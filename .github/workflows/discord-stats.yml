@@ -1,4 +1,4 @@
-name: downloads-milestone
+name: discord-stats
 
 on:
   schedule:
@@ -6,14 +6,12 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  announce:
+  stats:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
       - name: Compute totals
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -23,12 +21,8 @@ jobs:
             | jq '[.[].assets[].download_count] | add // 0')
           STARS=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" \
             "https://api.github.com/repos/${{ github.repository }}" | jq '.stargazers_count')
-          MILESTONE=$(( TOTAL / 50 * 50 ))
-          LAST=$(jq -r '.milestone // 0' .github/milestone-state.json 2>/dev/null || echo 0)
           echo "total=$TOTAL" >> "$GITHUB_ENV"
           echo "stars=$STARS" >> "$GITHUB_ENV"
-          echo "milestone=$MILESTONE" >> "$GITHUB_ENV"
-          echo "last=$LAST" >> "$GITHUB_ENV"
 
       - name: Sync Discord stats channels
         env:
@@ -53,28 +47,3 @@ jobs:
           }
           rename "$CH_STATS" "⭐ ${{ env.stars }} stars · ⬇️ ${{ env.total }} dl"
           rename "$CH_MEMBERS" "👥・$MEMBERS membres"
-
-      - name: Post to Discord
-        if: ${{ env.milestone >= 50 && env.milestone > env.last }}
-        env:
-          TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
-          CHANNEL: ${{ secrets.DISCORD_ANNOUNCE_CHANNEL }}
-          N: ${{ env.milestone }}
-        run: |
-          jq -n --arg c "🎉 **${N} téléchargements !** Merci à tous pour le soutien — la suite arrive 🚀" \
-            '{content: $c}' > payload.json
-          curl -sf -X POST \
-            -H "Authorization: Bot $TOKEN" \
-            -H "Content-Type: application/json" \
-            -d @payload.json \
-            "https://discord.com/api/v10/channels/$CHANNEL/messages"
-
-      - name: Save milestone
-        if: ${{ env.milestone >= 50 && env.milestone > env.last }}
-        run: |
-          jq -n --argjson m "${{ env.milestone }}" '{milestone: $m}' > .github/milestone-state.json
-          git config user.name "shinzarou-eng"
-          git config user.email "shinzarou-eng@users.noreply.github.com"
-          git add .github/milestone-state.json
-          git commit -m "chore: cap des ${{ env.milestone }} telechargements annonce"
-          git push

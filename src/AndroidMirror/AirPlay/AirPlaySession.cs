@@ -36,6 +36,7 @@ public sealed class AirPlaySession
     public event Action<string, string>? DeviceDisconnected;
     public event Action<TouchMirror.Video.IFrameSource>? StreamStarted;
     public event Action? StreamStopped;
+    public event Action<string>? PairingCodeReady;
 
     public AirPlaySession(TcpClient client, string receiverName)
     {
@@ -43,6 +44,7 @@ public sealed class AirPlaySession
         _stream = client.GetStream();
         _receiverName = receiverName;
         _pairing = new Pairing(PairingIdentity);
+        _pairing.PinReady += p => PairingCodeReady?.Invoke(p);
     }
 
     public static PairingIdentityStore PairingIdentity { get; } = PairingIdentityStore.Load();
@@ -84,6 +86,13 @@ public sealed class AirPlaySession
         var qIdx = path.IndexOf('?');
         if (qIdx >= 0)
             path = path[..qIdx];
+
+        if (!_pairing.Verified && req.Method is "ANNOUNCE" or "SETUP" or "RECORD"
+            or "GET_PARAMETER" or "SET_PARAMETER" or "PAUSE" or "FLUSH" or "TEARDOWN")
+        {
+            await Respond(req, 470, ct: ct);
+            return;
+        }
 
         switch (req.Method)
         {
@@ -308,7 +317,7 @@ public sealed class AirPlaySession
                         continue;
                     }
                     _mirror?.Dispose();
-                    _mirror = new MirrorStreamServer(_aesKey);
+                    _mirror = new MirrorStreamServer(_aesKey, clientIp);
                     _mirror.Log += s2 => Log?.Invoke(s2);
                     if (hapMode)
                     {
@@ -329,6 +338,8 @@ public sealed class AirPlaySession
                 }
                 else if (type == 96)
                 {
+                    if (_audioHolders.Count >= 4)
+                        continue;
                     var data = new UdpClient(0);
                     var ctrl = new UdpClient(0);
                     _audioHolders.AddRange(new[] { data, ctrl });
@@ -533,6 +544,8 @@ public sealed class AirPlaySession
         if (n == 0)
             return false;
         _raw.AddRange(buf.AsSpan(0, n).ToArray());
+        if (_raw.Count > 4 << 20 || _plain.Count > 4 << 20)
+            throw new IOException("airplay: tampon saturé — session fermée");
 
         if (_cipher != null)
         {

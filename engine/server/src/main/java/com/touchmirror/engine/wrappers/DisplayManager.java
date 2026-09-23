@@ -1,6 +1,5 @@
 package com.touchmirror.engine.wrappers;
 
-import com.touchmirror.engine.AndroidVersions;
 import com.touchmirror.engine.FakeContext;
 import com.touchmirror.engine.display.DisplayInfo;
 import com.touchmirror.engine.model.Size;
@@ -9,7 +8,6 @@ import com.touchmirror.engine.util.Ln;
 import com.touchmirror.engine.util.Reflect;
 
 import android.annotation.SuppressLint;
-import android.annotation.TargetApi;
 import android.content.Context;
 import android.hardware.display.VirtualDisplay;
 import android.os.Handler;
@@ -44,7 +42,6 @@ public final class DisplayManager {
 
     private Method getDisplayInfoMethod;
     private Method createVirtualDisplayMethod;
-    private Method requestDisplayPowerMethod;
 
     static DisplayManager create() {
         try {
@@ -155,20 +152,6 @@ public final class DisplayManager {
                 android.hardware.display.DisplayManager.class.getDeclaredConstructor(Context.class);
         ctor.setAccessible(true);
         return ctor.newInstance(FakeContext.get()).createVirtualDisplay(name, width, height, dpi, surface, flags);
-    }
-
-    @TargetApi(AndroidVersions.API_35_ANDROID_15)
-    public boolean requestDisplayPower(int displayId, boolean on) {
-        try {
-            if (requestDisplayPowerMethod == null) {
-                requestDisplayPowerMethod = Reflect.lookupOrThrow(manager.getClass(), "requestDisplayPower", int.class, boolean.class);
-            }
-            Object result = requestDisplayPowerMethod.invoke(manager, displayId, on);
-            return result != null && (boolean) result;
-        } catch (ReflectiveOperationException e) {
-            Ln.e("Could not invoke method", e);
-            return false;
-        }
     }
 
     public DisplayListenerHandle registerDisplayListener(DisplayListener listener, Handler handler) {

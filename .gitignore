@@ -13,6 +13,8 @@ dist/
 !/docs/**/*.png
 
 assets/ffmpeg/
+assets/ffmpeg.zip
+assets/platform-tools/
 
 mockups/
 wiki/

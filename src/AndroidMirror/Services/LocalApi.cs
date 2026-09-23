@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using TouchMirror.ViewModels;
+using TouchMirror.Views;
 
 namespace TouchMirror.Services;
 
@@ -16,7 +17,7 @@ public sealed class LocalApiHost
 
     public sealed record MirrorDto(int Slot, string Name, string Serial, string Model,
         bool Connected, bool Active, bool Recording, bool Wifi, double Fps,
-        int W, int H, double Lag, double Jit, int Bitrate, bool Muted);
+        int W, int H, double Lag, double Jit, int Bitrate, bool Muted, double Volume);
     public sealed record DeviceDto(string Serial, string Name, string Model,
         bool Ready, bool Remembered, bool Wifi, bool Blocked);
     public sealed record ApiResult(bool Ok, string? Message = null, object? Data = null);
@@ -84,7 +85,7 @@ public sealed class LocalApiHost
             ReferenceEquals(m, _vm.ActiveMirror), m.IsRecording, m.Device.IsWifi,
             m.View.CurrentFps, m.View.VideoWidth, m.View.VideoHeight,
             Math.Max(0, m.StreamLagMs), m.StreamJitterMs, m.CurrentBitRate,
-            m.AudioMuted)).ToList()));
+            m.AudioMuted, m.AudioVolume)).ToList()));
 
     public Task<ApiResult> GetDevicesAsync() => Ui(() => new ApiResult(true,
         Data: _vm.Devices.Select(d => new DeviceDto(
@@ -149,9 +150,45 @@ public sealed class LocalApiHost
             new { muted });
     });
 
+    public Task<ApiResult> SetAudioVolumeAsync(int slot, double volume) => Ui(() =>
+    {
+        var m = _vm.MirrorAtSlot(slot);
+        if (m == null)
+            return new ApiResult(false, $"slot {slot} inconnu");
+        m.SetAudioVolume((float)Math.Clamp(double.IsFinite(volume) ? volume : 0, 0, 1));
+        return new ApiResult(true, $"miroir {slot} volume {(int)Math.Round(volume * 100)}%",
+            new { volume = m.AudioVolume });
+    });
+
     private sealed record OverlayOpts(int Slot, string? Id, bool? Visible,
-        string? Title, string? Color, bool? Compact, string? Pos, string[]? Lines);
+        string? Title, string? Color, bool? Compact, string? Pos, JsonElement[]? Lines);
     private sealed record OverlayPush(int Slot, string? Id, double Value, string? Label);
+
+    internal static List<OverlayLine>? ToLines(JsonElement[]? a)
+    {
+        if (a == null) return null;
+        var l = new List<OverlayLine>(a.Length);
+        foreach (var e in a)
+        {
+            if (e.ValueKind == JsonValueKind.String)
+            {
+                l.Add(new(e.GetString() ?? "", null, null, null, null, null));
+                continue;
+            }
+            if (e.ValueKind != JsonValueKind.Object) continue;
+            var text = e.TryGetProperty("text", out var t) ? t.GetString() ?? "" : "";
+            var kind = e.TryGetProperty("k", out var k) ? k.GetString() : null;
+            var col = e.TryGetProperty("color", out var c) ? c.GetString() : null;
+            var right = e.TryGetProperty("right", out var r) ? r.GetString() : null;
+            bool? dn = e.TryGetProperty("done", out var d) &&
+                d.ValueKind is JsonValueKind.True or JsonValueKind.False ? d.GetBoolean() : null;
+            double? val = e.TryGetProperty("v", out var v) &&
+                v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null;
+            var img = e.TryGetProperty("img", out var im) ? im.GetString() : null;
+            l.Add(new(text, kind, col, dn, right, val, img));
+        }
+        return l;
+    }
 
     public Task<ApiResult> SetOverlayAsync(string json) => Ui(() =>
     {
@@ -164,7 +201,7 @@ public sealed class LocalApiHost
         if (m == null)
             return new ApiResult(false, $"slot {o.Slot} inconnu");
         m.View.SetGraphOverlay(o.Id ?? "default", o.Visible, o.Title,
-            o.Color, o.Compact, o.Pos, o.Lines);
+            o.Color, o.Compact, o.Pos, ToLines(o.Lines));
         return new ApiResult(true);
     });
 
@@ -233,6 +270,7 @@ public sealed class LocalApiServer : IAsyncDisposable
         app.MapPost("/api/mirrors/{slot:int}/screenshot", async (int slot) => Http(await host.ScreenshotAsync(slot)));
         app.MapPost("/api/mirrors/{slot:int}/disconnect", async (int slot) => Http(await host.DisconnectMirrorAsync(slot)));
         app.MapPost("/api/mirrors/{slot:int}/mute/{muted:bool}", async (int slot, bool muted) => Http(await host.SetAudioMutedAsync(slot, muted)));
+        app.MapPost("/api/mirrors/{slot:int}/volume/{level:double}", async (int slot, double level) => Http(await host.SetAudioVolumeAsync(slot, level)));
         app.MapPost("/api/devices/{serial}/connect", async (string serial) => Http(await host.ConnectAsync(serial)));
         app.MapGet("/api/events", ctx => StreamEventsAsync(host, ctx));
 

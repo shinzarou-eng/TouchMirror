@@ -26,6 +26,7 @@ public sealed class AirPlayService : IDisposable
     public event Action<string, string>? DeviceConnected;
     public event Action<string, string>? DeviceDisconnected;
     public event Action<string>? Log;
+    public event Action<string>? PairingCode;
 
     public Task StartAsync(CancellationToken ct = default)
     {
@@ -61,6 +62,7 @@ public sealed class AirPlayService : IDisposable
                 Log?.Invoke("airplay: flux vidéo natif décodé par TouchMirror");
             };
             srv.StreamStopped += () => _switchable.Current = null;
+            srv.PairingCode += p => PairingCode?.Invoke(p);
             srv.Start(_cts.Token);
         }
 

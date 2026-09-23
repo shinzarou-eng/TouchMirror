@@ -56,6 +56,29 @@ public static class MdnsHost
         }
     }
 
+    public static async Task<bool> ProbeAirPlayAsync(TimeSpan window, CancellationToken ct = default)
+    {
+        var mdns = Instance;
+        var found = false;
+        void OnAnswer(object? s, MessageEventArgs e)
+        {
+            if (e.Message.Answers.Any(r =>
+                    r.ToString().Contains("_airplay._tcp", StringComparison.OrdinalIgnoreCase)))
+                found = true;
+        }
+        mdns.AnswerReceived += OnAnswer;
+        try
+        {
+            mdns.SendQuery("_airplay._tcp.local", type: DnsType.PTR);
+            await Task.Delay(window, ct);
+            return found;
+        }
+        finally
+        {
+            mdns.AnswerReceived -= OnAnswer;
+        }
+    }
+
     public static List<string> LanAddresses()
     {
         try

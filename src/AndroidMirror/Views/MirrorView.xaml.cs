@@ -557,7 +557,7 @@ public partial class MirrorView : UserControl
 
     public void SetGraphOverlay(string id, bool? visible, string? title,
         string? colorHex, bool? compact = null, string? pos = null,
-        string[]? lines = null)
+        IReadOnlyList<OverlayLine>? lines = null)
     {
         if (!_overlays.TryGetValue(id, out var w))
         {

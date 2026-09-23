@@ -1,4 +1,4 @@
-<a id="top"></a>
+﻿<a id="top"></a>
 
 <div align="center">
 
@@ -28,7 +28,7 @@ Gratuit, open source, sans compte, sans pub.
 [![Plateforme](https://img.shields.io/badge/plateforme-Windows%2010%2F11-0078D4?style=flat-square)](https://github.com/shinzarou-eng/TouchMirror)
 [![.NET](https://img.shields.io/badge/.NET-10-512BD4?style=flat-square)](https://dotnet.microsoft.com)
 [![Licence](https://img.shields.io/badge/licence-MIT-green?style=flat-square)](LICENSE)
-[![Ankama](https://img.shields.io/badge/Ankama-compatible-2ea44f?style=flat-square)](#conformité-ankama)
+[![Ankama](https://img.shields.io/badge/Ankama-conforme-2ea44f?style=flat-square)](#conformité-ankama)
 [![Dofus Touch](https://img.shields.io/badge/optimis%C3%A9%20pour-Dofus%20Touch-D9A94E?style=flat-square)](https://www.dofus-touch.com)
 [![Discord](https://img.shields.io/badge/Discord-rejoins--nous-5865F2?style=flat-square)](https://discord.gg/DBJ9kNCdX)
 
@@ -107,6 +107,9 @@ L'alternative open source à scrcpy pensée pour les joueurs : affiche et contr�
 | 🍎 | **iPhone / AirPlay** (*bêta*) | Miroir d’un iPhone/iPad en Wi-Fi — l’app héberge un récepteur AirPlay local. *Pas encore dans le zip GitHub — builds locales uniquement* · [état d'avancement](docs/airplay.md) |
 
 ## Installation
+
+> [!TIP]
+> **Installe une fois, à jour pour toujours.** Avec `TouchMirror-win-Setup.exe`, l'app se met à jour toute seule : nouvelle version détectée au démarrage, téléchargée en **delta** — seuls les fichiers modifiés (v0.8.1 → v0.8.2 : **2,5 Mo** au lieu de ~180 Mo) — puis appliquée au redémarrage. Plus rien à chercher sur GitHub, plus rien à réinstaller.
 
 ### Version prête à l'emploi (recommandé)
 
@@ -268,9 +271,13 @@ WPF / .NET 10 · WPF-UI · moteur TouchMirror (fork scrcpy-server) · pipeline D
 
 ## Conformité Ankama
 
-TouchMirror affiche et contrôle le **jeu officiel** qui tourne sur ton **vrai téléphone** — pas d'émulateur, pas de client modifié, pas de macro ni d'automatisation. Chaque action correspond à un geste humain : les raccourcis plaqués envoient un tap par frappe, rien de plus. C'est le cas d'usage que le support Ankama a confirmé comme autorisé (voir la [FAQ officielle](https://support.ankama.com/hc/fr/articles/26840828168209)).
+**La différence qui change tout.** Un émulateur (BlueStacks, LDPlayer…) fait tourner le jeu *sur le PC* dans un appareil virtuel — interdit quelle que soit la façon de jouer. TouchMirror ne fait rien tourner : le jeu officiel reste sur ton **vrai téléphone**, on ne fait qu'afficher et contrôler son écran. Le mirroring est explicitement autorisé dans la [FAQ officielle](https://support.ankama.com/hc/fr/articles/26840828168209) — au même titre que la souris et le clavier Bluetooth.
+
+Les raccourcis plaqués produisent exactement la même entrée qu'une souris Bluetooth : **1 frappe = 1 tap**, un événement tactile normal pour le jeu — pas de répétition, pas de macro, rien qui ne parte de ton geste.
 
 **TouchMirror ne proposera jamais de système d'automatisation, de bot ou de macro** — ni aujourd'hui, ni dans une version future. L'API locale et les plugins pilotent l'application (miroir, capture, enregistrement, reconnexion), jamais les actions en jeu : aucune route API n'envoie de tactile, de clavier, de texte ou de presse-papiers vers Android. Une connexion via API/plugin peut lancer l'app configurée ou réveiller l'écran — ce qu'un humain fait en branchant le câble. Voir le [hors périmètre de la roadmap](ROADMAP.md#hors-périmètre).
+
+**Multicompte en JcJ** — Ankama limite à **2 comptes** certains combats (île de l'Ascension, percepteur, prisme, kolizéum, AvA). L'app affiche tous tes téléphones ; respecter cette limite dans ces combats reste ta responsabilité.
 
 ## Roadmap
 

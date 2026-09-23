@@ -62,6 +62,20 @@
                 <SplineDoubleKeyFrame Value="-1.8" KeyTime="0:0:4.8" />
                 <SplineDoubleKeyFrame Value="0" KeyTime="0:0:8" />
             </DoubleAnimationUsingKeyFrames>
+            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PumpkinLidLS" Storyboard.TargetProperty="ScaleY" Duration="0:0:5">
+                <LinearDoubleKeyFrame Value="0" KeyTime="0:0:4.4" />
+                <SplineDoubleKeyFrame Value="1" KeyTime="0:0:4.52" />
+                <LinearDoubleKeyFrame Value="1" KeyTime="0:0:4.62" />
+                <SplineDoubleKeyFrame Value="0" KeyTime="0:0:4.74" />
+                <LinearDoubleKeyFrame Value="0" KeyTime="0:0:4.82" />
+                <SplineDoubleKeyFrame Value="1" KeyTime="0:0:4.9" />
+                <SplineDoubleKeyFrame Value="0" KeyTime="0:0:5" />
+            </DoubleAnimationUsingKeyFrames>
+            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PumpkinSway" Storyboard.TargetProperty="Angle" Duration="0:0:8" RepeatBehavior="Forever">
+                <SplineDoubleKeyFrame Value="2.2" KeyTime="0:0:2" />
+                <SplineDoubleKeyFrame Value="-1.8" KeyTime="0:0:4.8" />
+                <SplineDoubleKeyFrame Value="0" KeyTime="0:0:8" />
+            </DoubleAnimationUsingKeyFrames>
             <DoubleAnimation Storyboard.TargetName="Eq1" Storyboard.TargetProperty="ScaleY" From="0.3" To="1" Duration="0:0:0.9" AutoReverse="True" RepeatBehavior="Forever" />
             <DoubleAnimation Storyboard.TargetName="Eq2" Storyboard.TargetProperty="ScaleY" From="0.3" To="1" Duration="0:0:1.15" BeginTime="0:0:0.18" AutoReverse="True" RepeatBehavior="Forever" />
             <DoubleAnimation Storyboard.TargetName="Eq3" Storyboard.TargetProperty="ScaleY" From="0.3" To="1" Duration="0:0:0.75" BeginTime="0:0:0.36" AutoReverse="True" RepeatBehavior="Forever" />
@@ -234,61 +248,25 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ui:Button">
-                        <Border x:Name="Bd" CornerRadius="{StaticResource RadiusControl}"
+                        <Border x:Name="Bd" CornerRadius="4"
                                 BorderBrush="{DynamicResource AccentButtonBorderBrush}" BorderThickness="1"
                                 Background="{TemplateBinding Background}">
-                            <Border.Effect>
-                                <DropShadowEffect Color="#000000" BlurRadius="10" ShadowDepth="1" Opacity="0.35" />
-                            </Border.Effect>
-                            <Grid>
-                                <Border CornerRadius="6" IsHitTestVisible="False">
-                                    <Border.Background>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                            <GradientStop Color="#2BFFFFFF" Offset="0" />
-                                            <GradientStop Color="#0AFFFFFF" Offset="0.42" />
-                                            <GradientStop Color="#00FFFFFF" Offset="0.58" />
-                                            <GradientStop Color="#14000000" Offset="1" />
-                                        </LinearGradientBrush>
-                                    </Border.Background>
-                                </Border>
-                                <Border x:Name="Glow" CornerRadius="6" Background="#1EFFFFFF" Opacity="0" IsHitTestVisible="False" />
-                                <Rectangle Height="1" VerticalAlignment="Top" Margin="9,1" Opacity="0.55" IsHitTestVisible="False">
-                                    <Rectangle.Fill>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                            <GradientStop Color="#00FFFFFF" Offset="0" />
-                                            <GradientStop Color="#7AFFFFFF" Offset="0.18" />
-                                            <GradientStop Color="#7AFFFFFF" Offset="0.82" />
-                                            <GradientStop Color="#00FFFFFF" Offset="1" />
-                                        </LinearGradientBrush>
-                                    </Rectangle.Fill>
-                                </Rectangle>
-                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
-                                                  Margin="{TemplateBinding Padding}" />
-                            </Grid>
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              Margin="{TemplateBinding Padding}" />
                         </Border>
                         <ControlTemplate.Triggers>
-                            <EventTrigger RoutedEvent="MouseEnter">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="Glow" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.13" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <EventTrigger RoutedEvent="MouseLeave">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="Glow" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.22" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentFillColorSecondaryBrush}" />
+                            </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="RenderTransform">
-                                    <Setter.Value><TranslateTransform Y="1" /></Setter.Value>
-                                </Setter>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentFillColorTertiaryBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.45" />
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource ControlFillColorDisabledBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="Transparent" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource DofusAccentBrush}" />
@@ -306,49 +284,26 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ui:Button">
-                        <Border x:Name="Bd" CornerRadius="{StaticResource RadiusControl}"
+                        <Border x:Name="Bd" CornerRadius="4"
                                 BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1"
                                 Background="{TemplateBinding Background}">
-                            <Grid>
-                                <Border x:Name="Glow" CornerRadius="6" Background="#10FFFFFF" Opacity="0" IsHitTestVisible="False" />
-                                <Rectangle Height="1" VerticalAlignment="Top" Margin="9,1" Opacity="0.4" IsHitTestVisible="False">
-                                    <Rectangle.Fill>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                            <GradientStop Color="#00FFFFFF" Offset="0" />
-                                            <GradientStop Color="#3DFFFFFF" Offset="0.18" />
-                                            <GradientStop Color="#3DFFFFFF" Offset="0.82" />
-                                            <GradientStop Color="#00FFFFFF" Offset="1" />
-                                        </LinearGradientBrush>
-                                    </Rectangle.Fill>
-                                </Rectangle>
-                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
-                                                  Margin="{TemplateBinding Padding}" />
-                            </Grid>
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              Margin="{TemplateBinding Padding}" />
                         </Border>
                         <ControlTemplate.Triggers>
-                            <EventTrigger RoutedEvent="MouseEnter">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="Glow" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.13" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <EventTrigger RoutedEvent="MouseLeave">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="Glow" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.22" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="RenderTransform">
-                                    <Setter.Value><TranslateTransform Y="1" /></Setter.Value>
-                                </Setter>
+                            <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Bd" Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource ControlStrokeColorSecondaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.45" />
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource ControlFillColorDisabledBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="Transparent" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AppBorderStrongBrush}" />
@@ -773,7 +728,86 @@
                                         <TranslateTransform x:Name="BotHop" />
                                     </TransformGroup>
                                 </Viewbox.RenderTransform>
+                                <Grid>
+                                <Canvas x:Name="PumpkinCanvas" Width="100" Height="82" ClipToBounds="False"
+                                        Visibility="{Binding IsHalloweenTheme, Converter={StaticResource BoolToVis}}">
+                                    <Canvas.RenderTransform>
+                                        <RotateTransform x:Name="PumpkinSway" CenterX="50" CenterY="64" />
+                                    </Canvas.RenderTransform>
+                                    <Ellipse x:Name="PumpkinAura" Canvas.Left="10" Canvas.Top="8" Width="80" Height="64" Opacity="0">
+                                        <Ellipse.Fill>
+                                            <RadialGradientBrush>
+                                                <GradientStop Color="#55FF9A1F" Offset="0" />
+                                                <GradientStop Color="#00FF9A1F" Offset="1" />
+                                            </RadialGradientBrush>
+                                        </Ellipse.Fill>
+                                    </Ellipse>
+                                    <Ellipse Canvas.Left="24" Canvas.Top="65.5" Width="52" Height="9" Fill="#42000000" />
+                                    <Path>
+                                        <Path.Fill>
+                                            <RadialGradientBrush GradientOrigin="0.38,0.26" Center="0.38,0.26" RadiusX="0.85" RadiusY="0.85">
+                                                <GradientStop Color="#F0A55E" Offset="0" />
+                                                <GradientStop Color="#E07B2C" Offset="0.55" />
+                                                <GradientStop Color="#B85F1E" Offset="1" />
+                                            </RadialGradientBrush>
+                                        </Path.Fill>
+                                        <Path.Data>
+                                            <PathGeometry>M50 26 C68 26 74 36 74 46 C74 58 64 66 50 66 C36 66 26 58 26 46 C26 36 32 26 50 26 Z</PathGeometry>
+                                        </Path.Data>
+                                    </Path>
+                                    <Path Data="M42 28 C37 38 37 54 42 64" Stroke="#4DA04518" StrokeThickness="1.5" />
+                                    <Path Data="M58 28 C63 38 63 54 58 64" Stroke="#4DA04518" StrokeThickness="1.5" />
+                                    <Path Data="M34 31 C29 40 29 54 34 61" Stroke="#40A04518" StrokeThickness="1.5" />
+                                    <Path Data="M66 31 C71 40 71 54 66 61" Stroke="#40A04518" StrokeThickness="1.5" />
+                                    <Rectangle Canvas.Left="47" Canvas.Top="18" Width="6.5" Height="11" RadiusX="2" Fill="#3E7A2B">
+                                        <Rectangle.RenderTransform><RotateTransform Angle="-8" CenterX="50.25" CenterY="29" /></Rectangle.RenderTransform>
+                                    </Rectangle>
+                                    <Path Data="M54.5 22.5 C58 17.5 63 18.5 62 23.5 C59 21.5 56 23.5 54.5 26 Z" Fill="#4E8F36" />
+                                    <Path Data="M53 24 C57 19.5 62.5 20.5 61.5 25" Stroke="#3E7A2B" StrokeThickness="1.1" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                    <Ellipse x:Name="PumpkinBlushL" Canvas.Left="29" Canvas.Top="50" Width="8" Height="4" Fill="#B85F1E" Opacity="0" />
+                                    <Ellipse x:Name="PumpkinBlushR" Canvas.Left="63" Canvas.Top="50" Width="8" Height="4" Fill="#B85F1E" Opacity="0" />
+                                    <Canvas x:Name="PumpkinEyeL" Canvas.Left="39" Canvas.Top="30" Width="22" Height="22" ClipToBounds="False">
+                                        <Canvas.RenderTransform>
+                                            <ScaleTransform x:Name="PumpkinEyeLS" CenterX="11" CenterY="11" />
+                                        </Canvas.RenderTransform>
+                                        <Ellipse Width="22" Height="22" Fill="#FFF4E0" />
+                                        <Ellipse Width="22" Height="22" Stroke="#241108" StrokeThickness="1.6" />
+                                        <Canvas Width="22" Height="22">
+                                            <Canvas.RenderTransform>
+                                                <TranslateTransform x:Name="PumpkinEyeLT" />
+                                            </Canvas.RenderTransform>
+                                            <Ellipse Canvas.Left="6.5" Canvas.Top="6.5" Width="9" Height="9" Fill="#241108" />
+                                            <Ellipse Canvas.Left="10" Canvas.Top="8.5" Width="3" Height="3" Fill="#FFF" />
+                                        </Canvas>
+                                        <Ellipse Canvas.Left="-1.5" Canvas.Top="-1.5" Width="25" Height="25" Fill="#E8964A">
+                                            <Ellipse.RenderTransform>
+                                                <ScaleTransform x:Name="PumpkinLidLS" CenterX="12.5" CenterY="0" ScaleY="0" />
+                                            </Ellipse.RenderTransform>
+                                        </Ellipse>
+                                    </Canvas>
+                                    <Path x:Name="PumpkinMouth" Data="M35 52 L39 56 L43 52 L47 57 L50 53 L53 57 L57 52 L61 56 L65 52 L65 60 L35 60 Z" Opacity="0.55">
+                                        <Path.Fill>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                <GradientStop Color="#FFE9A8" Offset="0" />
+                                                <GradientStop Color="#FFB627" Offset="0.55" />
+                                                <GradientStop Color="#F08A12" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </Path.Fill>
+                                        <Path.Effect>
+                                            <DropShadowEffect Color="#FF9A1F" BlurRadius="6" ShadowDepth="0" Opacity="0.9" />
+                                        </Path.Effect>
+                                    </Path>
+                                </Canvas>
                                 <Canvas x:Name="BotCanvas" Width="100" Height="82" ClipToBounds="False">
+                                    <Canvas.Style>
+                                        <Style TargetType="Canvas">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsHalloweenTheme}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Canvas.Style>
                                     <Canvas.RenderTransform>
                                         <RotateTransform x:Name="BotSway" CenterX="50" CenterY="64" />
                                     </Canvas.RenderTransform>
@@ -831,6 +865,7 @@
                                     <Path x:Name="MouthPath" Data="M44 62 Q50 65 56 62" Stroke="#CC0E2416" StrokeThickness="2"
                                           StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
                                 </Canvas>
+                                </Grid>
                             </Viewbox>
                         </Grid>
                         <StackPanel x:Name="IslandMeta" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0"
@@ -1254,6 +1289,11 @@
                                                ToolTip="{loc:Loc bench.tip}">
                                         <Path Style="{StaticResource Ic}" Data="{StaticResource IcDataUsage24}" Width="16" Height="16" />
                                     </ui:Button>
+                                    <ui:Button x:Name="CalcBtn" Style="{StaticResource PillBtn}" Width="28" Height="28"
+                                               Click="OnCalcClick" ToolTip="{loc:Loc tile.calc.tip}">
+                                        <TextBlock Text="ƒx" FontWeight="Bold" FontSize="13"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </ui:Button>
                                     <ui:Button Style="{StaticResource PillBtn}" Width="28" Height="28"
                                                Click="OnMoreClick" ToolTip="{loc:Loc affichage_et_disposition}">
                                         <Path Style="{StaticResource Ic}" Data="{StaticResource IcFullScreenMaximize24}" Width="16" Height="16" />
@@ -1330,6 +1370,71 @@
                                         </ui:Button.ContextMenu>
                                     </ui:Button>
                                     </StackPanel>
+
+                                    <Popup x:Name="CalcPopup" PlacementTarget="{Binding ElementName=CalcBtn}"
+                                           Placement="Top" StaysOpen="False" AllowsTransparency="True"
+                                           PopupAnimation="Fade" Opened="OnCalcOpened">
+                                        <Border Width="236" Padding="10" CornerRadius="12"
+                                                Background="{DynamicResource AppCardBrush}"
+                                                BorderBrush="{DynamicResource AppBorderStrongBrush}" BorderThickness="1">
+                                            <Border.Effect>
+                                                <DropShadowEffect BlurRadius="24" ShadowDepth="0" Opacity="0.45" />
+                                            </Border.Effect>
+                                            <StackPanel>
+                                                <StackPanel.Resources>
+                                                    <Style x:Key="CalcKey" TargetType="ui:Button" BasedOn="{StaticResource PillBtn}">
+                                                        <Setter Property="Height" Value="32" />
+                                                        <Setter Property="Margin" Value="2" />
+                                                        <Setter Property="FontSize" Value="{StaticResource FsCaption}" />
+                                                        <Setter Property="FontFamily" Value="Consolas" />
+                                                    </Style>
+                                                </StackPanel.Resources>
+                                                <Border CornerRadius="8" Padding="10,6" Margin="0,0,0,8"
+                                                        Background="{DynamicResource AppSurfaceBrush}"
+                                                        BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="1">
+                                                    <StackPanel>
+                                                        <TextBox x:Name="CalcInput" BorderThickness="0" Padding="0"
+                                                                 Background="Transparent" TextAlignment="Right"
+                                                                 FontFamily="Consolas" FontSize="{StaticResource FsCaption}"
+                                                                 Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                 KeyDown="OnCalcInputKeyDown" />
+                                                        <TextBlock x:Name="CalcResult" TextAlignment="Right"
+                                                                   FontFamily="Consolas" FontSize="20" FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource DofusAccentBrush}"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                    </StackPanel>
+                                                </Border>
+                                                <UniformGrid Columns="5" Margin="0,0,0,4">
+                                                    <ui:Button Style="{StaticResource CalcKey}" Tag="hdv" Click="OnCalcQuickClick"
+                                                               ToolTip="{loc:Loc calc.hdv.tip}"><TextBlock Text="-2%"/></ui:Button>
+                                                    <ui:Button Style="{StaticResource CalcKey}" Tag="x100" Click="OnCalcQuickClick"><TextBlock Text="×100"/></ui:Button>
+                                                    <ui:Button Style="{StaticResource CalcKey}" Tag="x1k" Click="OnCalcQuickClick"><TextBlock Text="×1k"/></ui:Button>
+                                                    <ui:Button Style="{StaticResource CalcKey}" Tag="bk" Click="OnCalcQuickClick"><TextBlock Text="⌫"/></ui:Button>
+                                                    <ui:Button Style="{StaticResource CalcKey}" Tag="clr" Click="OnCalcQuickClick"><TextBlock Text="C"/></ui:Button>
+                                                </UniformGrid>
+                                                <UniformGrid Columns="4">
+                                                    <ui:Button Style="{StaticResource CalcKey}" Tag="7" Click="OnCalcKeyClick"><TextBlock Text="7"/></ui:Button>
+                                                    <ui:Button Style="{StaticResource CalcKey}" Tag="8" Click="OnCalcKeyClick"><TextBlock Text="8"/></ui:Button>
+                                                    <ui:Button Style="{StaticResource CalcKey}" Tag="9" Click="OnCalcKeyClick"><TextBlock Text="9"/></ui:Button>
+                                                    <ui:Button Style="{StaticResource CalcKey}" Tag=" / " Click="OnCalcKeyClick"><TextBlock Text="÷"/></ui:Button>
+                                                    <ui:Button Style="{StaticResource CalcKey}" Tag="4" Click="OnCalcKeyClick"><TextBlock Text="4"/></ui:Button>
+                                                    <ui:Button Style="{StaticResource CalcKey}" Tag="5" Click="OnCalcKeyClick"><TextBlock Text="5"/></ui:Button>
+                                                    <ui:Button Style="{StaticResource CalcKey}" Tag="6" Click="OnCalcKeyClick"><TextBlock Text="6"/></ui:Button>
+                                                    <ui:Button Style="{StaticResource CalcKey}" Tag=" * " Click="OnCalcKeyClick"><TextBlock Text="×"/></ui:Button>
+                                                    <ui:Button Style="{StaticResource CalcKey}" Tag="1" Click="OnCalcKeyClick"><TextBlock Text="1"/></ui:Button>
+                                                    <ui:Button Style="{StaticResource CalcKey}" Tag="2" Click="OnCalcKeyClick"><TextBlock Text="2"/></ui:Button>
+                                                    <ui:Button Style="{StaticResource CalcKey}" Tag="3" Click="OnCalcKeyClick"><TextBlock Text="3"/></ui:Button>
+                                                    <ui:Button Style="{StaticResource CalcKey}" Tag=" - " Click="OnCalcKeyClick"><TextBlock Text="−"/></ui:Button>
+                                                    <ui:Button Style="{StaticResource CalcKey}" Tag="0" Click="OnCalcKeyClick"><TextBlock Text="0"/></ui:Button>
+                                                    <ui:Button Style="{StaticResource CalcKey}" Tag="." Click="OnCalcKeyClick"><TextBlock Text="."/></ui:Button>
+                                                    <ui:Button Style="{StaticResource CalcKey}" Tag="eq" Click="OnCalcEvalClick"
+                                                               Background="{DynamicResource AccentSubtleBrush}"
+                                                               BorderBrush="{DynamicResource AccentBorderBrush}"><TextBlock Text="="/></ui:Button>
+                                                    <ui:Button Style="{StaticResource CalcKey}" Tag=" + " Click="OnCalcKeyClick"><TextBlock Text="+"/></ui:Button>
+                                                </UniformGrid>
+                                            </StackPanel>
+                                        </Border>
+                                    </Popup>
 
                                     <Border CornerRadius="{StaticResource RadiusControl}" Padding="2" Margin="6,0,2,0"
                                             VerticalAlignment="Center"
@@ -3194,6 +3299,15 @@
                                     </StackPanel>
                                 </ToggleButton>
                             </UniformGrid>
+                            <UniformGrid Columns="1" Margin="0,0,0,7">
+                                <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding DiscordPresenceEnabled}"
+                                              Margin="0" ToolTip="{loc:Loc tile.discord.tip}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource TileTitle}" Text="{loc:Loc tile.discord}" />
+                                        <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.discord.c}" />
+                                    </StackPanel>
+                                </ToggleButton>
+                            </UniformGrid>
 
                             <Border Style="{StaticResource ValTile}" Margin="0,0,0,7"
                                     ToolTip="{loc:Loc applique_resolution_fps_debit_d_un_coup_a_l_appa}">
@@ -3424,13 +3538,23 @@
                                 </Border>
                             </UniformGrid>
 
-                            <UniformGrid Columns="2" Margin="0,0,0,7">
+                            <UniformGrid Columns="3" Margin="0,0,0,7">
                                 <Border Style="{StaticResource ValTile}" Margin="0,0,4,0">
                                     <StackPanel>
                                         <TextBlock Style="{StaticResource ValTileLab}" Text="{loc:Loc langue}" />
                                         <ComboBox SelectedValue="{Binding Language}" SelectedValuePath="Tag">
                                             <ComboBoxItem Tag="fr" Content="Français" />
                                             <ComboBoxItem Tag="en" Content="English" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource ValTile}" Margin="4,0,4,0">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource ValTileLab}" Text="{loc:Loc theme}" />
+                                        <ComboBox SelectedValue="{Binding Theme}" SelectedValuePath="Tag">
+                                            <ComboBoxItem Tag="sombre" Content="{loc:Loc theme.sombre}" />
+                                            <ComboBoxItem Tag="clair" Content="{loc:Loc theme.clair}" />
+                                            <ComboBoxItem Tag="halloween" Content="{loc:Loc theme.halloween}" />
                                         </ComboBox>
                                     </StackPanel>
                                 </Border>

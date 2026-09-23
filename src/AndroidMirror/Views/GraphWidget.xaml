@@ -9,10 +9,35 @@
                 <TextBlock x:Name="TitleText" Text="graph" DockPanel.Dock="Left"
                            Foreground="{DynamicResource OnDarkTextDimBrush}" FontSize="{StaticResource FsMeta}" FontWeight="SemiBold"
                            VerticalAlignment="Center" />
+                <Border x:Name="CollapseBtn" DockPanel.Dock="Right" Cursor="Hand"
+                        Padding="6,0" Margin="6,-3,-3,-3" CornerRadius="4"
+                        VerticalAlignment="Center">
+                    <TextBlock x:Name="CollapseGlyph" Text="−" FontSize="11"
+                               Foreground="{DynamicResource OnDarkTextDimBrush}"
+                               VerticalAlignment="Center" />
+                </Border>
+                <Border x:Name="SearchBtn" DockPanel.Dock="Right" Cursor="Hand"
+                        Padding="5,2" Margin="0,-2,0,-2" CornerRadius="4"
+                        VerticalAlignment="Center">
+                    <Canvas Width="10" Height="10" VerticalAlignment="Center">
+                        <Ellipse Canvas.Left="0.5" Canvas.Top="0.5" Width="6.5" Height="6.5"
+                                 Stroke="{DynamicResource OnDarkTextDimBrush}" StrokeThickness="1.3"/>
+                        <Line X1="6.5" Y1="6.5" X2="10" Y2="10"
+                              Stroke="{DynamicResource OnDarkTextDimBrush}" StrokeThickness="1.3"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                    </Canvas>
+                </Border>
                 <TextBlock x:Name="ValueText" Foreground="{DynamicResource OnDarkTextBrush}" FontSize="{StaticResource FsMeta}"
                            FontFamily="Consolas" HorizontalAlignment="Right"
                            VerticalAlignment="Center" Margin="10,0,0,0" />
             </DockPanel>
+            <Border x:Name="SearchRow" Visibility="Collapsed" Margin="0,5,0,1"
+                    CornerRadius="5" Padding="7,3"
+                    Background="#17FFFFFF">
+                <TextBox x:Name="SearchBox" BorderThickness="0" Background="Transparent"
+                         Foreground="{DynamicResource OnDarkTextBrush}" CaretBrush="#E8E9EC"
+                         FontSize="10.5" VerticalContentAlignment="Center" />
+            </Border>
             <Canvas x:Name="Plot" Width="152" Height="40" Margin="0,5,0,0"
                     Background="#0A0C0E" ClipToBounds="True">
                 <Polyline x:Name="Line" Stroke="{DynamicResource DofusAccentBrush}" StrokeThickness="1.5" />

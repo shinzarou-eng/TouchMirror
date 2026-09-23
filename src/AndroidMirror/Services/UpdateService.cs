@@ -37,7 +37,22 @@ public static class UpdateService
 
     public static UpdateInfo? Pending { get; private set; }
 
-    public static async Task<(Version Version, string Url, bool SelfUpdate)?> CheckAsync(CancellationToken ct = default)
+#if DEBUG
+    public const string DevSuffix = "-dev";
+#else
+    public const string DevSuffix = "";
+#endif
+
+    public static Task<(Version Version, string Url, bool SelfUpdate)?> CheckAsync(CancellationToken ct = default)
+    {
+#if DEBUG
+        return Task.FromResult<(Version Version, string Url, bool SelfUpdate)?>(null);
+#else
+        return CheckCoreAsync(ct);
+#endif
+    }
+
+    private static async Task<(Version Version, string Url, bool SelfUpdate)?> CheckCoreAsync(CancellationToken ct)
     {
         var mgr = Mgr;
         if (mgr?.IsInstalled == true)

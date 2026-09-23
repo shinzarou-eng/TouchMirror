@@ -330,7 +330,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                             Log?.Invoke($"audio: {m}");
                             _audioBroken = true;
                         };
-                        Audio.Volume = _audioMuted ? 0f : 1f;
+                        Audio.Volume = _audioMuted ? 0f : _audioVolume;
                     }
                     Audio.Feed(packet.Data, packet.IsConfig, packet.Length);
                 }
@@ -460,11 +460,19 @@ public partial class MirrorInstance : ObservableObject, IDisposable
 
     protected volatile bool _audioMuted;
     public bool AudioMuted => _audioMuted;
+    protected volatile float _audioVolume = 1f;
+    public float AudioVolume => _audioVolume;
 
     public virtual void SetAudioMuted(bool muted)
     {
         _audioMuted = muted;
-        try { if (Audio != null) Audio.Volume = muted ? 0f : 1f; } catch { }
+        try { if (Audio != null) Audio.Volume = muted ? 0f : _audioVolume; } catch { }
+    }
+
+    public virtual void SetAudioVolume(float volume)
+    {
+        _audioVolume = Math.Clamp(volume, 0f, 1f);
+        try { if (Audio != null && !_audioMuted) Audio.Volume = _audioVolume; } catch { }
     }
 
     private volatile bool _videoHidden;
@@ -589,7 +597,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
 
         var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "TouchMirror");
         Directory.CreateDirectory(dir);
-        var stamp = $"rec_{Device.Model}_{DateTime.Now:yyyyMMdd_HHmmss}_{Math.Abs(IdentityKey.GetHashCode()) % 1000:D3}";
+        var model = SafeFileName(Device.Model ?? "device");
+        var stamp = $"rec_{(model.Length == 0 ? "device" : model)}_{DateTime.Now:yyyyMMdd_HHmmss}_{Math.Abs(IdentityKey.GetHashCode()) % 1000:D3}";
         _recordPath = Path.Combine(dir, stamp + ".mp4");
         var rec = new Mp4Recorder(_recordPath, Session?.VideoWidth ?? 0, Session?.VideoHeight ?? 0,
             videoCodec);
@@ -601,6 +610,14 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             try { Session?.Control?.SetVideoParams(_videoBitRate, suspend: false); } catch { }
         try { Session?.Control?.SendSimple(ControlMsgType.ResetVideo); } catch { }
         return string.Format(L("rec.started"), _recordPath);
+    }
+
+    internal static string SafeFileName(string name)
+    {
+        var s = new string(name
+            .Select(c => char.IsLetterOrDigit(c) || c is '-' or '_' or ' ' ? c : '_')
+            .ToArray()).Trim();
+        return s.Length == 0 ? "device" : s;
     }
 
     private void StopRecordingInternal()

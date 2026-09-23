@@ -1,0 +1,29 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Dark.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <SolidColorBrush x:Key="SystemAccentColorPrimaryBrush" Color="#E07B2C" />
+    <SolidColorBrush x:Key="SystemAccentColorSecondaryBrush" Color="#F0A55E" />
+    <SolidColorBrush x:Key="SystemAccentColorTertiaryBrush" Color="#B85F1E" />
+    <SolidColorBrush x:Key="TextOnAccentFillColorPrimaryBrush" Color="#1A0D02" />
+    <SolidColorBrush x:Key="AccentButtonBackground" Color="#E07B2C" />
+    <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="#F0A55E" />
+    <SolidColorBrush x:Key="AccentButtonBackgroundPressed" Color="#C96A22" />
+    <SolidColorBrush x:Key="AccentButtonForeground" Color="#1A0D02" />
+    <SolidColorBrush x:Key="AccentButtonBorderBrush" Color="#3A240E" />
+    <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="#E07B2C" />
+    <SolidColorBrush x:Key="AccentFillColorSecondaryBrush" Color="#99E07B2C" />
+    <SolidColorBrush x:Key="AccentFillColorTertiaryBrush" Color="#66E07B2C" />
+    <SolidColorBrush x:Key="AccentTextFillColorPrimaryBrush" Color="#F0A55E" />
+    <SolidColorBrush x:Key="AccentTextFillColorSecondaryBrush" Color="#F0A55E" />
+    <SolidColorBrush x:Key="AccentTextFillColorTertiaryBrush" Color="#E8964A" />
+    <SolidColorBrush x:Key="AccentSubtleBrush" Color="#1FE07B2C" />
+    <SolidColorBrush x:Key="AccentBorderBrush" Color="#40E07B2C" />
+
+    <SolidColorBrush x:Key="DofusAccentBrush" Color="#F0A55E" />
+    <SolidColorBrush x:Key="DofusAccentDimBrush" Color="#A8703F" />
+
+</ResourceDictionary>

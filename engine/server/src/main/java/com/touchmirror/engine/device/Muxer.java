@@ -20,7 +20,7 @@ public final class Muxer implements Closeable {
     private final OutputStream out;
     private final InputStream in;
 
-    private final BlockingQueue<byte[]> inbound = new LinkedBlockingQueue<>();
+    private final BlockingQueue<byte[]> inbound = new LinkedBlockingQueue<>(256);
     private volatile boolean running = true;
     private final Thread demuxThread;
 
@@ -96,12 +96,19 @@ public final class Muxer implements Closeable {
                     break;
                 }
                 if (channel == Protocol.CHAN_CONTROL) {
-                    inbound.offer(payload);
+                    offerInbound(payload);
                 }
             }
         } catch (IOException e) {
         }
-        inbound.offer(new byte[0]);
+        offerInbound(new byte[0]);
+    }
+
+    private void offerInbound(byte[] payload) {
+        if (!inbound.offer(payload)) {
+            inbound.poll();
+            inbound.offer(payload);
+        }
     }
 
     private boolean readFully(byte[] buffer) throws IOException {
