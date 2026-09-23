@@ -2337,7 +2337,8 @@ public partial class MainViewModel : ObservableObject
         if (account != null)
         {
             var lim = await GetLimitsAsync(device);
-            var runningAccounts = Mirrors.Count(m => m.IsConnected && m.AccountUserId != null);
+            var runningAccounts = Mirrors.Count(m => m.IsConnected && m.AccountUserId != null
+                && m.Device.SharesIdentity(device));
             if (lim != null && runningAccounts >= lim.MaxAccountMirrors)
             {
                 Status = string.Format(L("st.mirror_limit"), lim.MaxAccountMirrors);
@@ -3184,7 +3185,7 @@ public partial class MainViewModel : ObservableObject
         AddActivity("usb", L("act.usb_switch"), m.Device.ShortName);
         Status = string.Format(L("st.usb_switch"), m.Device.ShortName);
         m.ManualDisconnect = true;
-        await m.DisconnectAsync();
+        try { await m.DisconnectAsync(); } catch { return; }
         await ConnectDeviceAsync(twin);
     }
 

@@ -635,7 +635,10 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     {
         if (!_videoHidden || _stopping || _disposed || _recorder != null)
             return;
-        try { Session?.Control?.SetVideoParams(ThrottleBitRate, suspend: true); } catch { }
+        var ctrl = Session?.Control;
+        if (ctrl == null)
+            return;
+        try { ctrl.SetVideoParams(ThrottleBitRate, suspend: true); } catch { }
         _encoderSuspended = true;
         RaiseLog(L("log.throttled"));
     }
