@@ -107,6 +107,11 @@
                            IsEnabled="{Binding NetIdle}">
                     <TextBlock Text="{loc:Loc dbg.net}" />
                 </ui:Button>
+                <ui:Button Style="{DynamicResource BtnAction}" Height="28" Padding="10,0" Margin="0,0,6,4"
+                           FontSize="{DynamicResource FsCaption}" Command="{Binding DiagAirPlayCommand}"
+                           IsEnabled="{Binding AirIdle}">
+                    <TextBlock Text="{loc:Loc dbg.air}" />
+                </ui:Button>
             </WrapPanel>
             <TextBlock Text="{Binding DiagBenchText}" FontFamily="Consolas" FontSize="10" Margin="2,6,0,0"
                        TextWrapping="Wrap" Foreground="{DynamicResource SageBrush}"

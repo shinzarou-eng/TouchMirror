@@ -50,10 +50,70 @@ public sealed class PairingIdentityStore
     }
 }
 
+public sealed class PairedClientsStore
+{
+    private readonly Dictionary<string, string> _clients = new(StringComparer.OrdinalIgnoreCase);
+
+    private static string StorePath =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "TouchMirror", "airplay-paired.json");
+
+    private static readonly Lazy<PairedClientsStore> Lazy = new(Load);
+    public static PairedClientsStore Instance => Lazy.Value;
+
+    public string? LtpkHex(string clientId)
+        => _clients.TryGetValue(clientId, out var v) ? v : null;
+
+    public bool HasLtpk(byte[] ltpk)
+    {
+        var hex = Convert.ToHexString(ltpk);
+        foreach (var v in _clients.Values)
+            if (string.Equals(v, hex, StringComparison.OrdinalIgnoreCase))
+                return true;
+        return false;
+    }
+
+    public IEnumerable<byte[]> AllLtpks()
+    {
+        foreach (var v in _clients.Values)
+        {
+            byte[]? b = null;
+            try { b = Convert.FromHexString(v); } catch { }
+            if (b is { Length: 32 })
+                yield return b;
+        }
+    }
+
+    public void Add(string clientId, byte[] ltpk)
+    {
+        if (ltpk.Length != 32 || clientId.Length == 0)
+            return;
+        _clients[clientId] = Convert.ToHexString(ltpk).ToLowerInvariant();
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(StorePath)!);
+            File.WriteAllText(StorePath, JsonSerializer.Serialize(_clients));
+        }
+        catch { }
+    }
+
+    private static PairedClientsStore Load()
+    {
+        var s = new PairedClientsStore();
+        try
+        {
+            if (File.Exists(StorePath))
+                foreach (var (k, v) in JsonSerializer
+                        .Deserialize<Dictionary<string, string>>(File.ReadAllText(StorePath)) ?? new())
+                    s._clients[k] = v;
+        }
+        catch { }
+        return s;
+    }
+}
+
 public sealed class Pairing
 {
-    private const string Pin = "3939";
-
     private readonly PairingIdentityStore _identity;
     private Srp6a? _srp;
     private byte[]? _verifyPriv;
@@ -65,11 +125,51 @@ public sealed class Pairing
     private byte[]? _ecdhSecret;
     private Srp6aHap? _srpHap;
     private byte[]? _verifyShared;
+    private string? _pin;
+    private string? _setupUser;
+
+    public event Action<string>? PinReady;
 
     public byte[] PublicKey => _identity.PublicKey;
     public string PairingId => _identity.PairingId;
 
     public Pairing(PairingIdentityStore identity) => _identity = identity;
+
+    private string CurrentPin()
+    {
+        if (_pin == null)
+        {
+            _pin = RandomNumberGenerator.GetInt32(0, 10000).ToString("D4");
+            PinReady?.Invoke(_pin);
+        }
+        return _pin;
+    }
+
+    private void RememberClient(string? clientId, byte[] ltpk)
+    {
+        _clientLtpk = ltpk;
+        PairedClientsStore.Instance.Add(
+            string.IsNullOrEmpty(clientId) ? Convert.ToHexString(ltpk).ToLowerInvariant() : clientId, ltpk);
+    }
+
+    private bool VerifyClientSignature(string? clientId, byte[] ephClient, byte[] ephServer, byte[]? sig)
+    {
+        if (sig is not { Length: 64 })
+            return false;
+        var msg = ephClient.Concat(ephServer).ToArray();
+        var candidates = new List<byte[]>();
+        if (clientId != null && PairedClientsStore.Instance.LtpkHex(clientId) is { } hex)
+        {
+            try { candidates.Add(Convert.FromHexString(hex)); } catch { }
+        }
+        if (_clientLtpk != null)
+            candidates.Add(_clientLtpk);
+        candidates.AddRange(PairedClientsStore.Instance.AllLtpks());
+        foreach (var ltpk in candidates)
+            if (Curve25519.Ed25519Verify(ltpk, msg, sig))
+                return true;
+        return false;
+    }
 
     public byte[]? HandlePairSetup(byte[] body)
     {
@@ -89,7 +189,8 @@ public sealed class Pairing
         if (plist.TryGetValue("method", out var m) && m is string method && method == "pin"
             && plist.TryGetValue("user", out var u) && u is string user)
         {
-            _srp = new Srp6a(user, Pin);
+            _srp = new Srp6a(user, CurrentPin());
+            _setupUser = user;
             return PlistCodec.Write(new Dictionary<string, object?>
             {
                 ["pk"] = _srp.PublicKey,
@@ -120,7 +221,7 @@ public sealed class Pairing
             {
                 var clientLtpk = new byte[32];
                 Gcm.Decrypt(aesKey, aesIv, epk, authTag, clientLtpk);
-                _clientLtpk = clientLtpk;
+                RememberClient(_setupUser, clientLtpk);
             }
             catch (CryptographicException)
             {
@@ -147,7 +248,7 @@ public sealed class Pairing
             case 1:
                 if (!tlv.TryGetValue(Tlv8.Method, out var m) || m.Length != 1 || m[0] != 0)
                     return null;
-                _srpHap = new Srp6aHap(Pin);
+                _srpHap = new Srp6aHap(CurrentPin());
                 return Tlv8.Format(
                     (Tlv8.State, new byte[] { 2 }),
                     (Tlv8.Salt, _srpHap.Salt),
@@ -179,7 +280,11 @@ public sealed class Pairing
                 }
                 var inner = Tlv8.Parse(plain);
                 if (inner.TryGetValue(Tlv8.PublicKey, out var clientLtpk) && clientLtpk.Length == 32)
-                    _clientLtpk = clientLtpk;
+                    RememberClient(
+                        inner.TryGetValue(Tlv8.Identifier, out var cid)
+                            ? Encoding.ASCII.GetString(cid)
+                            : null,
+                        clientLtpk);
 
                 var accX = Hkdf(_srpSessionKey, "Pair-Setup-Accessory-Sign-Salt", "Pair-Setup-Accessory-Sign-Info");
                 var idBytes = Encoding.ASCII.GetBytes(Services.AirPlayAdvertiser.DeviceIdPublic);
@@ -242,6 +347,12 @@ public sealed class Pairing
                     return Tlv8.Format((Tlv8.State, new byte[] { 4 }), (Tlv8.Error, new byte[] { 2 }));
                 }
                 var inner3 = Tlv8.Parse(plain3);
+                var clientId = inner3.TryGetValue(Tlv8.Identifier, out var idv)
+                    ? Encoding.ASCII.GetString(idv)
+                    : null;
+                var clientSig = inner3.TryGetValue(Tlv8.Signature, out var sgv) ? sgv : null;
+                if (!VerifyClientSignature(clientId, _clientEcdh!, _verifyPub!, clientSig))
+                    return Tlv8.Format((Tlv8.State, new byte[] { 4 }), (Tlv8.Error, new byte[] { 2 }));
                 Verified = true;
                 return Tlv8.Format((Tlv8.State, new byte[] { 4 }));
         }
@@ -271,8 +382,12 @@ public sealed class Pairing
 
         if (body.Length == 4 + 32 + 32 && body[0] == 1)
         {
+            var presented = body[36..68];
+            if (!PairedClientsStore.Instance.HasLtpk(presented)
+                && (_clientLtpk == null || !presented.SequenceEqual(_clientLtpk)))
+                return null;
             _clientEcdh = body[4..36];
-            _clientLtpk = body[36..68];
+            _clientLtpk = presented;
             _verifyPriv = RandomNumberGenerator.GetBytes(32);
             _verifyPub = Curve25519.X25519(_verifyPriv, BasePoint());
             var shared = Curve25519.X25519(_verifyPriv, _clientEcdh);

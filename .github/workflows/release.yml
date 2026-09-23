@@ -18,6 +18,12 @@ jobs:
         with:
           dotnet-version: "10.x"
 
+      - name: Fetch assets
+        run: tools/fetch-assets.ps1
+
+      - name: Tests
+        run: dotnet test tests/TouchMirror.Tests/TouchMirror.Tests.csproj -c Release --nologo
+
       - name: Publish win-x64
         run: |
           dotnet publish src/AndroidMirror/TouchMirror.csproj `
@@ -51,6 +57,8 @@ jobs:
             --runtime win-x64 `
             --packTitle "TouchMirror" --packAuthors "shinzarou-eng" `
             --icon "assets/app.ico" -o Releases
+          Get-ChildItem "Releases/TouchMirror-*-full.nupkg", "Releases/TouchMirror-*-delta.nupkg" |
+            Where-Object Name -notlike "TouchMirror-$ver-*" | Remove-Item
 
       - name: Release
         uses: softprops/action-gh-release@v2

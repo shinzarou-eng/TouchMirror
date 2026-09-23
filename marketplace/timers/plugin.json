@@ -1,0 +1,8 @@
+{
+  "name": "Timers",
+  "description": "Minuteurs nommés sur les miroirs : édite timers.txt (« Percepteur = 45m », « Boss = 1h30 »), clic sur une ligne pour lancer ou réarmer. Badge orange quand le temps est écoulé. Repop, percepteurs, files koli, potions.",
+  "version": "1.0",
+  "author": "TouchMirror",
+  "icon": "⏱️",
+  "tags": ["chrono", "dofus", "rappel"]
+}

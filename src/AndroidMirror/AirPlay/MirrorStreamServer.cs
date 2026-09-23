@@ -17,8 +17,10 @@ internal sealed class MirrorStreamServer : IDisposable
     private static readonly byte[] StartCode = { 0, 0, 0, 1 };
 
     private readonly byte[]? _aesKeyAudio;
+    private readonly IPAddress? _peer;
     private readonly TcpListener _listener;
     private readonly VideoDecoder _decoder;
+    private TcpClient? _active;
     private byte[]? _ctrKey;
     private byte[]? _ctrIv;
     private List<byte[]>? _dataSecrets;
@@ -31,9 +33,10 @@ internal sealed class MirrorStreamServer : IDisposable
     public event Action<string>? Log;
     public event Action? StreamDisconnected;
 
-    public MirrorStreamServer(byte[]? aesKeyAudio)
+    public MirrorStreamServer(byte[]? aesKeyAudio, IPAddress? peer = null)
     {
         _aesKeyAudio = aesKeyAudio;
+        _peer = peer;
         _decoder = new VideoDecoder("h264");
         _listener = new TcpListener(IPAddress.Any, 0);
         _listener.Start();
@@ -74,7 +77,25 @@ internal sealed class MirrorStreamServer : IDisposable
             try
             {
                 var client = await _listener.AcceptTcpClientAsync(ct);
-                _ = Task.Run(() => Pump(client, ct));
+                var addr = (client.Client.RemoteEndPoint as IPEndPoint)?.Address;
+                if (_peer != null && (addr == null || !_peer.Equals(addr)))
+                {
+                    Log?.Invoke($"airplay mirror: connexion refusée depuis {addr} (pair attendu {_peer})");
+                    client.Dispose();
+                    continue;
+                }
+                if (_active != null)
+                {
+                    Log?.Invoke("airplay mirror: connexion superflue refusée");
+                    client.Dispose();
+                    continue;
+                }
+                _active = client;
+                _ = Task.Run(async () =>
+                {
+                    try { await Pump(client, ct); }
+                    finally { _active = null; }
+                });
             }
             catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or SocketException)
             {
@@ -110,9 +131,13 @@ internal sealed class MirrorStreamServer : IDisposable
                     if (dataPlain)
                     {
                         plain.AddRange(new ArraySegment<byte>(buf, 0, n));
+                        if (plain.Count > 4 << 20)
+                            return false;
                         return true;
                     }
                     raw.AddRange(new ArraySegment<byte>(buf, 0, n));
+                    if (raw.Count > 4 << 20)
+                        return false;
                     if (dataCipher == null && !dataProbed && raw.Count >= 2)
                     {
                         var blen = (raw[1] << 8) | raw[0];

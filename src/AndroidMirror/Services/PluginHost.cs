@@ -281,6 +281,7 @@ public partial class PluginInstance : ObservableObject
           disconnect:  s     => JSON.parse(__call('disconnect',  String(s))),
           connect:     s     => JSON.parse(__call('connect',     String(s))),
           mute:      (s, m)  => JSON.parse(__call('mute', JSON.stringify({ slot: s, muted: !!m }))),
+          volume:    (s, v)  => JSON.parse(__call('volume', JSON.stringify({ slot: s, volume: +v }))),
           read:      name    => JSON.parse(__call('read', String(name))),
           write:   (name, d) => JSON.parse(__call('write', JSON.stringify(
                                   { name: String(name), data: String(d) }))),

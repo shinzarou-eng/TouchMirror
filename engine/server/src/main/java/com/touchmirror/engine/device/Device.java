@@ -44,8 +44,6 @@ public final class Device {
     public static final int INJECT_MODE_WAIT_FOR_RESULT = InputManager.INJECT_INPUT_EVENT_MODE_WAIT_FOR_RESULT;
     public static final int INJECT_MODE_WAIT_FOR_FINISH = InputManager.INJECT_INPUT_EVENT_MODE_WAIT_FOR_FINISH;
 
-    private static final boolean USE_ANDROID_15_DISPLAY_POWER = false;
-
     private Device() {
     }
 
@@ -128,10 +126,6 @@ public final class Device {
 
     public static boolean setDisplayPower(int displayId, boolean on) {
         assert displayId != DISPLAY_ID_NONE;
-
-        if (USE_ANDROID_15_DISPLAY_POWER && Build.VERSION.SDK_INT >= AndroidVersions.API_35_ANDROID_15) {
-            return ServiceManager.getDisplayManager().requestDisplayPower(displayId, on);
-        }
 
         boolean multiDisplay = Build.VERSION.SDK_INT >= AndroidVersions.API_29_ANDROID_10;
         if (multiDisplay && Build.VERSION.SDK_INT >= AndroidVersions.API_34_ANDROID_14 && Build.BRAND.equalsIgnoreCase("honor")

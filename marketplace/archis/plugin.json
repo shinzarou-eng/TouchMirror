@@ -1,0 +1,13 @@
+{
+  "name": "Archis",
+  "description": "Traque d'archimonstres façon Metamob — les 15 avis de recherche et 192 archimonstres officiels pré-chargés par tranche de niveau. Navigue section par section, clic pour cocher une capture, progression en un coup d'œil. Liste éditable dans archis.txt.",
+  "version": "1.0",
+  "author": "TouchMirror",
+  "icon": "🎯",
+  "featured": true,
+  "tags": [
+    "dofus",
+    "chasse",
+    "collection"
+  ]
+}

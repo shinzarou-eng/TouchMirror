@@ -238,7 +238,7 @@ public partial class MainWindow : FluentWindow
         HubScroll.SizeChanged += (_, _) =>
             Dispatcher.BeginInvoke(new Action(RecalcHubStage));
 
-        VersionText.Text = $"TouchMirror v{GetType().Assembly.GetName().Version?.ToString(3)}";
+        VersionText.Text = $"TouchMirror v{GetType().Assembly.GetName().Version?.ToString(3)}{UpdateService.DevSuffix}";
 
         UpdateBotConnection();
 
@@ -329,9 +329,18 @@ public partial class MainWindow : FluentWindow
         EyeLT.Y += (ny - EyeLT.Y) * .3;
         EyeDT.X += (nx - EyeDT.X) * .3;
         EyeDT.Y += (ny - EyeDT.Y) * .3;
+        PumpkinEyeLT.X += (nx * .5 - PumpkinEyeLT.X) * .3;
+        PumpkinEyeLT.Y += (ny * .6 - PumpkinEyeLT.Y) * .3;
     }
 
     private void SetBotMouth(string d) => MouthPath.Data = Geometry.Parse(d);
+
+    private void SetPumpkinMouth(string d) => PumpkinMouth.Data = Geometry.Parse(d);
+
+    private const string PumpkinMouthCalm = "M35 52 L39 56 L43 52 L47 57 L50 53 L53 57 L57 52 L61 56 L65 52 L65 60 L35 60 Z";
+    private const string PumpkinMouthHappy = "M32 50 L37 55 L42 50 L46 56 L50 51 L54 56 L58 50 L63 55 L68 50 L68 62 L32 62 Z";
+    private const string PumpkinMouthEager = "M33 51 L38 57 L43 51 L47 57 L50 52 L53 57 L57 51 L62 57 L67 51 L67 61 L33 61 Z";
+    private const string PumpkinMouthWorried = "M38 56 L42 52 L46 55 L50 52 L54 55 L58 52 L62 56 L62 59 L38 59 Z";
 
     private void BotHopAnim()
     {
@@ -353,6 +362,10 @@ public partial class MainWindow : FluentWindow
             SetBotMouth("M38 58 Q50 68 62 58");
             BlushL.BeginAnimation(OpacityProperty, new DoubleAnimation(.7, TimeSpan.FromMilliseconds(200)));
             BlushR.BeginAnimation(OpacityProperty, new DoubleAnimation(.7, TimeSpan.FromMilliseconds(200)));
+            PumpkinCanvas.BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(200)));
+            SetPumpkinMouth(PumpkinMouthHappy);
+            PumpkinBlushL.BeginAnimation(OpacityProperty, new DoubleAnimation(.5, TimeSpan.FromMilliseconds(200)));
+            PumpkinBlushR.BeginAnimation(OpacityProperty, new DoubleAnimation(.5, TimeSpan.FromMilliseconds(200)));
             BotHopAnim();
             var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1600) };
             t.Tick += (_, _) => { t.Stop(); OnBotCalm(this, null); };
@@ -370,6 +383,12 @@ public partial class MainWindow : FluentWindow
             BotCanvas.BeginAnimation(OpacityProperty, new DoubleAnimation(.6, TimeSpan.FromMilliseconds(300)));
             BlushL.BeginAnimation(OpacityProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(200)));
             BlushR.BeginAnimation(OpacityProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(200)));
+            SetPumpkinMouth(PumpkinMouthCalm);
+            PumpkinLidLS.BeginAnimation(ScaleTransform.ScaleYProperty,
+                new DoubleAnimation(.62, TimeSpan.FromMilliseconds(280)));
+            PumpkinCanvas.BeginAnimation(OpacityProperty, new DoubleAnimation(.6, TimeSpan.FromMilliseconds(300)));
+            PumpkinBlushL.BeginAnimation(OpacityProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(200)));
+            PumpkinBlushR.BeginAnimation(OpacityProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(200)));
         }
     }
 
@@ -387,6 +406,9 @@ public partial class MainWindow : FluentWindow
             SetBotMouth("M41 60 Q50 66.5 59 60");
             BlushL.BeginAnimation(OpacityProperty, new DoubleAnimation(.55, TimeSpan.FromMilliseconds(200)));
             BlushR.BeginAnimation(OpacityProperty, new DoubleAnimation(.55, TimeSpan.FromMilliseconds(200)));
+            SetPumpkinMouth(PumpkinMouthEager);
+            PumpkinBlushL.BeginAnimation(OpacityProperty, new DoubleAnimation(.4, TimeSpan.FromMilliseconds(200)));
+            PumpkinBlushR.BeginAnimation(OpacityProperty, new DoubleAnimation(.4, TimeSpan.FromMilliseconds(200)));
         }
     }
 
@@ -396,6 +418,8 @@ public partial class MainWindow : FluentWindow
         SetBotMouth("M42 63 Q50 58 58 63");
         EyeLS.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(.82, TimeSpan.FromMilliseconds(180)));
         EyeDS.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(.82, TimeSpan.FromMilliseconds(180)));
+        SetPumpkinMouth(PumpkinMouthWorried);
+        PumpkinEyeLS.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(.82, TimeSpan.FromMilliseconds(180)));
     }
 
     private void OnBotCalm(object? sender, MouseEventArgs? e)
@@ -406,6 +430,10 @@ public partial class MainWindow : FluentWindow
         BlushR.BeginAnimation(OpacityProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(250)));
         EyeLS.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(200)));
         EyeDS.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(200)));
+        SetPumpkinMouth(_vm.IsConnected ? PumpkinMouthHappy : PumpkinMouthCalm);
+        PumpkinBlushL.BeginAnimation(OpacityProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(250)));
+        PumpkinBlushR.BeginAnimation(OpacityProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(250)));
+        PumpkinEyeLS.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(200)));
     }
 
     private void OnOpenCapturesClick(object sender, RoutedEventArgs e)
@@ -1161,6 +1189,145 @@ public partial class MainWindow : FluentWindow
         {
             menu.PlacementTarget = btn;
             menu.IsOpen = true;
+        }
+    }
+
+    private void OnCalcClick(object sender, RoutedEventArgs e)
+        => CalcPopup.IsOpen = !CalcPopup.IsOpen;
+
+    private void OnCalcOpened(object sender, EventArgs e)
+    {
+        CalcInput.Focus();
+        CalcInput.CaretIndex = CalcInput.Text.Length;
+    }
+
+    private void OnCalcInputKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            CalcEval();
+            e.Handled = true;
+        }
+    }
+
+    private void OnCalcKeyClick(object sender, RoutedEventArgs e)
+    {
+        CalcInput.Text += (string)((FrameworkElement)sender).Tag;
+        CalcInput.Focus();
+        CalcInput.CaretIndex = CalcInput.Text.Length;
+    }
+
+    private void OnCalcQuickClick(object sender, RoutedEventArgs e)
+    {
+        var tag = (string)((FrameworkElement)sender).Tag;
+        var t = CalcInput.Text;
+        switch (tag)
+        {
+            case "hdv": if (t.Length > 0) CalcInput.Text = $"({t}) * 0.98"; break;
+            case "x100": if (t.Length > 0) CalcInput.Text = $"({t}) * 100"; break;
+            case "x1k": if (t.Length > 0) CalcInput.Text = $"({t}) * 1000"; break;
+            case "bk": CalcInput.Text = t.Length > 0 ? t[..^1] : t; break;
+            case "clr": CalcInput.Text = ""; CalcResult.Text = ""; break;
+        }
+        CalcInput.Focus();
+        CalcInput.CaretIndex = CalcInput.Text.Length;
+    }
+
+    private void OnCalcEvalClick(object sender, RoutedEventArgs e) => CalcEval();
+
+    private void CalcEval()
+    {
+        var expr = CalcInput.Text;
+        if (string.IsNullOrWhiteSpace(expr))
+        {
+            CalcResult.Text = "";
+            return;
+        }
+        try
+        {
+            var p = new CalcParser(expr);
+            var v = p.Parse();
+            CalcResult.Text = double.IsFinite(v) ? "= " + FormatKamas(v) : "?";
+        }
+        catch { CalcResult.Text = "?"; }
+    }
+
+    private static string FormatKamas(double v)
+    {
+        var r = Math.Round(v, 2);
+        var parts = r.ToString(r == Math.Floor(r) ? "0" : "0.##",
+            System.Globalization.CultureInfo.InvariantCulture).Split('.');
+        var s = parts[0];
+        var neg = s.StartsWith('-');
+        if (neg) s = s[1..];
+        for (var i = s.Length - 3; i > 0; i -= 3)
+            s = s.Insert(i, " ");
+        return (neg ? "-" : "") + s + (parts.Length > 1 ? "," + parts[1] : "");
+    }
+
+    private sealed class CalcParser
+    {
+        private readonly string _s;
+        private int _i;
+
+        public CalcParser(string s) => _s = s.Replace(',', '.');
+
+        public double Parse()
+        {
+            var v = Expr();
+            Skip();
+            if (_i < _s.Length)
+                throw new FormatException();
+            return v;
+        }
+
+        private void Skip() { while (_i < _s.Length && _s[_i] == ' ') _i++; }
+        private bool Eat(char c) { Skip(); if (_i < _s.Length && _s[_i] == c) { _i++; return true; } return false; }
+
+        private double Expr()
+        {
+            var v = Term();
+            while (true)
+            {
+                if (Eat('+')) v += Term();
+                else if (Eat('-')) v -= Term();
+                else return v;
+            }
+        }
+
+        private double Term()
+        {
+            var v = Factor();
+            while (true)
+            {
+                if (Eat('*')) v *= Factor();
+                else if (Eat('/')) v /= Factor();
+                else return v;
+            }
+        }
+
+        private double Factor()
+        {
+            Skip();
+            if (Eat('-')) return -Factor();
+            if (Eat('+')) return Factor();
+            double v;
+            if (Eat('('))
+            {
+                v = Expr();
+                if (!Eat(')')) throw new FormatException();
+            }
+            else
+            {
+                var start = _i;
+                while (_i < _s.Length && (char.IsDigit(_s[_i]) || _s[_i] == '.')) _i++;
+                if (_i == start || !double.TryParse(_s[start.._i],
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out v))
+                    throw new FormatException();
+            }
+            while (Eat('%')) v /= 100;
+            return v;
         }
     }
 

@@ -290,6 +290,7 @@ public partial class MainViewModel : ObservableObject
             .Select(e => e.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase)
                 ? Path.GetFileNameWithoutExtension(e) : e).ToList();
         _apiHost = new LocalApiHost(this);
+        _discord = new DiscordPresence(() => Mirrors.Count(m => m.IsConnected), Log);
         _apiHost.PluginEvent += json =>
         {
             foreach (var p in Plugins)
@@ -324,11 +325,13 @@ public partial class MainViewModel : ObservableObject
         Topmost = _settings.Topmost;
         TurnScreenOff = _settings.TurnScreenOff;
         Language = _settings.Language;
+        Theme = _settings.Theme;
         AutoLaunchDofus = _settings.AutoLaunchDofus;
         ShowSettings = _settings.ShowSettings;
         LocalApiPort = _settings.LocalApiPort;
         LocalApiToken = _settings.LocalApiToken ?? "";
         LocalApiEnabled = _settings.LocalApiEnabled;
+        DiscordPresenceEnabled = _settings.DiscordPresence;
         SelectedDisplayFormat = DisplayFormatOptions.FirstOrDefault(f => f.Spec == _settings.NewDisplay)
             ?? DisplayFormatOptions[0];
         SelectedDisplaySource = DisplaySourceOptions[_settings.NewDisplay == null ? 0 : 1];
@@ -379,6 +382,7 @@ public partial class MainViewModel : ObservableObject
         _settings.Topmost = Topmost;
         _settings.ShowSettings = ShowSettings;
         _settings.LocalApiEnabled = LocalApiEnabled;
+        _settings.DiscordPresence = DiscordPresenceEnabled;
         _settings.LocalApiPort = LocalApiPort;
         _settings.LocalApiToken = string.IsNullOrEmpty(LocalApiToken) ? null : LocalApiToken;
         _settings.LastSelectedDeviceKey = SelectedDevice?.DeviceKey;
@@ -531,15 +535,28 @@ public partial class MainViewModel : ObservableObject
     }
 
     [ObservableProperty] private bool _localApiEnabled;
+    [ObservableProperty] private bool _discordPresenceEnabled;
+    private readonly DiscordPresence _discord;
     [ObservableProperty] private int _localApiPort = 47613;
     [ObservableProperty] private string _localApiToken = "";
     [ObservableProperty] private string _language = "fr";
+    [ObservableProperty] private string _theme = "sombre";
+    [ObservableProperty] private bool _isHalloweenTheme;
 
     partial void OnLanguageChanged(string value)
     {
         if (_suppressSave) return;
         _settings.Language = value;
         LocalizationService.Instance.Load(value);
+        ScheduleSave();
+    }
+
+    partial void OnThemeChanged(string value)
+    {
+        IsHalloweenTheme = value == "halloween";
+        if (_suppressSave) return;
+        _settings.Theme = value;
+        ((App)Application.Current).ApplyTheme(value);
         ScheduleSave();
     }
 
@@ -589,6 +606,12 @@ public partial class MainViewModel : ObservableObject
     {
         ScheduleSave();
         AppLogger.Forget(RestartApiAsync());
+    }
+
+    partial void OnDiscordPresenceEnabledChanged(bool value)
+    {
+        ScheduleSave();
+        _discord.SetEnabled(value);
     }
 
     partial void OnLocalApiPortChanged(int value) => ScheduleSave();
@@ -1777,6 +1800,7 @@ public partial class MainViewModel : ObservableObject
         _benchCts?.Cancel();
         _health.Dispose();
         DeviceThumbs.Shutdown();
+        _discord.Dispose();
     }
 
     private async Task CheckUpdateAsync()
@@ -2419,7 +2443,17 @@ public partial class MainViewModel : ObservableObject
         try
         {
             var needRebind = existing != null && _airPlay == null;
-            _airPlay ??= new AirPlayService();
+            if (_airPlay == null)
+            {
+                _airPlay = new AirPlayService();
+                _airPlay.Log += Log;
+                _airPlay.PairingCode += code =>
+                {
+                    Log($"airplay: code d'appairage {code} — saisis-le sur l'appareil iOS");
+                    foreach (var t in Mirrors.OfType<IosMirrorInstance>())
+                        t.View.SetWaitingHint($"code d'appairage : {code}");
+                };
+            }
             if (!_airPlay.IsRunning)
                 await _airPlay.StartAsync();
 
@@ -3363,7 +3397,11 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(NetIdle))]
     private bool _diagNetBusy;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AirIdle))]
+    private bool _diagAirBusy;
     public bool NetIdle => !DiagNetBusy;
+    public bool AirIdle => !DiagAirBusy;
     [ObservableProperty] private string _diagScore = "";
     public event Action? DebugScrollToEnd;
     public ObservableCollection<DiagIssue> DiagIssues { get; } = new();
@@ -3483,6 +3521,85 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception ex) { DebugNote = ex.Message; }
         finally { DiagNetBusy = false; }
+        _ = ClearDebugNoteAsync();
+    }
+
+    [RelayCommand]
+    private async Task DiagAirPlayAsync()
+    {
+        DiagAirBusy = true;
+        DebugNote = L("dbg.air_run");
+        foreach (var i in DiagIssues.Where(x => x.Tag == "air").ToList())
+            DiagIssues.Remove(i);
+        try
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append("\n== airplay ==\n");
+            var running = _airPlay is { IsRunning: true };
+            sb.Append(running
+                ? $"[OK] récepteur actif — raop {AirPlayService.RaopPort} · airplay {AirPlayService.AirPlayPort}\n"
+                : "[--] récepteur arrêté — ajoute un miroir iPhone pour l'activer\n");
+
+            var diag = AirPlayDiagnostics.Run(Environment.ProcessPath ?? "", Environment.ProcessId,
+                AirPlayService.RaopPort, AirPlayService.AirPlayPort, 7100);
+            if (diag.PortConflicts.Count > 0)
+            {
+                sb.Append($"[!!] ports occupés : {string.Join(", ", diag.PortConflicts)}\n");
+                DiagIssues.Add(new("ports airplay occupés",
+                    $"Un autre programme écoute sur {string.Join(", ", diag.PortConflicts)} — le récepteur ne peut pas démarrer. → Ferme l'application qui tient le port (iTunes, Bonjour, autre récepteur AirPlay).",
+                    Tag: "air"));
+            }
+            else
+                sb.Append($"[OK] ports libres — {AirPlayService.RaopPort} / {AirPlayService.AirPlayPort} / 7100\n");
+
+            if (diag.FirewallRuleBlocking)
+            {
+                sb.Append("[!!] pare-feu : une règle bloque TouchMirror\n");
+                DiagIssues.Add(new("pare-feu bloquant",
+                    "Une règle bloque le trafic entrant de TouchMirror — l'iPhone ne pourra pas se connecter.", "fw", L("dbg.fix_fw"), "air"));
+            }
+            else if (diag.FirewallRuleMissing)
+                sb.Append("[--] pare-feu : aucune règle encore — créée au 1er lancement du récepteur\n");
+            else
+                sb.Append("[OK] pare-feu : règle entrante autorisée\n");
+
+            if (diag.ProfileKind != null)
+            {
+                var isPublic = string.Equals(diag.ProfileKind, L("profile.public"), StringComparison.OrdinalIgnoreCase);
+                sb.Append(isPublic
+                    ? $"[!!] profil réseau « {diag.ProfileKind} » — Windows filtre l'entrant\n"
+                    : $"[OK] profil réseau « {diag.ProfileKind} »\n");
+                if (isPublic)
+                    DiagIssues.Add(new("réseau en profil Public",
+                        "Windows bloque les connexions entrantes sur un réseau Public — l'iPhone ne verra jamais le PC. → Paramètres → Réseau → Wi-Fi → Propriétés → « Réseau privé ».",
+                        Tag: "air"));
+            }
+            if (diag.LocalIPv4 != null)
+                sb.Append($"[OK] ip locale : {diag.LocalIPv4} — l'iPhone doit être sur le même réseau\n");
+
+            var helper = Path.Combine(AppContext.BaseDirectory, "assets", "FairPlayHelper.exe");
+            sb.Append(File.Exists(helper)
+                ? "[OK] FairPlayHelper présent — déchiffrement vidéo possible\n"
+                : "[!!] FairPlayHelper.exe absent — le flux vidéo restera chiffré\n");
+            if (!File.Exists(helper))
+                DiagIssues.Add(new("FairPlayHelper manquant",
+                    "assets/FairPlayHelper.exe est introuvable à côté de l'exe — nécessaire pour déchiffrer le flux. → Réinstalle via le Setup ou le zip complet.",
+                    Tag: "air"));
+
+            if (running)
+            {
+                var seen = await MdnsHost.ProbeAirPlayAsync(TimeSpan.FromSeconds(2), CancellationToken.None);
+                sb.Append(seen
+                    ? "[OK] annonce mDNS confirmée — le service « TouchMirror » répond sur le réseau\n"
+                    : "[--] annonce mDNS non confirmée — l'iPhone pourrait ne pas voir le PC (vlan isolé ?)\n");
+            }
+
+            DebugReport += sb.ToString();
+            DebugScrollToEnd?.Invoke();
+            DebugNote = L("dbg.air_done");
+        }
+        catch (Exception ex) { DebugNote = ex.Message; }
+        finally { DiagAirBusy = false; }
         _ = ClearDebugNoteAsync();
     }
 

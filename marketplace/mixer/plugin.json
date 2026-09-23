@@ -1,0 +1,8 @@
+{
+  "name": "Mixeur audio",
+  "description": "Volume par miroir sur l'overlay : chaque ligne affiche une tuile avec sa barre de volume, clic pour descendre par paliers (100 → 60 → 30 → 10 → muet) puis remonter à 100. Le son du téléphone n'est pas touché.",
+  "version": "1.0",
+  "author": "TouchMirror",
+  "icon": "🔊",
+  "tags": ["audio", "multi-compte"]
+}
