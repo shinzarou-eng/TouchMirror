@@ -22,17 +22,17 @@ public static class UpdateService
             : new Version(0, 0, 0);
 
     private static UpdateManager? _mgr;
-    private static UpdateManager? Mgr
+    private static UpdateManager? _webMgr;
+    private static UpdateManager? _pendingMgr;
+
+    private static UpdateManager? Mgr => _mgr ??= CreateMgr(new GithubSource(RepoUrl, null, false));
+    private static UpdateManager? WebMgr =>
+        _webMgr ??= CreateMgr(new SimpleWebSource($"{RepoUrl}/releases/latest/download/"));
+
+    private static UpdateManager? CreateMgr(IUpdateSource source)
     {
-        get
-        {
-            if (_mgr == null)
-            {
-                try { _mgr = new UpdateManager(new GithubSource(RepoUrl, null, false)); }
-                catch { }
-            }
-            return _mgr;
-        }
+        try { return new UpdateManager(source); }
+        catch { return null; }
     }
 
     public static UpdateInfo? Pending { get; private set; }
@@ -59,37 +59,52 @@ public static class UpdateService
         var mgr = Mgr;
         if (mgr?.IsInstalled == true)
         {
-            try
+            Pending = await TryCheckAsync(mgr, "github", ct);
+            if (Pending == null)
             {
-                Pending = await mgr.CheckForUpdatesAsync().WaitAsync(ct);
-                if (Pending != null
-                    && Version.TryParse(Pending.TargetFullRelease.Version.ToString(), out var pv))
-                    return (pv, $"{RepoUrl}/releases/latest", true);
-                Log?.Invoke("update: aucune maj sur le canal Velopack");
+                var web = WebMgr;
+                if (web?.IsInstalled == true)
+                {
+                    Pending = await TryCheckAsync(web, "feed-direct", ct);
+                    _pendingMgr = web;
+                }
             }
-            catch (Exception ex) { Log?.Invoke($"update: check Velopack en échec — {ex.Message}"); }
+            else _pendingMgr = mgr;
+            if (Pending != null
+                && Version.TryParse(Pending.TargetFullRelease.Version.ToString(), out var pv))
+                return (pv, $"{RepoUrl}/releases/latest", true);
+            Log?.Invoke("update: aucune maj sur le canal Velopack");
             return null;
         }
         Log?.Invoke("update: app non installée — canal Velopack inactif");
         return await CheckGithubAsync(ct) is { } l ? (l.Version, l.Url, false) : null;
     }
 
+    private static async Task<UpdateInfo?> TryCheckAsync(UpdateManager? mgr, string label, CancellationToken ct)
+    {
+        if (mgr == null) return null;
+        try { return await mgr.CheckForUpdatesAsync().WaitAsync(ct); }
+        catch (Exception ex) { Log?.Invoke($"update: check {label} en échec — {ex.Message}"); return null; }
+    }
+
+    private static UpdateManager? ActiveMgr => _pendingMgr ?? Mgr;
+
     public static Task DownloadAsync(IProgress<int> progress, CancellationToken ct = default)
-        => Mgr == null || Pending == null
+        => ActiveMgr == null || Pending == null
             ? Task.CompletedTask
-            : Mgr.DownloadUpdatesAsync(Pending, p => progress.Report(p), ct);
+            : ActiveMgr.DownloadUpdatesAsync(Pending, p => progress.Report(p), ct);
 
     public static void ApplyAndRestart()
     {
-        if (Mgr != null && Pending != null)
-            Mgr.ApplyUpdatesAndRestart(Pending);
+        if (ActiveMgr != null && Pending != null)
+            ActiveMgr.ApplyUpdatesAndRestart(Pending);
     }
 
     public static void ApplyOnExit()
     {
-        if (Mgr == null || Pending == null)
+        if (ActiveMgr == null || Pending == null)
             return;
-        try { Mgr.WaitExitThenApplyUpdates(Pending.TargetFullRelease); }
+        try { ActiveMgr.WaitExitThenApplyUpdates(Pending.TargetFullRelease); }
         catch (Exception ex) { Log?.Invoke($"update: apply en échec — {ex.Message}"); }
     }
 
