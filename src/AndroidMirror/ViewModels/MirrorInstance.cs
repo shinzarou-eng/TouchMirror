@@ -88,6 +88,12 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public event Action? EditModeExitRequested;
 
     public event Action<MirrorInstance, string, int>? OverlayLineClicked;
+    public event Action<MirrorInstance, string, double, double>? OverlayMoved;
+    public Func<string, (double X, double Y)?>? OverlayPositionOf
+    {
+        get => View.OverlayPositionOf;
+        set => View.OverlayPositionOf = value;
+    }
 
     partial void OnKeybindEditModeChanged(bool value) =>
         View.Dispatcher.Invoke(() => View.SetKeybindEditMode(value));
@@ -153,6 +159,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         View.BindKeybinds(Keybinds);
         View.EditModeExitRequested += () => EditModeExitRequested?.Invoke();
         View.OverlayLineClicked += (id, idx) => OverlayLineClicked?.Invoke(this, id, idx);
+        View.OverlayMoved += (id, rx, ry) => OverlayMoved?.Invoke(this, id, rx, ry);
         Keybinds.CollectionChanged += OnKeybindsCollectionChanged;
     }
 

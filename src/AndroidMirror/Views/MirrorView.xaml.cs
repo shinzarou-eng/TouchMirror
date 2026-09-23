@@ -552,6 +552,8 @@ public partial class MirrorView : UserControl
     private readonly Dictionary<string, GraphWidget> _overlays = new();
 
     public event Action<string, int>? OverlayLineClicked;
+    public event Action<string, double, double>? OverlayMoved;
+    public Func<string, (double X, double Y)?>? OverlayPositionOf { get; set; }
 
     public double CurrentFps => _fps;
 
@@ -564,8 +566,20 @@ public partial class MirrorView : UserControl
             w = new GraphWidget { Host = OverlayLayer };
             w.DragBegan += () => Activated?.Invoke(this);
             w.LineClicked += idx => OverlayLineClicked?.Invoke(id, idx);
+            w.DragEnded += () =>
+            {
+                if (w.Host == null)
+                    return;
+                var maxX = Math.Max(1, w.Host.ActualWidth - w.ActualWidth);
+                var maxY = Math.Max(1, w.Host.ActualHeight - w.ActualHeight);
+                var x = Canvas.GetLeft(w); if (double.IsNaN(x)) x = 0;
+                var y = Canvas.GetTop(w); if (double.IsNaN(y)) y = 0;
+                OverlayMoved?.Invoke(id, Math.Clamp(x / maxX, 0, 1), Math.Clamp(y / maxY, 0, 1));
+            };
             AnchorOverlay(w, pos ?? "bl");
             OverlayLayer.Children.Add(w);
+            if (OverlayPositionOf?.Invoke(id) is { } saved)
+                w.RestorePosition(saved.X, saved.Y);
             _overlays[id] = w;
         }
         w.Configure(title, colorHex, compact);

@@ -81,7 +81,7 @@ public sealed record AdbDevice(string Serial, string Model, string State, int? B
             : this;
 }
 
-public sealed record AndroidProfile(int Id, string Name, bool Running, bool Owned = false);
+public sealed record AndroidProfile(int Id, string Name, bool Running, bool Owned = false, string? Type = null);
 
 public static class AdbService
 {
@@ -506,13 +506,15 @@ public static class AdbService
             if (!m.Success || int.Parse(m.Groups[1].Value) == 0)
                 continue;
             var id = int.Parse(m.Groups[1].Value);
-            if (types.Count > 0 && types.TryGetValue(id, out var t)
-                && !t.EndsWith("profile.CLONE", StringComparison.Ordinal))
+            types.TryGetValue(id, out var t);
+            if (types.Count > 0 && t != null
+                && !t.EndsWith("profile.CLONE", StringComparison.Ordinal)
+                && !t.EndsWith("profile.MANAGED", StringComparison.Ordinal))
                 continue;
             var name = m.Groups[2].Value;
             list.Add(new AndroidProfile(id,
                 string.IsNullOrEmpty(name) ? $"Profil {id}" : name,
-                m.Groups[3].Value.Contains("running")));
+                m.Groups[3].Value.Contains("running"), Type: t));
         }
         return list;
     }
@@ -523,8 +525,17 @@ public static class AdbService
     {
         if (!ProfileNameOk.IsMatch(name))
             throw new ArgumentException($"nom de profil invalide : « {name} »");
-        var output = await RunAsync(
-            $"-s {S(serial)} shell pm create-user --profileOf 0 --user-type android.os.usertype.profile.CLONE \"{name}\"", ct);
+        string output;
+        try
+        {
+            output = await RunAsync(
+                $"-s {S(serial)} shell pm create-user --profileOf 0 --user-type android.os.usertype.profile.CLONE \"{name}\"", ct);
+        }
+        catch (Exception ex) when (ex.Message.Contains("Maximum number"))
+        {
+            output = await RunAsync(
+                $"-s {S(serial)} shell pm create-user --profileOf 0 --user-type android.os.usertype.profile.MANAGED \"{name}\"", ct);
+        }
         var m = Regex.Match(output, @"user id (\d+)");
         if (!m.Success)
             throw new InvalidOperationException(string.Format(LocalizationService.Get("ex.profile_denied"), output.Trim()));

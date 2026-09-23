@@ -33,6 +33,7 @@ public sealed class DevicePrefs
     public string? NewDisplay { get; set; }
     public bool? AdaptiveBitrate { get; set; }
     public List<int> OwnedUserIds { get; set; } = new();
+    public Dictionary<string, double[]> OverlayPositions { get; set; } = new();
 }
 
 public sealed class WorkspaceDevice

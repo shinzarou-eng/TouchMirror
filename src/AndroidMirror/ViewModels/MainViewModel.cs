@@ -2336,7 +2336,9 @@ public partial class MainViewModel : ObservableObject
             var owned = _settings.Devices.TryGetValue(device.DeviceKey, out var dp)
                 ? dp.OwnedUserIds : new List<int>();
             return (await AdbService.ListProfilesAsync(device.Serial))
-                .Select(p => p with { Owned = owned.Contains(p.Id) }).ToList();
+                .Select(p => p with { Owned = owned.Contains(p.Id) })
+                .Where(p => p.Owned || p.Type?.EndsWith("profile.MANAGED", StringComparison.Ordinal) != true)
+                .ToList();
         }
         catch (Exception ex)
         {
@@ -2788,6 +2790,17 @@ public partial class MainViewModel : ObservableObject
         instance.OverlayLineClicked += (m, id, idx) =>
             _apiHost.Publish("overlay.line",
                 new { slot = m.Slot, id, index = idx });
+        instance.OverlayPositionOf = id =>
+            _settings.Devices.TryGetValue(instance.IdentityKey, out var op)
+            && op.OverlayPositions.TryGetValue(id, out var xy) && xy.Length >= 2
+                ? (xy[0], xy[1]) : null;
+        instance.OverlayMoved += (m, id, rx, ry) =>
+        {
+            if (!_settings.Devices.TryGetValue(m.IdentityKey, out var p))
+                _settings.Devices[m.IdentityKey] = p = new DevicePrefs();
+            p.OverlayPositions[id] = new[] { rx, ry };
+            ScheduleSave();
+        };
 
         Mirrors.Add(instance);
         if (Mirrors.Count == 1)
