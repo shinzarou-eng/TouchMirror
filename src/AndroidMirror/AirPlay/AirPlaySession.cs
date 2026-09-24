@@ -20,9 +20,11 @@ public sealed class AirPlaySession
     private readonly FairPlay _fairPlay = new();
     private static readonly IFairPlayDecrypt FairPlayDecrypt = HelperFairPlayDecrypt.Create();
     private byte[]? _aesKey;
+    private byte[]? _aesIv;
     private NtpTiming? _ntp;
     private MirrorStreamServer? _mirror;
     private readonly List<UdpClient> _audioHolders = new();
+    private AirPlayAudioStream? _audio;
     private string? _sessionId;
     private bool _streaming;
     private ChannelCipher? _cipher;
@@ -194,6 +196,10 @@ public sealed class AirPlaySession
                 await Respond(req, 200, ct: ct);
                 break;
 
+            case "POST" when path == "/audioMode":
+                await Respond(req, 200, ct: ct);
+                break;
+
             case "ANNOUNCE":
                 HandleAnnounce(req);
                 _sessionId = req.Header("Session");
@@ -228,11 +234,46 @@ public sealed class AirPlaySession
                 break;
 
             case "TEARDOWN":
-                _streaming = false;
-                StopStreams();
+            {
+                var t96 = false;
+                var t110 = false;
+                if (PlistCodec.Read(req.Body) is Dictionary<string, object?> tp
+                    && tp.TryGetValue("streams", out var ts) && ts is List<object?> tstreams)
+                    foreach (var t in tstreams)
+                        if (t is Dictionary<string, object?> td
+                            && td.TryGetValue("type", out var tv) && tv is long tval)
+                        {
+                            if (tval == 96)
+                                t96 = true;
+                            else if (tval == 110)
+                                t110 = true;
+                        }
+                var full = !t96 && !t110;
+                Log?.Invoke($"airplay: TEARDOWN (audio={t96}, video={t110}, complet={full})");
+                if (t96)
+                {
+                    try { _audio?.Dispose(); } catch { }
+                    _audio = null;
+                }
+                if (t110 && _mirror != null)
+                {
+                    StreamStopped?.Invoke();
+                    try { _mirror.Dispose(); } catch { }
+                    _mirror = null;
+                }
+                if (t110 || full)
+                    _streaming = false;
+                if (full)
+                    StopStreams();
                 await Respond(req, 200, ct: ct);
-                DeviceDisconnected?.Invoke(RemoteName(), RemoteName());
-                return;
+                if (t110 || full)
+                {
+                    DeviceDisconnected?.Invoke(RemoteName(), RemoteName());
+                    if (full)
+                        return;
+                }
+                break;
+            }
 
             default:
                 Log?.Invoke($"airplay: {req.Method} {path} non géré — 501");
@@ -249,6 +290,8 @@ public sealed class AirPlaySession
         _mirror = null;
         try { _ntp?.Dispose(); } catch { }
         _ntp = null;
+        try { _audio?.Dispose(); } catch { }
+        _audio = null;
         foreach (var u in _audioHolders)
         {
             try { u.Dispose(); } catch { }
@@ -300,6 +343,7 @@ public sealed class AirPlaySession
                 if (aesKey != null && _pairing.EcdhSecret is { } ecdh)
                     aesKey = SHA512.HashData(aesKey.Concat(ecdh).ToArray())[..16];
                 _aesKey = aesKey;
+                _aesIv = eiv;
                 if (_aesKey == null)
                     Log?.Invoke("airplay: extraction aeskey impossible — flux chiffre illisible");
             }
@@ -358,18 +402,36 @@ public sealed class AirPlaySession
                 }
                 else if (type == 96)
                 {
-                    if (_audioHolders.Count >= 4)
-                        continue;
-                    var data = new UdpClient(0);
-                    var ctrl = new UdpClient(0);
-                    _audioHolders.AddRange(new[] { data, ctrl });
-                    Log?.Invoke("airplay: stream audio (type 96) demande — reception non implementee, ports reserves");
-                    resStreams.Add(new Dictionary<string, object?>
+                    var spf = sd.TryGetValue("spf", out var spfObj) && spfObj is long sp ? (int)sp : 352;
+                    var codecType = sd.TryGetValue("ct", out var ctObj) && ctObj is long ctv ? ctv : 2L;
+                    if (_aesKey != null && _aesIv != null && _audio == null)
                     {
-                        ["type"] = 96L,
-                        ["dataPort"] = (long)((IPEndPoint)data.Client.LocalEndPoint!).Port,
-                        ["controlPort"] = (long)((IPEndPoint)ctrl.Client.LocalEndPoint!).Port,
-                    });
+                        _audio = new AirPlayAudioStream(_aesKey, _aesIv, (int)codecType, spf);
+                        _audio.Log += s2 => Log?.Invoke(s2);
+                        _audio.Start(ct);
+                        Log?.Invoke($"airplay: stream audio (type 96, ct={codecType}) — {(codecType == 8 ? "aac-eld" : "alac")} {_audio.DataPort}/ctrl {_audio.ControlPort}");
+                        resStreams.Add(new Dictionary<string, object?>
+                        {
+                            ["type"] = 96L,
+                            ["dataPort"] = (long)_audio.DataPort,
+                            ["controlPort"] = (long)_audio.ControlPort,
+                        });
+                    }
+                    else
+                    {
+                        if (_audioHolders.Count >= 4)
+                            continue;
+                        var data = new UdpClient(0);
+                        var ctrl = new UdpClient(0);
+                        _audioHolders.AddRange(new[] { data, ctrl });
+                        Log?.Invoke($"airplay: stream audio (type 96, ct={codecType}) — pas de cle dechiffrement, ports reserves");
+                        resStreams.Add(new Dictionary<string, object?>
+                        {
+                            ["type"] = 96L,
+                            ["dataPort"] = (long)((IPEndPoint)data.Client.LocalEndPoint!).Port,
+                            ["controlPort"] = (long)((IPEndPoint)ctrl.Client.LocalEndPoint!).Port,
+                        });
+                    }
                 }
             }
             if (resStreams.Count > 0)
@@ -400,8 +462,8 @@ public sealed class AirPlaySession
         ["keepAliveSendStatsAsBody"] = true,
         ["audioFormats"] = new List<object?>
         {
-            new Dictionary<string, object?> { ["type"] = 100, ["audioInputFormats"] = 67108860L, ["audioOutputFormats"] = 67108860L },
-            new Dictionary<string, object?> { ["type"] = 101, ["audioInputFormats"] = 67108860L, ["audioOutputFormats"] = 67108860L },
+            new Dictionary<string, object?> { ["type"] = 100, ["audioInputFormats"] = 262144L, ["audioOutputFormats"] = 262144L },
+            new Dictionary<string, object?> { ["type"] = 101, ["audioInputFormats"] = 262144L, ["audioOutputFormats"] = 262144L },
         },
         ["audioLatencies"] = new List<object?>
         {

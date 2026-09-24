@@ -577,6 +577,15 @@
                                        Fill="{DynamicResource WarnBrush}" VerticalAlignment="Center" Margin="5,0,0,0"
                                        ToolTip="{loc:Loc non_verifie_lis_le_code_avant_de_l_activer}"
                                        Visibility="{Binding IsVerified, Converter={StaticResource NotBoolToVis}}" />
+                        <Path Style="{StaticResource Ic}" Data="{StaticResource IcPlugDisconnected24}" Width="12" Height="12"
+                                       Fill="{DynamicResource WarnBrush}" VerticalAlignment="Center" Margin="5,0,0,0"
+                                       ToolTip="{Binding LastError}"
+                                       Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}" />
+                        <TextBlock Text="{Binding UpdateAvailable, StringFormat=' ↑ {0}'}"
+                                   FontSize="{StaticResource FsMeta}" VerticalAlignment="Center" Margin="5,0,0,0"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   ToolTip="{loc:Loc mkt.update_tip}"
+                                   Visibility="{Binding HasUpdate, Converter={StaticResource BoolToVis}}" />
                     </StackPanel>
                     <ui:Button Grid.Column="2" Appearance="Transparent" Padding="4,2" Margin="0,0,4,0"
                                VerticalAlignment="Center"
@@ -3151,6 +3160,7 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
                                 <Border Grid.Row="0" CornerRadius="3" Padding="12,7" Margin="0,0,0,8"
@@ -3471,7 +3481,26 @@
                                     </Grid>
                                 </Border>
 
-                                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,0">
+                                <Border Grid.Row="3" CornerRadius="3" Padding="12,8" Margin="0,0,0,6"
+                                        Background="{DynamicResource AccentSubtleBrush}"
+                                        BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1"
+                                        Visibility="{Binding WizardSuggested, Converter={StaticResource BoolToVis}}">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Path Style="{StaticResource Ic}" Data="{StaticResource IcBookOpenGlobe24}" Width="13" Height="13"
+                                                  Fill="{DynamicResource DofusAccentBrush}" Margin="0,0,8,0" />
+                                            <TextBlock Text="{loc:Loc wiz.teaser}" FontSize="{StaticResource FsMeta}"
+                                                       FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <ui:Button Style="{StaticResource BtnPrimary}" Padding="12,0" Height="26"
+                                                   FontSize="{StaticResource FsCaption}" FontWeight="SemiBold"
+                                                   HorizontalAlignment="Right" Command="{Binding OpenWizardCommand}">
+                                            <TextBlock Text="{loc:Loc wiz.open}" />
+                                        </ui:Button>
+                                    </Grid>
+                                </Border>
+
+                                <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,0">
                                     <ui:Button Appearance="Transparent" Padding="10,0" Height="24"
                                                Command="{Binding OpenPairingCommand}">
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -3484,6 +3513,89 @@
                                 </StackPanel>
                             </Grid>
                             </Grid>
+                        </Border>
+
+                        <Border Grid.RowSpan="2" Background="#C00A0D12"
+                                Visibility="{Binding WizardOpen, Converter={StaticResource BoolToVis}}">
+                            <Border MaxWidth="440" VerticalAlignment="Center" CornerRadius="6" Padding="28,24"
+                                    Background="{DynamicResource AppWindowBrush}"
+                                    BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="Black" BlurRadius="34" ShadowDepth="10" Opacity="0.55" />
+                                </Border.Effect>
+                                <StackPanel>
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Border Width="34" Height="34" CornerRadius="4" Margin="0,0,11,0"
+                                                    Background="{DynamicResource IconTileBrush}"
+                                                    BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="1">
+                                                <Path Style="{StaticResource Ic}" Data="{StaticResource IcBookOpenGlobe24}" Width="16" Height="16"
+                                                      Fill="{DynamicResource DofusAccentBrush}"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="{loc:Loc wiz.welcome}" FontSize="{StaticResource FsBody}"
+                                                           FontWeight="SemiBold" />
+                                                <TextBlock Text="{loc:Loc wiz.title}" FontSize="{StaticResource FsCaption}"
+                                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <ui:Button Appearance="Transparent" Padding="6,0" Height="26"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                   Command="{Binding CloseWizardCommand}" ToolTip="{loc:Loc wiz.close}">
+                                            <Path Style="{StaticResource Ic}" Data="{StaticResource IcDismiss24}" Width="13" Height="13"
+                                                  Fill="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </ui:Button>
+                                    </Grid>
+                                    <TextBlock Text="{loc:Loc wiz.subtitle}" FontSize="{StaticResource FsCaption}"
+                                               TextWrapping="Wrap" LineHeight="17" Margin="0,10,0,0"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <Grid Margin="0,16,0,0">
+                                        <ProgressBar Minimum="0" Maximum="6" Height="3" BorderThickness="0"
+                                                     Value="{Binding WizardStepOrdinal, Mode=OneWay}"
+                                                     Background="{DynamicResource SurfaceFaintBrush}"
+                                                     Foreground="{DynamicResource DofusAccentBrush}" />
+                                        <TextBlock Text="{Binding WizardProgressText}" FontFamily="Consolas"
+                                                   FontSize="{StaticResource FsCaption}" HorizontalAlignment="Right" Margin="0,-18,0,0"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                    </Grid>
+                                    <TextBlock Text="{Binding WizardStepTitle}" FontSize="{StaticResource FsSection}"
+                                               FontWeight="SemiBold" Margin="0,14,0,0"
+                                               Foreground="{DynamicResource DofusAccentBrush}" />
+                                    <TextBlock Text="{Binding WizardStepBody}" FontSize="{StaticResource FsMeta}"
+                                               TextWrapping="Wrap" LineHeight="19" Margin="0,6,0,0"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <Border CornerRadius="3" Padding="10,7" Margin="0,12,0,0"
+                                            Background="{DynamicResource AccentSubtleBrush}"
+                                            BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1"
+                                            Visibility="{Binding WizardBlockingNote, Converter={StaticResource NullToCollapsed}}">
+                                        <TextBlock Text="{Binding WizardBlockingNote}" FontSize="{StaticResource FsCaption}"
+                                                   TextWrapping="Wrap" LineHeight="17"
+                                                   Foreground="{DynamicResource DofusAccentBrush}" />
+                                    </Border>
+                                    <Grid Margin="0,16,0,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <ui:Button Style="{StaticResource BtnPrimary}" Padding="16,0" Height="30"
+                                                       FontSize="{StaticResource FsMeta}" FontWeight="SemiBold"
+                                                       Command="{Binding WizardActionCommand}">
+                                                <TextBlock Text="{Binding WizardActionLabel}" />
+                                            </ui:Button>
+                                            <ui:Button Appearance="Transparent" Padding="10,0" Height="30" Margin="8,0,0,0"
+                                                       FontSize="{StaticResource FsCaption}" Command="{Binding WizardSkipWifiCommand}"
+                                                       Visibility="{Binding WizardShowSkip, Converter={StaticResource BoolToVis}}">
+                                                <TextBlock Text="{loc:Loc wiz.skip}"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            </ui:Button>
+                                        </StackPanel>
+                                        <ui:Button Appearance="Transparent" Padding="10,0" Height="30"
+                                                   HorizontalAlignment="Right" FontSize="{StaticResource FsCaption}"
+                                                   Command="{Binding CloseWizardCommand}">
+                                            <TextBlock Text="{loc:Loc wiz.later}"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                        </ui:Button>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
                         </Border>
                     </Grid>
 

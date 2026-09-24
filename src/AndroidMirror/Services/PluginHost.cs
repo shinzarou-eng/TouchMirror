@@ -31,7 +31,17 @@ public partial class PluginInstance : ObservableObject
     public Wpf.Ui.Controls.SymbolRegular Symbol => PluginIcons.For(Id);
     [ObservableProperty] private bool _isVerified;
     public string? ContentHash { get; private set; }
-    [ObservableProperty] private bool _running;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasError))]
+    private bool _running;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasError))]
+    private string? _lastError;
+    public bool HasError => !Running && LastError != null;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasUpdate))]
+    private string? _updateAvailable;
+    public bool HasUpdate => UpdateAvailable != null;
     public int GroupIndex { get; private set; } = 1;
     public string GroupLabel => GroupIndex == 0
         ? LocalizationService.Get("plugins_grp_image")
@@ -236,6 +246,7 @@ public partial class PluginInstance : ObservableObject
             engine.Execute(Prelude, "tm-prelude.js");
             var code = _verifiedCode ?? File.ReadAllBytes(FilePath);
             engine.Execute(System.Text.Encoding.UTF8.GetString(code), Path.GetFileName(FilePath));
+            try { Application.Current?.Dispatcher.Invoke(() => LastError = null); } catch { }
 
             while (!ct.IsCancellationRequested)
             {
@@ -261,6 +272,7 @@ public partial class PluginInstance : ObservableObject
         catch (Exception ex)
         {
             Output?.Invoke($"moteur arrêté : {ex.Message}");
+            try { Application.Current?.Dispatcher.Invoke(() => LastError = ex.Message); } catch { }
         }
         finally
         {

@@ -33,6 +33,8 @@ public sealed unsafe class AudioPlayer : IDisposable
         var avCodecId = codecId switch
         {
             "aac" => AVCodecID.AV_CODEC_ID_AAC,
+            "aaceld" => AVCodecID.AV_CODEC_ID_AAC,
+            "alac" => AVCodecID.AV_CODEC_ID_ALAC,
             "flac" => AVCodecID.AV_CODEC_ID_FLAC,
             "raw" => AVCodecID.AV_CODEC_ID_PCM_S16LE,
             _ => AVCodecID.AV_CODEC_ID_OPUS,
@@ -60,7 +62,7 @@ public sealed unsafe class AudioPlayer : IDisposable
 
     private void TryOpen()
     {
-        if (_opened)
+        if (_opened || _openFailed)
             return;
 
         if (_pendingConfig != null)
@@ -69,6 +71,10 @@ public sealed unsafe class AudioPlayer : IDisposable
             _ctx->extradata = (byte*)ffmpeg.av_malloc((nuint)(cfg.Length + ffmpeg.AV_INPUT_BUFFER_PADDING_SIZE));
             System.Runtime.InteropServices.Marshal.Copy(cfg, 0, (IntPtr)_ctx->extradata, cfg.Length);
             _ctx->extradata_size = cfg.Length;
+            _ctx->sample_rate = 44100;
+            AVChannelLayout cfgLayout;
+            ffmpeg.av_channel_layout_default(&cfgLayout, 2);
+            _ctx->ch_layout = cfgLayout;
         }
         else
         {
@@ -81,11 +87,17 @@ public sealed unsafe class AudioPlayer : IDisposable
         var ret = ffmpeg.avcodec_open2(_ctx, null, null);
         if (ret < 0)
         {
+            _openFailed = true;
             Error?.Invoke($"avcodec_open2 audio a échoué ({ret})");
             return;
         }
         _opened = true;
     }
+
+    private bool _openFailed;
+    private int _sendErrors;
+    private int _recvEmpty;
+    private int _framesDecoded;
 
     public void Feed(byte[] data, bool isConfig, int len)
     {
@@ -114,10 +126,26 @@ public sealed unsafe class AudioPlayer : IDisposable
                 ret = ffmpeg.avcodec_send_packet(_ctx, _packet);
                 ffmpeg.av_packet_unref(_packet);
                 if (ret < 0)
+                {
+                    if (++_sendErrors <= 3 || _sendErrors % 200 == 0)
+                        Error?.Invoke($"send_packet audio ({ret}) x{_sendErrors}");
                     return;
+                }
 
-                while (ffmpeg.avcodec_receive_frame(_ctx, _frame) == 0)
+                while (true)
+                {
+                    ret = ffmpeg.avcodec_receive_frame(_ctx, _frame);
+                    if (ret != 0)
+                    {
+                        if (ret != ffmpeg.AVERROR(ffmpeg.EAGAIN) && ret != ffmpeg.AVERROR_EOF
+                            && (++_recvEmpty <= 3 || _recvEmpty % 200 == 0))
+                            Error?.Invoke($"receive_frame audio ({ret}) x{_recvEmpty}");
+                        break;
+                    }
+                    if (_framesDecoded++ == 0)
+                        Error?.Invoke($"audio decode: {_frame->nb_samples}ech {_frame->sample_rate}Hz fmt={_frame->format}");
                     ResampleAndPlay(_frame);
+                }
             }
             catch (Exception ex)
             {
@@ -141,10 +169,11 @@ public sealed unsafe class AudioPlayer : IDisposable
                 0, null);
             if (ret < 0 || swr == null || ffmpeg.swr_init(swr) < 0)
             {
-                Error?.Invoke("swr_init a échoué");
+                Error?.Invoke($"swr_init a échoué ({ret}) in_ch={f->ch_layout.nb_channels} in_sr={f->sample_rate} in_fmt={f->format}");
                 return;
             }
             _swr = swr;
+            Error?.Invoke($"swr ok: {f->sample_rate}Hz/{f->ch_layout.nb_channels}ch fmt={f->format} -> 48000Hz/2ch s16");
         }
 
         var outSamples = ffmpeg.swr_get_out_samples(_swr, f->nb_samples) + 64;
@@ -157,9 +186,26 @@ public sealed unsafe class AudioPlayer : IDisposable
             var dstSlice = stackalloc byte*[] { dst };
             var converted = ffmpeg.swr_convert(_swr, dstSlice, outSamples, f->extended_data, f->nb_samples);
             if (converted > 0)
+            {
                 _provider.AddSamples(buffer, 0, converted * 4);
+                if (_pcmDump != null)
+                {
+                    _pcmDump.Write(buffer, 0, converted * 4);
+                    if (++_pcmDumpCount % 500 == 0)
+                        Error?.Invoke($"pcm dump {_pcmDumpCount} blocs, provider={_provider.BufferedBytes}o");
+                }
+            }
+            else if (++_swrEmpty <= 3 || _swrEmpty % 200 == 0)
+                Error?.Invoke($"swr_convert audio ({converted}) x{_swrEmpty}");
         }
     }
+
+    private int _swrEmpty;
+    private readonly System.IO.FileStream? _pcmDump =
+        System.Environment.GetEnvironmentVariable("TM_DUMP_AUDIO") != null
+            ? System.IO.File.Create(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "pcm-out.raw"))
+            : null;
+    private int _pcmDumpCount;
 
     public void Dispose()
     {

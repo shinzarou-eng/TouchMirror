@@ -142,6 +142,11 @@
                                ToolTip="{loc:Loc dbg.masked_tip}">
                         <Path Style="{DynamicResource Ic}" Data="{DynamicResource IcShieldCheckmark24}" Width="13" Height="13" />
                     </ui:Button>
+                    <ui:Button Style="{DynamicResource BtnAction}" Height="30" Padding="10,0" Margin="0,0,6,0"
+                               Command="{Binding DiagExportCommand}" IsEnabled="{Binding DebugIdle}"
+                               ToolTip="{loc:Loc dbg.export_tip}">
+                        <Path Style="{DynamicResource Ic}" Data="{DynamicResource IcDocumentText24}" Width="13" Height="13" />
+                    </ui:Button>
                     <ui:Button Style="{DynamicResource BtnPrimary}" Height="30" Padding="14,0"
                                FontSize="{DynamicResource FsCaption}" FontWeight="SemiBold"
                                Command="{Binding CopyDebugCommand}" IsEnabled="{Binding DebugIdle}">
@@ -171,6 +176,52 @@
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 </ScrollViewer>
             </StackPanel>
+        </Border>
+        <Border Visibility="{Binding ExportOpen, Converter={StaticResource BoolToVis}}"
+                Background="{DynamicResource AppWindowBrush}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid Grid.Row="0" Margin="0,0,0,4">
+                    <TextBlock Text="{loc:Loc dbg.export_title}" FontSize="{DynamicResource FsSection}"
+                               FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <ui:Button Appearance="Transparent" Padding="7,0" Height="24" HorizontalAlignment="Right"
+                               Command="{Binding DiagExportCloseCommand}">
+                        <Path Style="{DynamicResource Ic}" Data="{DynamicResource IcDismiss24}" Width="12" Height="12"
+                              Fill="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </ui:Button>
+                </Grid>
+                <TextBlock Grid.Row="1" Text="{loc:Loc dbg.export_sub}" TextWrapping="Wrap"
+                           FontSize="{DynamicResource FsCaption}" Margin="0,0,0,8"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <Border Grid.Row="2" CornerRadius="6" Padding="2" MinHeight="200"
+                        Background="{DynamicResource SurfaceFaintBrush}"
+                        BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="1">
+                    <TextBox Text="{Binding ExportReport, Mode=OneWay}" IsReadOnly="True"
+                             FontFamily="Consolas" FontSize="11" TextWrapping="NoWrap" AcceptsReturn="True"
+                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                             Background="Transparent" BorderThickness="0" Padding="8,6"
+                             Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                </Border>
+                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                    <ui:Button Style="{DynamicResource BtnAction}" Height="30" Padding="12,0" Margin="0,0,6,0"
+                               FontSize="{DynamicResource FsCaption}" Command="{Binding DiagExportSaveCommand}">
+                        <TextBlock Text="{loc:Loc dbg.export_save}" />
+                    </ui:Button>
+                    <ui:Button Style="{DynamicResource BtnPrimary}" Height="30" Padding="14,0"
+                               FontSize="{DynamicResource FsCaption}" FontWeight="SemiBold"
+                               Command="{Binding DiagExportCopyCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Style="{DynamicResource Ic}" Data="{DynamicResource IcCopy24}" Width="12" Height="12" Margin="0,0,6,0" />
+                            <TextBlock Text="{loc:Loc dbg.export_copy}" />
+                        </StackPanel>
+                    </ui:Button>
+                </StackPanel>
+            </Grid>
         </Border>
     </Grid>
 </UserControl>

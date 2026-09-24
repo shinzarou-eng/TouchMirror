@@ -224,11 +224,13 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         var session = new EngineSession(_resolvedDevice, options, _lifetime.Token);
         Session = session;
         _videoBitRate = options.VideoBitRate;
-        _currentBitRate = options.VideoBitRate;
         _adaptiveBitrate = options.AdaptiveBitrate;
+        _adapt = options.AdaptiveBitrate
+            ? new AdaptEvaluator(AdaptStart(options), AdaptEvaluator.MaxBitRate)
+            : null;
+        _currentBitRate = _adapt?.Current ?? options.VideoBitRate;
         _mBasePts = -1;
-        _mLagEma = _mJitterEma = _adaptLagRef = 0;
-        _adaptGoodStreak = 0;
+        _mLagEma = _mJitterEma = 0;
         _adaptWatch.Restart();
         session.ServerLog += m => Log?.Invoke(m);
         session.VideoSizeChanged += (w, h) =>
@@ -378,6 +380,9 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         if (session.HasEnded)
             throw new IOException("Stream ended during startup");
 
+        if (_adapt is { } a && a.Current != options.VideoBitRate)
+            try { session.Control?.SetVideoParams(a.Current, suspend: false); } catch { }
+
         IsConnected = true;
         ConnectedSince = DateTime.Now;
         _connectedAt = Environment.TickCount64;
@@ -517,19 +522,31 @@ public partial class MirrorInstance : ObservableObject, IDisposable
 
     public double StreamLagMs => _mLagEma;
     public double StreamJitterMs => _mJitterEma;
-    public bool AdaptiveBitrate { get => _adaptiveBitrate; set => _adaptiveBitrate = value; }
+    public bool AdaptiveBitrate
+    {
+        get => _adaptiveBitrate;
+        set
+        {
+            _adaptiveBitrate = value;
+            if (value && _adapt == null && Session != null)
+                _adapt = new AdaptEvaluator(_videoBitRate, AdaptEvaluator.MaxBitRate);
+            else if (!value)
+                _adapt = null;
+        }
+    }
+
+    public int AdaptPeakBitRate => _adapt?.PeakBitRate ?? 0;
+    public int AdaptMoves => _adapt?.Moves ?? 0;
 
     private long _mBasePts = -1, _mBaseArrival, _mLastPts, _mLastArrival;
     private double _mLagEma, _mJitterEma;
     private long _videoFrames;
     public long VideoFrames => Interlocked.Read(ref _videoFrames);
 
-    private const int AdaptMinBitRate = 1_500_000;
     private int _currentBitRate = 8_000_000;
     private bool _adaptiveBitrate;
+    private AdaptEvaluator? _adapt;
     private readonly Stopwatch _adaptWatch = new();
-    private double _adaptLagRef;
-    private int _adaptGoodStreak;
 
     private void TrackStreamMetrics(VideoPacket p)
     {
@@ -542,7 +559,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         {
             _mBasePts = _mLastPts = ptsMs;
             _mBaseArrival = _mLastArrival = now;
-            _mLagEma = _mJitterEma = _adaptLagRef = 0;
+            _mLagEma = _mJitterEma = 0;
+            _adapt?.Reset();
             return;
         }
         var lag = (double)(now - _mBaseArrival) - (ptsMs - _mBasePts);
@@ -550,7 +568,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         {
             _mBasePts = _mLastPts = ptsMs;
             _mBaseArrival = _mLastArrival = now;
-            _mLagEma = _mJitterEma = _adaptLagRef = 0;
+            _mLagEma = _mJitterEma = 0;
+            _adapt?.Reset();
             return;
         }
         _mLagEma = _mLagEma == 0 ? lag : _mLagEma * 0.92 + lag * 0.08;
@@ -561,35 +580,27 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         AdaptTick();
     }
 
+    private int AdaptStart(EngineOptions options)
+    {
+        if (!_resolvedDevice.IsWifi)
+            return AdaptEvaluator.MaxBitRate;
+        var remembered = Prefs?.AdaptiveCeiling;
+        return remembered is { } r && r >= AdaptEvaluator.MinBitRate && r <= AdaptEvaluator.MaxBitRate
+            ? r
+            : options.VideoBitRate;
+    }
+
     private void AdaptTick()
     {
-        if (!_adaptiveBitrate || _videoHidden || _adaptWatch.ElapsedMilliseconds < 1500)
+        if (_adapt == null || _videoHidden || _adaptWatch.ElapsedMilliseconds < 1500)
             return;
         _adaptWatch.Restart();
-        var growth = _mLagEma - _adaptLagRef;
-        _adaptLagRef = _mLagEma;
-        if (growth > 60 || _mLagEma > 400)
-        {
-            var nb = Math.Max(AdaptMinBitRate, (int)(_currentBitRate * 0.7));
-            if (nb >= _currentBitRate)
-                return;
-            _currentBitRate = nb;
-            _adaptGoodStreak = 0;
-            try { Session?.Control?.SetVideoParams(nb, suspend: false); } catch { }
-            RaiseLog(string.Format(L("log.bitrate_down"), Math.Round(nb / 1e6, 1)));
-        }
-        else if (_mLagEma < 150)
-        {
-            if (_currentBitRate < _videoBitRate && ++_adaptGoodStreak >= 5)
-            {
-                _adaptGoodStreak = 0;
-                _currentBitRate = Math.Min(_videoBitRate, (int)(_currentBitRate * 1.25));
-                try { Session?.Control?.SetVideoParams(_currentBitRate, suspend: false); } catch { }
-                RaiseLog(string.Format(L("log.bitrate_up"), Math.Round(_currentBitRate / 1e6, 1)));
-            }
-        }
-        else
-            _adaptGoodStreak = 0;
+        if (_adapt.Evaluate(_mLagEma, _videoHidden) is not { } nb || nb == _currentBitRate)
+            return;
+        var up = nb > _currentBitRate;
+        _currentBitRate = nb;
+        try { Session?.Control?.SetVideoParams(nb, suspend: false); } catch { }
+        RaiseLog(string.Format(L(up ? "log.bitrate_up" : "log.bitrate_down"), Math.Round(nb / 1e6, 1)));
     }
 
     private const int ThrottleBitRate = 500_000;
@@ -617,8 +628,9 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         if (!_encoderSuspended)
             return;
         _encoderSuspended = false;
-        _currentBitRate = _videoBitRate;
-        try { Session?.Control?.SetVideoParams(_videoBitRate, suspend: false); } catch { }
+        var restore = _adapt?.Current ?? _videoBitRate;
+        _currentBitRate = restore;
+        try { Session?.Control?.SetVideoParams(restore, suspend: false); } catch { }
         RaiseLog(L("log.unthrottled"));
         lock (_decoderLock)
         {
@@ -721,6 +733,9 @@ public partial class MirrorInstance : ObservableObject, IDisposable
 
     private async Task ClearSessionAsync()
     {
+        if (_resolvedDevice.IsWifi && _adapt is { StableTicks: >= 5 }
+            && _currentBitRate > _videoBitRate && Prefs != null)
+            Prefs.AdaptiveCeiling = _currentBitRate;
         _watchdog?.Stop();
         Interlocked.Exchange(ref _suspendCts, null)?.Cancel();
         _encoderSuspended = false;

@@ -74,6 +74,29 @@
             </StackPanel>
         </Border>
 
+        <Border x:Name="CalBadge"
+                Padding="10,5"
+                CornerRadius="{StaticResource RadiusControl}"
+                Background="{DynamicResource AppModalSolidBrush}"
+                BorderThickness="1"
+                BorderBrush="{DynamicResource AppBorderBrush}"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Margin="12,72,0,0"
+                Visibility="Collapsed"
+                Cursor="Hand"
+                MouseLeftButtonUp="OnCalBadgeClick"
+                ToolTip="{loc:Loc ios.cal_tip}">
+            <StackPanel Orientation="Horizontal">
+                <Path Style="{StaticResource Ic}" Data="{StaticResource IcCompassNorthwest24}" Width="12" Height="12"
+                               Fill="{DynamicResource OnDarkTextBrush}" Margin="0,0,7,0" />
+                <TextBlock x:Name="CalBadgeText"
+                           Foreground="{DynamicResource OnDarkTextBrush}"
+                           FontSize="{StaticResource FsMeta}"
+                           FontWeight="SemiBold" />
+            </StackPanel>
+        </Border>
+
         <Border x:Name="ZoomBadge"
                 Padding="10,5"
                 CornerRadius="{StaticResource RadiusControl}"
