@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PublishReadyToRun>true</PublishReadyToRun>
-    <Version>0.8.7</Version>
+    <Version>0.8.8</Version>
     <ApplicationIcon>..\..\assets\app.ico</ApplicationIcon>
   </PropertyGroup>
 
