@@ -1,6 +1,7 @@
 # Récepteur AirPlay / iOS — état d'avancement
 
 Notes techniques pour celles et ceux qui veulent comprendre, tester ou contribuer au mirroring iPhone.
+Pour le récit d'implémentation de bout en bout (protocole, pairing, FairPlay, flux) : [airplay-internals.md](airplay-internals.md).
 
 ## Vue d'ensemble
 
