@@ -108,6 +108,7 @@ public sealed class AppSettings
     public string? ActiveWorkspaceId { get; set; }
     public string Language { get; set; } = "fr";
     public string Theme { get; set; } = "sombre";
+    public int? IosMapMode { get; set; }
 }
 
 public static class SettingsStore
@@ -137,6 +138,8 @@ public static class SettingsStore
                 }
                 if (hud && !s.EnabledPlugins.Contains("hud"))
                     s.EnabledPlugins.Add("hud");
+                if (s.IosMapMode is < 0 or > 2)
+                    s.IosMapMode = null;
                 foreach (var dp in s.Devices.Values)
                     if (dp.AdaptiveCeiling is { } c && (c < AdaptEvaluator.MinBitRate || c > AdaptEvaluator.MaxBitRate))
                         dp.AdaptiveCeiling = null;

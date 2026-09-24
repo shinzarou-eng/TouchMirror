@@ -3107,6 +3107,12 @@ public partial class MainViewModel : ObservableObject
             {
                 ShouldSyncClipboard = () => false
             };
+            instance.View.SetIosMapMode(_settings.IosMapMode ?? 0);
+            instance.View.IosMapModeChanged += v =>
+            {
+                _settings.IosMapMode = v;
+                SaveNow();
+            };
             instance.BleStatusChanged += s =>
             {
                 Status = s;

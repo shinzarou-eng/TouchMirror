@@ -665,5 +665,11 @@
   "oem.huawei.2.title": "«Charge only» mode",
   "oem.huawei.2.detail": "hides the authorization dialog — pick «File transfer» then accept the popup",
   "oem.huawei.3.title": "Huawei account",
-  "oem.huawei.3.detail": "may be required to enable debugging on recent EMUI"
+  "oem.huawei.3.detail": "may be required to enable debugging on recent EMUI",
+  "ios.cal_pointer": "pointer: {0}",
+  "ios.cal_tip": "Click to change cursor mapping — if the pointer is offset or inverted in landscape",
+  "ios.mode_portrait": "portrait",
+  "ios.mode_direct": "direct",
+  "ios.mode_inverse": "inverted portrait",
+  "ios.ble_recycling": "Bluetooth control restarting to lock the pointer space on the new orientation — reconnecting automatically"
 }

@@ -138,7 +138,7 @@ public sealed partial class IosMirrorInstance : MirrorInstance
         catch (TaskCanceledException) { return; }
         if (ct.IsCancellationRequested || _ble == null || !BleActive)
             return;
-        RaiseLog($"ios: orientation → {(landscape ? "paysage" : "portrait")} — relance BLE pour recaler l'espace curseur");
+        RaiseLog($"ios: orientation → {(landscape ? "paysage" : "portrait")} — {L("ios.ble_recycling")}");
         await RecycleBleAsync();
     }
 

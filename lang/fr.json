@@ -665,5 +665,11 @@
   "oem.huawei.2.title": "Mode « charge seulement »",
   "oem.huawei.2.detail": "masque le dialogue d’autorisation — choisir « Transfert de fichiers » puis accepter la popup",
   "oem.huawei.3.title": "Compte Huawei",
-  "oem.huawei.3.detail": "peut être exigé pour activer le débogage sur EMUI récent"
+  "oem.huawei.3.detail": "peut être exigé pour activer le débogage sur EMUI récent",
+  "ios.cal_pointer": "pointeur : {0}",
+  "ios.cal_tip": "Cliquer pour changer le mapping du curseur — si le pointeur est décalé ou inversé en paysage",
+  "ios.mode_portrait": "portrait",
+  "ios.mode_direct": "direct",
+  "ios.mode_inverse": "portrait inversé",
+  "ios.ble_recycling": "contrôle Bluetooth relancé pour caler l’espace curseur sur la nouvelle orientation — reconnexion automatique"
 }

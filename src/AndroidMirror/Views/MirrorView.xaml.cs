@@ -19,6 +19,7 @@ namespace TouchMirror.Views;
 
 public partial class MirrorView : UserControl
 {
+    private static string L(string key) => LocalizationService.Get(key);
     private IFrameSource? _decoder;
     private WriteableBitmap? _bitmap;
     private D3DImage? _gpuImage;
@@ -95,6 +96,7 @@ public partial class MirrorView : UserControl
             presenter.Rebind();
             _videoW = w;
             _videoH = h;
+            UpdateCalBadge();
             SetWaitingOverlay(false);
             VideoSizeChanged?.Invoke(w, h);
             LayoutKeybinds();
@@ -163,6 +165,7 @@ public partial class MirrorView : UserControl
         if (pointer == null)
             _iosPointer?.ReleaseAll();
         _iosPointer = pointer;
+        UpdateCalBadge();
     }
 
     public void SetIosBadgeText(string text)
@@ -758,17 +761,52 @@ public partial class MirrorView : UserControl
 
     private int _iosMapMode;
     private DispatcherTimer? _mapFlashTimer;
+    public event Action<int>? IosMapModeChanged;
+
+    private static string IosMapModeName(int mode) => mode switch
+    {
+        0 => L("ios.mode_portrait"),
+        1 => L("ios.mode_direct"),
+        _ => L("ios.mode_inverse"),
+    };
+
+    public void SetIosMapMode(int mode)
+    {
+        _iosMapMode = mode is >= 0 and <= 2 ? mode : 0;
+        UpdateCalBadge();
+    }
+
+    private void UpdateCalBadge()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(UpdateCalBadge);
+            return;
+        }
+        var show = _iosPointer != null && _videoW > _videoH;
+        CalBadge.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        if (show)
+            CalBadgeText.Text = string.Format(L("ios.cal_pointer"), IosMapModeName(_iosMapMode));
+    }
+
+    private void OnCalBadgeClick(object sender, MouseButtonEventArgs e)
+    {
+        CycleIosMapMode();
+        e.Handled = true;
+    }
 
     private void CycleIosMapMode()
     {
         _iosMapMode = (_iosMapMode + 1) % 3;
-        var name = _iosMapMode switch { 0 => "portrait", 1 => "direct", _ => "portrait inversé" };
+        var name = IosMapModeName(_iosMapMode);
         AppLogger.Write($"ios: mapping curseur → {name}");
+        IosMapModeChanged?.Invoke(_iosMapMode);
+        UpdateCalBadge();
         if (IosBadge.Child is StackPanel sp && sp.Children.Count > 1
             && sp.Children[1] is TextBlock tb)
         {
             var prev = tb.Text;
-            var flash = $"pointeur : {name}";
+            var flash = string.Format(L("ios.cal_pointer"), name);
             tb.Text = flash;
             _mapFlashTimer?.Stop();
             _mapFlashTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
