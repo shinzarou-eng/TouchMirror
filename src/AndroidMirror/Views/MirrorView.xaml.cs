@@ -750,24 +750,26 @@ public partial class MirrorView : UserControl
             return false;
         u = Math.Clamp(rx / Math.Max(1, vw - 1), 0, 1);
         v = Math.Clamp(ry / Math.Max(1, vh - 1), 0, 1);
-        if (vw > vh)
-            (u, v) = (1 - v, u);
+        (u, v) = DisplayToTex(u, v);
+        if (_iosMapMode != 1 && _videoW > _videoH)
+            (u, v) = _iosMapMode == 2 ? (v, 1 - u) : (1 - v, u);
         return true;
+    }
+
+    private int _iosMapMode;
+
+    private void CycleIosMapMode()
+    {
+        _iosMapMode = (_iosMapMode + 1) % 3;
+        var name = _iosMapMode switch { 0 => "portrait", 1 => "direct", _ => "portrait inversé" };
+        AppLogger.Write($"ios: mapping curseur → {name}");
     }
 
     private (double u, double v) TexNormToIos(double rx, double ry)
     {
-        var (u, v) = _displayRotation switch
-        {
-            90 => (1 - ry, rx),
-            180 => (1 - rx, 1 - ry),
-            270 => (ry, 1 - rx),
-            _ => (rx, ry),
-        };
-        var landscape = _displayRotation is 90 or 270 ? _videoH > _videoW : _videoW > _videoH;
-        if (landscape)
-            (u, v) = (1 - v, u);
-        return (u, v);
+        if (_iosMapMode != 1 && _videoW > _videoH)
+            (rx, ry) = _iosMapMode == 2 ? (ry, 1 - rx) : (1 - ry, rx);
+        return (rx, ry);
     }
 
     private static uint ButtonFlag(MouseButton b) => b switch
@@ -1087,6 +1089,13 @@ public partial class MirrorView : UserControl
             {
                 EditModeExitRequested?.Invoke();
             }
+            return true;
+        }
+
+        if (_iosPointer != null && isDown && !isRepeat && key == Key.F9
+            && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
+        {
+            CycleIosMapMode();
             return true;
         }
 
