@@ -32,6 +32,7 @@ public sealed class DevicePrefs
     public bool? TurnScreenOff { get; set; }
     public string? NewDisplay { get; set; }
     public bool? AdaptiveBitrate { get; set; }
+    public int? AdaptiveCeiling { get; set; }
     public List<int> OwnedUserIds { get; set; } = new();
     public Dictionary<int, string> AccountAvatars { get; set; } = new();
     public Dictionary<int, string> AccountNames { get; set; } = new();
@@ -55,6 +56,7 @@ public sealed class WorkspaceDevice
     public int? AccountUserId { get; set; }
     public string? AccountName { get; set; }
     public bool? AdaptiveBitrate { get; set; }
+    public int? AdaptiveCeiling { get; set; }
 }
 
 public sealed class Workspace
@@ -135,6 +137,12 @@ public static class SettingsStore
                 }
                 if (hud && !s.EnabledPlugins.Contains("hud"))
                     s.EnabledPlugins.Add("hud");
+                foreach (var dp in s.Devices.Values)
+                    if (dp.AdaptiveCeiling is { } c && (c < AdaptEvaluator.MinBitRate || c > AdaptEvaluator.MaxBitRate))
+                        dp.AdaptiveCeiling = null;
+                foreach (var wd in s.Workspaces.SelectMany(w => w.Devices))
+                    if (wd.AdaptiveCeiling is { } c && (c < AdaptEvaluator.MinBitRate || c > AdaptEvaluator.MaxBitRate))
+                        wd.AdaptiveCeiling = null;
                 return s;
             }
         }

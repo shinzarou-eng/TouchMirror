@@ -234,6 +234,11 @@ public partial class MainViewModel : ObservableObject
 
     public string BitRateShort => $"{VideoBitRate / 1_000_000} Mbps";
 
+    private string EffectiveBitRate(MirrorInstance? m) =>
+        m is { AdaptiveBitrate: true, IsConnected: true }
+            ? $"~{Math.Round(m.CurrentBitRate / 1e6, 1)} Mbps"
+            : BitRateShort;
+
     public Visibility RecordingVisibility =>
         ActiveMirror?.IsRecording == true ? Visibility.Visible : Visibility.Collapsed;
 
@@ -271,7 +276,7 @@ public partial class MainViewModel : ObservableObject
             SessionElapsed = cs.HasValue ? (DateTime.Now - cs.Value).ToString(@"hh\:mm\:ss") : "00:00:00";
             var view = ActiveMirror?.View;
             SessionStats = view != null && view.VideoWidth > 0
-                ? $"{view.VideoWidth}×{view.VideoHeight} · {view.CurrentFps:0} fps · {BitRateShort} · {CodecShort}"
+                ? $"{view.VideoWidth}×{view.VideoHeight} · {view.CurrentFps:0} fps · {EffectiveBitRate(ActiveMirror)} · {CodecShort}"
                 : $"{QualityShort} · {BitRateShort} · {CodecShort}";
             foreach (var m in Mirrors)
                 m.TickSessionElapsed();
@@ -418,6 +423,7 @@ public partial class MainViewModel : ObservableObject
                 dp.TurnScreenOff = wd.TurnScreenOff;
                 dp.NewDisplay = wd.NewDisplay;
                 dp.AdaptiveBitrate = wd.AdaptiveBitrate;
+                dp.AdaptiveCeiling = wd.AdaptiveCeiling;
             }
         }
         SettingsStore.Save(_settings);
@@ -4523,7 +4529,11 @@ public partial class MainViewModel : ObservableObject
                     sb.Append("- ").Append(m.DeviceName).Append(m.IsConnected ? " [connecté]" : "")
                         .Append(m.IsReconnecting ? $" [reconnexion: {m.ReconnectStatus}]" : "")
                         .Append(m.UnexpectedDeath ? " [mort inattendue]" : "")
-                        .Append(" état=").Append(m.LastDeviceState).Append(nl);
+                        .Append(" état=").Append(m.LastDeviceState)
+                        .Append(m.AdaptiveBitrate && m.IsConnected
+                            ? $" adaptatif={Math.Round(m.CurrentBitRate / 1e6, 1)} Mbps (pic {Math.Round(m.AdaptPeakBitRate / 1e6, 1)}, {m.AdaptMoves} paliers)"
+                            : "")
+                        .Append(nl);
             sb.Append(nl).Append("== journal ==").Append(nl);
             sb.Append(TailLog(250));
             DebugReport = sb.ToString();
