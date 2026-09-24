@@ -285,6 +285,7 @@ public partial class MainViewModel : ObservableObject
         };
 
         _settings = SettingsStore.Load();
+        _wizardOpen = !_settings.WizardSeen;
         LocalizationService.Instance.Load(_settings.Language);
         Status = L("st.select_device");
         DeviceThumbs.IsBusy = d => Mirrors.Any(m => m.Device.SharesIdentity(d));
@@ -2095,6 +2096,7 @@ public partial class MainViewModel : ObservableObject
             OnPropertyChanged(nameof(StepPluggedDone));
             OnPropertyChanged(nameof(StepAuthDone));
             UpdateSetupOffer(list);
+            UpdateWizard(list);
             var detected = list.Count(d => !d.IsRememberedOnly);
             if (!_hasError && !Mirrors.Any(m => m.IsReconnecting))
             {
@@ -2164,6 +2166,8 @@ public partial class MainViewModel : ObservableObject
         try
         {
             var found = await AdbService.DetectPnpAndroidAsync(timeout.Token);
+            _lastPnp = found;
+            UpdateWizard(Devices.ToList());
             if (found.Count == 0 || Devices.Any(d => !d.IsRememberedOnly))
             {
                 UsbDiagTitle = UsbDiagDetail = null;
@@ -2187,8 +2191,155 @@ public partial class MainViewModel : ObservableObject
     private async Task RefreshConnectionWarningAsync()
     {
         var names = await Task.Run(() => AdbService.FindCompetingProcesses().Select(p => p.Name).Distinct().ToArray());
+        _lastForeignNames = names;
+        UpdateWizard(Devices.ToList());
         if (!_trackCts.IsCancellationRequested)
             ConnectionWarning = names.Length == 0 ? null : string.Format(L("diag.other_apps"), string.Join(", ", names));
+    }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(WizardSuggested))]
+    private bool _wizardOpen;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(WizardStep))]
+    [NotifyPropertyChangedFor(nameof(WizardSuggested))]
+    [NotifyPropertyChangedFor(nameof(WizardStepOrdinal))]
+    [NotifyPropertyChangedFor(nameof(WizardProgressText))]
+    [NotifyPropertyChangedFor(nameof(WizardStepTitle))]
+    [NotifyPropertyChangedFor(nameof(WizardStepBody))]
+    [NotifyPropertyChangedFor(nameof(WizardBlockingNote))]
+    [NotifyPropertyChangedFor(nameof(WizardActionLabel))]
+    [NotifyPropertyChangedFor(nameof(WizardShowSkip))]
+    [NotifyPropertyChangedFor(nameof(WizardIsDone))]
+    private WizardResult _wizard = new(WizardStep.EnableDebug, null, null);
+    private bool _wizardWifiStage;
+    private bool _wizardWifiDone;
+    private List<AdbService.PnpAndroidDevice> _lastPnp = new();
+    private string[] _lastForeignNames = Array.Empty<string>();
+
+    public WizardStep WizardStep
+        => Wizard.Step == WizardStep.Ready && _wizardWifiStage ? WizardStep.Wifi : Wizard.Step;
+    public bool WizardSuggested => WizardStep < WizardStep.Ready && !WizardOpen;
+    public int WizardStepOrdinal => (int)WizardStep + 1;
+    public string WizardProgressText => string.Format(L("wiz.progress"), WizardStepOrdinal, 6);
+    public string WizardStepTitle => L($"wiz.step.{StepKey(WizardStep)}.title");
+    public string WizardStepBody
+    {
+        get
+        {
+            var body = L($"wiz.step.{StepKey(WizardStep)}.body");
+            if (WizardStep == WizardStep.EnableDebug && Wizard.Brand is { } b)
+                body += "\n" + b + " — " + GuideFor(b);
+            return body;
+        }
+    }
+    public string? WizardBlockingNote => Wizard.BlockingNoteKey is { } k ? L(k) : null;
+    public bool WizardShowSkip => WizardStep == WizardStep.Wifi;
+    public bool WizardIsDone => WizardStep == WizardStep.Done;
+    public string WizardActionLabel => L(WizardStep switch
+    {
+        WizardStep.PlugCable when _lastPnp.Count > 0 => "wiz.action.devmgmt",
+        WizardStep.AcceptAuth => "wiz.action.reauth",
+        WizardStep.Ready => "wiz.action.launch",
+        WizardStep.Wifi => "wiz.action.pair",
+        WizardStep.Done => "wiz.action.finish",
+        _ => "wiz.action.recheck"
+    });
+
+    private static string StepKey(WizardStep s) => s switch
+    {
+        WizardStep.EnableDebug => "debug",
+        WizardStep.PlugCable => "plug",
+        WizardStep.AcceptAuth => "auth",
+        WizardStep.Ready => "ready",
+        WizardStep.Wifi => "wifi",
+        _ => "done"
+    };
+
+    private void UpdateWizard(List<AdbDevice> list)
+    {
+        var physical = list.Where(d => !d.IsRememberedOnly).ToList();
+        var input = new WizardInput(
+            physical.Count > 0,
+            physical.Any(d => d.NeedsAuthorization),
+            physical.Any(d => d.IsOffline),
+            physical.Any(d => d.IsReady),
+            physical.Count == 0 ? _lastPnp.Count : 0,
+            _lastForeignNames.Any(n => n.Equals("adb", StringComparison.OrdinalIgnoreCase)),
+            DetectBrands(physical.Count == 0 ? _lastPnp : Enumerable.Empty<AdbService.PnpAndroidDevice>(),
+                string.Join(" ", physical.Select(d => d.Model))).OrderBy(b => b).FirstOrDefault(),
+            _wizardWifiDone);
+        var result = WizardStepEvaluator.Evaluate(input);
+        if (result.Step >= WizardStep.Ready && Mirrors.Any(m => m.IsConnected))
+            _wizardWifiStage = true;
+        if (result.Step == WizardStep.Done)
+            MarkWizardSeen();
+        Wizard = result;
+    }
+
+    private void MarkWizardSeen()
+    {
+        if (_settings.WizardSeen)
+            return;
+        _settings.WizardSeen = true;
+        ScheduleSave();
+    }
+
+    [RelayCommand]
+    private void OpenWizard() => WizardOpen = true;
+
+    [RelayCommand]
+    private void CloseWizard()
+    {
+        WizardOpen = false;
+        MarkWizardSeen();
+    }
+
+    [RelayCommand]
+    private async Task WizardActionAsync()
+    {
+        switch (WizardStep)
+        {
+            case WizardStep.PlugCable when _lastPnp.Count > 0:
+                DiagOpenDevmgmt();
+                break;
+            case WizardStep.AcceptAuth:
+                await DiagFixReauthAsync();
+                break;
+            case WizardStep.Ready:
+                await WizardLaunchAsync();
+                break;
+            case WizardStep.Wifi:
+                OpenPairing();
+                break;
+            case WizardStep.Done:
+                WizardOpen = false;
+                break;
+            default:
+                await RefreshDevicesAsync();
+                break;
+        }
+    }
+
+    [RelayCommand]
+    private async Task WizardLaunchAsync()
+    {
+        var device = Devices.FirstOrDefault(d => d is { IsReady: true, IsRememberedOnly: false });
+        if (device == null)
+            return;
+        _wizardWifiStage = true;
+        SelectedDevice = device;
+        await ConnectDeviceAsync(device);
+        if (Mirrors.Any(m => m.Device.SharesIdentity(device) && m.IsConnected))
+            MarkWizardSeen();
+        UpdateWizard(Devices.ToList());
+    }
+
+    [RelayCommand]
+    private void WizardSkipWifi()
+    {
+        _wizardWifiDone = true;
+        UpdateWizard(Devices.ToList());
     }
 
     private void UpdateSetupOffer(List<AdbDevice> list)
@@ -3675,6 +3826,27 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex) { DebugNote = ex.Message; }
     }
 
+    internal static HashSet<string> DetectBrands(IEnumerable<AdbService.PnpAndroidDevice> pnp, string? devicesRaw)
+    {
+        var brands = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in pnp)
+            if (p.Brand != null)
+                brands.Add(p.Brand);
+        var models = (devicesRaw ?? "").ToLowerInvariant();
+        if (models.Contains("redmi") || models.Contains("poco") || models.Contains("xiaomi"))
+            brands.Add("Xiaomi");
+        if (models.Contains("sm-") || models.Contains("samsung") || models.Contains("galaxy"))
+            brands.Add("Samsung");
+        if (models.Contains("cph") || models.Contains("oppo")
+            || models.Contains("rmx") || models.Contains("realme") || models.Contains("oneplus"))
+            brands.Add("Oppo");
+        if (models.Contains("vivo"))
+            brands.Add("Vivo");
+        if (models.Contains("huawei") || models.Contains("honor"))
+            brands.Add("Huawei");
+        return brands;
+    }
+
     private string GuideFor(string brand) => brand switch
     {
         "Xiaomi" => L("dbg.guide.xiaomi"),
@@ -4269,25 +4441,7 @@ public partial class MainViewModel : ObservableObject
                 ds.Append("[--] Windows voit « ").Append(p.Name).Append(" » (").Append(p.Brand ?? p.Vid)
                     .Append(") — non corrélé à un appareil adb").Append(nl);
             if (pnpError != null) { warns++; ds.Append("[--] détection Windows : ").Append(pnpError).Append(nl); }
-            var brands = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var p in pnp)
-                if (p.Brand != null)
-                    brands.Add(p.Brand);
-            var models = devicesRaw.ToLowerInvariant();
-            if (models.Contains("redmi") || models.Contains("poco") || models.Contains("xiaomi"))
-                brands.Add("Xiaomi");
-            if (models.Contains("sm-") || models.Contains("samsung") || models.Contains("galaxy"))
-                brands.Add("Samsung");
-            if (models.Contains("cph") || models.Contains("oppo"))
-                brands.Add("Oppo");
-            if (models.Contains("rmx") || models.Contains("realme"))
-                brands.Add("Oppo");
-            if (models.Contains("oneplus"))
-                brands.Add("Oppo");
-            if (models.Contains("vivo"))
-                brands.Add("Vivo");
-            if (models.Contains("huawei") || models.Contains("honor"))
-                brands.Add("Huawei");
+            var brands = DetectBrands(pnp, devicesRaw);
             foreach (var b in brands.OrderBy(b => b))
             {
                 var tip = b switch

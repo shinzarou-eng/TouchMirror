@@ -88,6 +88,7 @@ public sealed class AppSettings
     public bool AutoLaunchDofus { get; set; }
     public bool AdaptiveBitrate { get; set; } = true;
     public List<string> SetupDismissed { get; set; } = new();
+    public bool WizardSeen { get; set; }
     public string? NewDisplay { get; set; }
     public bool Topmost { get; set; }
     public bool ShowSettings { get; set; }
