@@ -33,6 +33,7 @@ public sealed partial class IosMirrorInstance : MirrorInstance
             View.Dispatcher.Invoke(() =>
             {
                 View.SetWaitingOverlay(false);
+                View.SetWaitingHint(null);
                 IsConnected = true;
                 DeviceName = string.IsNullOrWhiteSpace(name) ? "iPhone (AirPlay)" : name;
                 RaiseConnected();
@@ -57,6 +58,8 @@ public sealed partial class IosMirrorInstance : MirrorInstance
                 DeviceName = string.IsNullOrWhiteSpace(already) ? "iPhone (AirPlay)" : already;
             }
             View.SetWaitingOverlay(already == null);
+            if (already == null)
+                View.SetWaitingHint(L("ios.hint"));
         }).Task;
     }
 

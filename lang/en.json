@@ -303,6 +303,7 @@
   "ios.ble_fail": "Bluetooth control unavailable: {0}",
   "ios.ble_off": "Bluetooth control disabled",
   "ios.ble_waiting": "Bluetooth mouse advertising — waiting for iPhone",
+  "ios.hint": "iPhone: Control Center → Screen Mirroring → TouchMirror",
   "ios.no_record": "Video recording unavailable on iOS — PNG screenshots only.",
   "ios_affichage_seul": "iOS · DISPLAY ONLY",
   "iphone": "iPhone",

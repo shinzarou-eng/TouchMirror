@@ -8,6 +8,7 @@ internal sealed class AesCtr : IDisposable
     private readonly ICryptoTransform _encryptor;
     private readonly byte[] _counter;
     private readonly byte[] _keystream = new byte[16];
+    private int _keyPos = 16;
 
     public AesCtr(byte[] key, byte[] iv)
     {
@@ -32,12 +33,17 @@ internal sealed class AesCtr : IDisposable
         var off = 0;
         while (off < input.Length)
         {
-            _encryptor.TransformBlock(_counter, 0, 16, _keystream, 0);
-            var n = Math.Min(16, input.Length - off);
+            if (_keyPos >= 16)
+            {
+                _encryptor.TransformBlock(_counter, 0, 16, _keystream, 0);
+                Increment();
+                _keyPos = 0;
+            }
+            var n = Math.Min(16 - _keyPos, input.Length - off);
             for (var i = 0; i < n; i++)
-                output[off + i] = (byte)(input[off + i] ^ _keystream[i]);
+                output[off + i] = (byte)(input[off + i] ^ _keystream[_keyPos + i]);
+            _keyPos += n;
             off += n;
-            Increment();
         }
     }
 

@@ -2927,11 +2927,12 @@ public partial class MainViewModel : ObservableObject
                 _airPlay = new AirPlayService();
                 _airPlay.Log += Log;
                 _airPlay.PairingCode += code =>
-                {
-                    Log($"airplay: code d'appairage {code} — saisis-le sur l'appareil iOS");
-                    foreach (var t in Mirrors.OfType<IosMirrorInstance>())
-                        t.View.SetWaitingHint($"code d'appairage : {code}");
-                };
+                    Application.Current.Dispatcher.BeginInvoke(() =>
+                    {
+                        Log($"airplay: code d'appairage {code} — saisis-le sur l'appareil iOS");
+                        foreach (var t in Mirrors.OfType<IosMirrorInstance>())
+                            t.View.SetWaitingHint($"code d'appairage : {code}");
+                    });
             }
             if (!_airPlay.IsRunning)
                 await _airPlay.StartAsync();
