@@ -757,12 +757,29 @@ public partial class MirrorView : UserControl
     }
 
     private int _iosMapMode;
+    private DispatcherTimer? _mapFlashTimer;
 
     private void CycleIosMapMode()
     {
         _iosMapMode = (_iosMapMode + 1) % 3;
         var name = _iosMapMode switch { 0 => "portrait", 1 => "direct", _ => "portrait inversé" };
         AppLogger.Write($"ios: mapping curseur → {name}");
+        if (IosBadge.Child is StackPanel sp && sp.Children.Count > 1
+            && sp.Children[1] is TextBlock tb)
+        {
+            var prev = tb.Text;
+            var flash = $"pointeur : {name}";
+            tb.Text = flash;
+            _mapFlashTimer?.Stop();
+            _mapFlashTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
+            _mapFlashTimer.Tick += (_, _) =>
+            {
+                _mapFlashTimer?.Stop();
+                if (tb.Text == flash)
+                    tb.Text = prev;
+            };
+            _mapFlashTimer.Start();
+        }
     }
 
     private (double u, double v) TexNormToIos(double rx, double ry)

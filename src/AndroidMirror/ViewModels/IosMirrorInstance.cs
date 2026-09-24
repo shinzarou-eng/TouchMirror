@@ -111,6 +111,7 @@ public sealed partial class IosMirrorInstance : MirrorInstance
 
     private bool? _lastLandscape;
     private int _bleRecycleRunning;
+    private CancellationTokenSource? _orientSettleCts;
 
     private void OnVideoSize(int w, int h)
     {
@@ -123,8 +124,22 @@ public sealed partial class IosMirrorInstance : MirrorInstance
         _lastLandscape = landscape;
         if (had == null || _ble == null)
             return;
+        _orientSettleCts?.Cancel();
+        var cts = _orientSettleCts = new CancellationTokenSource();
+        AppLogger.Forget(RecycleBleSettledAsync(landscape, cts.Token));
+    }
+
+    private async Task RecycleBleSettledAsync(bool landscape, CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(600, ct);
+        }
+        catch (TaskCanceledException) { return; }
+        if (ct.IsCancellationRequested || _ble == null || !BleActive)
+            return;
         RaiseLog($"ios: orientation → {(landscape ? "paysage" : "portrait")} — relance BLE pour recaler l'espace curseur");
-        AppLogger.Forget(RecycleBleAsync());
+        await RecycleBleAsync();
     }
 
     private async Task RecycleBleAsync()
