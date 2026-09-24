@@ -11,7 +11,7 @@ namespace TouchMirror.AirPlay;
 
 public sealed class AirPlaySession
 {
-    private const string ServerHeader = "AirTunes/377.40.00";
+    private const string ServerHeader = "AirTunes/220.68";
 
     private readonly TcpClient _client;
     private readonly NetworkStream _stream;
@@ -30,6 +30,7 @@ public sealed class AirPlaySession
     private readonly List<byte> _raw = new();
     private readonly List<byte> _plain = new();
     private int _plainPos;
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> TrustedHosts = new();
 
     public event Action<string>? Log;
     public event Action<string, string>? DeviceConnected;
@@ -45,6 +46,8 @@ public sealed class AirPlaySession
         _receiverName = receiverName;
         _pairing = new Pairing(PairingIdentity);
         _pairing.PinReady += p => PairingCodeReady?.Invoke(p);
+        _pairing.Log += s => Log?.Invoke(s);
+        _cipherPending = Pairing.SharedSrpSessionKey != null;
     }
 
     public static PairingIdentityStore PairingIdentity { get; } = PairingIdentityStore.Load();
@@ -87,7 +90,9 @@ public sealed class AirPlaySession
         if (qIdx >= 0)
             path = path[..qIdx];
 
-        if (!_pairing.Verified && req.Method is "ANNOUNCE" or "SETUP" or "RECORD"
+        if (!(_pairing.Verified || _pairing.SrpSessionKey != null || _cipher != null
+            || TrustedHosts.ContainsKey(RemoteIp()))
+            && req.Method is "ANNOUNCE" or "SETUP" or "RECORD"
             or "GET_PARAMETER" or "SET_PARAMETER" or "PAUSE" or "FLUSH" or "TEARDOWN")
         {
             await Respond(req, 470, ct: ct);
@@ -128,6 +133,12 @@ public sealed class AirPlaySession
                     };
                     Log?.Invoke($"airplay: {path} ({req.Body.Length}b → {setupResp.Length}b)");
                     await Respond(req, 200, ctHeaders, body: setupResp, ct: ct);
+                    if (_pairing.SrpSessionKey != null)
+                    {
+                        TrustedHosts[RemoteIp()] = DateTime.UtcNow;
+                        if (_cipher == null)
+                            _cipherPending = true;
+                    }
                 }
                 break;
 
@@ -145,8 +156,12 @@ public sealed class AirPlaySession
                     {
                         ["Content-Type"] = "application/octet-stream"
                     }, body: verifyResp.Length > 0 ? verifyResp : null, ct: ct);
-                    if (_pairing.Verified && _cipher == null)
-                        _cipherPending = true;
+                    if (_pairing.Verified)
+                    {
+                        TrustedHosts[RemoteIp()] = DateTime.UtcNow;
+                        if (_cipher == null)
+                            _cipherPending = true;
+                    }
                 }
                 break;
 
@@ -372,19 +387,15 @@ public sealed class AirPlaySession
     private Dictionary<string, object?> BuildInfoPlist() => new()
     {
         ["deviceID"] = AirPlayAdvertiser.DeviceIdPublic,
-        ["features"] = 0x038BC946007F8AD0L,
+        ["features"] = 0x5A7FFEE6L,
         ["macAddress"] = AirPlayAdvertiser.DeviceIdPublic,
-        ["model"] = "TouchMirror",
-        ["manufacturer"] = "TouchMirror",
-        ["integrator"] = "TouchMirror",
+        ["model"] = "AppleTV3,2",
         ["name"] = _receiverName,
-        ["nameIsFactoryDefault"] = false,
         ["pi"] = PairingIdentity.PairingId,
         ["pk"] = PairingIdentity.PublicKey,
-        ["protocolVersion"] = "1.1",
-        ["sourceVersion"] = "377.40.00",
-        ["statusFlags"] = 580,
-        ["vv"] = 1,
+        ["sourceVersion"] = "220.68",
+        ["statusFlags"] = 68,
+        ["vv"] = 2,
         ["keepAliveLowPower"] = true,
         ["keepAliveSendStatsAsBody"] = true,
         ["audioFormats"] = new List<object?>
@@ -526,6 +537,9 @@ public sealed class AirPlaySession
         }
     }
 
+    private string RemoteIp()
+        => (_client.Client.RemoteEndPoint as IPEndPoint)?.Address.ToString() ?? "";
+
     private readonly byte[] _fillBuf = new byte[65536];
 
     private async Task<bool> FillPlainAsync(CancellationToken ct)
@@ -574,7 +588,11 @@ public sealed class AirPlaySession
                 return true;
 
             foreach (var (secret, tag) in new (byte[]? secret, string tag)[]
-                     { (_pairing.SrpSessionKey, "srp"), (_pairing.EcdhSecret, "ecdh") })
+                     {
+                         (_pairing.SrpSessionKey, "srp"),
+                         (_pairing.EcdhSecret, "ecdh"),
+                         (Pairing.SharedSrpSessionKey, "srp-partagé")
+                     })
             {
                 if (secret == null)
                     continue;

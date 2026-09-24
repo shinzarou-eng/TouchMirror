@@ -303,6 +303,7 @@
   "ios.ble_fail": "Contrôle Bluetooth indisponible : {0}",
   "ios.ble_off": "Contrôle Bluetooth désactivé",
   "ios.ble_waiting": "Souris Bluetooth en diffusion — en attente de l'iPhone",
+  "ios.hint": "iPhone : Centre de contrôle → Recopie de l'écran → TouchMirror",
   "ios.no_record": "Enregistrement vidéo indisponible sur iOS — capture PNG seulement.",
   "ios_affichage_seul": "iOS · AFFICHAGE SEUL",
   "iphone": "iPhone",

@@ -109,32 +109,34 @@ public sealed class AirPlayAdvertiser : IDisposable
         var pi = AirPlaySession.PairingIdentity.PairingId;
 
         var airplay = new ServiceProfile(name, "_airplay._tcp", (ushort)airplayPort);
-        airplay.AddProperty("srcvers", "377.40.00");
+        airplay.AddProperty("srcvers", "220.68");
         airplay.AddProperty("deviceid", DeviceId);
-        airplay.AddProperty("features", "0x7F8AD0,0x38BC946");
-        airplay.AddProperty("model", "TouchMirror");
-        airplay.AddProperty("manufacturer", "TouchMirror");
-        airplay.AddProperty("integrator", "TouchMirror");
-        airplay.AddProperty("flags", "0x244");
-        airplay.AddProperty("vv", "1");
+        airplay.AddProperty("features", "0x5A7FFEE6,0x0");
+        airplay.AddProperty("model", "AppleTV3,2");
+        airplay.AddProperty("flags", "0x84");
+        airplay.AddProperty("vv", "2");
         airplay.AddProperty("pk", pk);
         airplay.AddProperty("pi", pi);
-        airplay.AddProperty("protovers", "1.1");
         _sd.Advertise(airplay);
 
         var raop = new ServiceProfile($"{macCompact}@{name}", "_raop._tcp", (ushort)raopPort);
+        raop.AddProperty("txtvers", "1");
+        raop.AddProperty("ch", "2");
         raop.AddProperty("cn", "0,1,2,3");
         raop.AddProperty("da", "true");
         raop.AddProperty("et", "0,3,5");
         raop.AddProperty("md", "0,1,2");
+        raop.AddProperty("am", "AppleTV3,2");
         raop.AddProperty("pk", pk);
-        raop.AddProperty("sf", "0x244");
+        raop.AddProperty("pw", "false");
+        raop.AddProperty("sr", "44100");
+        raop.AddProperty("ss", "16");
+        raop.AddProperty("sf", "0x84");
         raop.AddProperty("tp", "UDP");
         raop.AddProperty("vn", "65537");
-        raop.AddProperty("vs", "377.40.00");
-        raop.AddProperty("vv", "1");
-        raop.AddProperty("ft", "0x7F8AD0,0x38BC946");
-        raop.AddProperty("am", "TouchMirror");
+        raop.AddProperty("vs", "220.68");
+        raop.AddProperty("vv", "2");
+        raop.AddProperty("ft", "0x5A7FFEE6,0x0");
         _sd.Advertise(raop);
     }
 

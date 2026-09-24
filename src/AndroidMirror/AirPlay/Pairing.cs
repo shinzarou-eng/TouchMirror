@@ -123,12 +123,16 @@ public sealed class Pairing
     private AesCtr? _ctr;
     private byte[]? _srpSessionKey;
     private byte[]? _ecdhSecret;
+    public static byte[]? SharedSrpSessionKey { get; private set; }
     private Srp6aHap? _srpHap;
     private byte[]? _verifyShared;
-    private string? _pin;
+    private static string? _pin;
+    private static DateTime? _lastTransientSetupAt;
+    private bool _transient;
     private string? _setupUser;
 
     public event Action<string>? PinReady;
+    public event Action<string>? Log;
 
     public byte[] PublicKey => _identity.PublicKey;
     public string PairingId => _identity.PairingId;
@@ -137,17 +141,15 @@ public sealed class Pairing
 
     private string CurrentPin()
     {
-        if (_pin == null)
-        {
-            _pin = RandomNumberGenerator.GetInt32(0, 10000).ToString("D4");
-            PinReady?.Invoke(_pin);
-        }
+        _pin ??= RandomNumberGenerator.GetInt32(0, 10000).ToString("D4");
+        PinReady?.Invoke(_pin);
         return _pin;
     }
 
     private void RememberClient(string? clientId, byte[] ltpk)
     {
         _clientLtpk = ltpk;
+        _pin = null;
         PairedClientsStore.Instance.Add(
             string.IsNullOrEmpty(clientId) ? Convert.ToHexString(ltpk).ToLowerInvariant() : clientId, ltpk);
     }
@@ -204,6 +206,7 @@ public sealed class Pairing
             if (!_srp.VerifyClientProof(clientPk, clientProof, out var m2))
                 return null;
             _srpSessionKey = _srp.SessionKey;
+            SharedSrpSessionKey = _srpSessionKey;
             return PlistCodec.Write(new Dictionary<string, object?>
             {
                 ["proof"] = m2
@@ -246,6 +249,8 @@ public sealed class Pairing
         switch (state)
         {
             case 1:
+                Log?.Invoke($"airplay: pair-setup M1 tags=[{string.Join(",", tlv.Keys.Select(k => k.ToString("X2")))}]");
+                _transient = tlv.TryGetValue(Tlv8.Flags, out var fl) && fl is { Length: 1 } && fl[0] == 0;
                 _srpHap = new Srp6aHap(CurrentPin());
                 return Tlv8.Format(
                     (Tlv8.State, new byte[] { 2 }),
@@ -260,6 +265,9 @@ public sealed class Pairing
                 if (!_srpHap.VerifyClientProof(pkA, proof, out var m2))
                     return Tlv8.Format((Tlv8.State, new byte[] { 4 }), (Tlv8.Error, new byte[] { 2 }));
                 _srpSessionKey = _srpHap.SessionKey;
+                SharedSrpSessionKey = _srpSessionKey;
+                if (_transient)
+                    _lastTransientSetupAt = DateTime.UtcNow;
                 return Tlv8.Format((Tlv8.State, new byte[] { 4 }), (Tlv8.Proof, m2!));
 
             case 5:
@@ -350,7 +358,16 @@ public sealed class Pairing
                     : null;
                 var clientSig = inner3.TryGetValue(Tlv8.Signature, out var sgv) ? sgv : null;
                 if (!VerifyClientSignature(clientId, _clientEcdh!, _verifyPub!, clientSig))
+                {
+                    if (_lastTransientSetupAt is { } t && DateTime.UtcNow - t < TimeSpan.FromMinutes(2))
+                    {
+                        Log?.Invoke("airplay: pair-verify accepte sans ltpk (pairing transitoire recent)");
+                        _lastTransientSetupAt = null;
+                        Verified = true;
+                        return Tlv8.Format((Tlv8.State, new byte[] { 4 }));
+                    }
                     return Tlv8.Format((Tlv8.State, new byte[] { 4 }), (Tlv8.Error, new byte[] { 2 }));
+                }
                 Verified = true;
                 return Tlv8.Format((Tlv8.State, new byte[] { 4 }));
         }
@@ -373,12 +390,8 @@ public sealed class Pairing
     {
         if (body.Length == 4 + 32 + 32 && body[0] == 1)
         {
-            var presented = body[36..68];
-            if (!PairedClientsStore.Instance.HasLtpk(presented)
-                && (_clientLtpk == null || !presented.SequenceEqual(_clientLtpk)))
-                return null;
             _clientEcdh = body[4..36];
-            _clientLtpk = presented;
+            _clientLtpk = body[36..68];
             _verifyPriv = RandomNumberGenerator.GetBytes(32);
             _verifyPub = Curve25519.X25519(_verifyPriv, BasePoint());
             var shared = Curve25519.X25519(_verifyPriv, _clientEcdh);

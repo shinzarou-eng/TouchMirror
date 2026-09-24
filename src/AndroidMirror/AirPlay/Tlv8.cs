@@ -12,8 +12,8 @@ public static class Tlv8
     public const byte EncryptedData = 5;
     public const byte State = 6;
     public const byte Error = 7;
-    public const byte Signature = 10;
-    public const byte Flags = 19;
+    public const byte Signature = 11;
+    public const byte Flags = 16;
 
     public static Dictionary<byte, byte[]> Parse(byte[] data)
     {
