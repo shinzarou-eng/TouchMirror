@@ -60,16 +60,39 @@ public static class MarketplaceService
         return null;
     }
 
+    private static string CachePath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "TouchMirror", "marketplace-cache.json");
+
+    public static bool LastFetchFromCache { get; private set; }
+
+    public static string? NewerVersion(string? installed, string? catalog)
+        => Version.TryParse(installed, out var iv)
+           && Version.TryParse(catalog, out var cv)
+           && cv > iv
+            ? catalog
+            : null;
+
     public static async Task<List<MarketplaceEntry>> FetchAsync(CancellationToken ct = default)
     {
         var local = LocalCatalogDir();
         string json;
+        LastFetchFromCache = false;
         if (local != null)
             json = await File.ReadAllTextAsync(Path.Combine(local, "index.json"), ct);
         else
         {
-            using var http = NewHttp();
-            json = await http.GetStringAsync(BaseUrl + "index.json", ct);
+            try
+            {
+                using var http = NewHttp();
+                json = await http.GetStringAsync(BaseUrl + "index.json", ct);
+                try { await File.WriteAllTextAsync(CachePath, json, ct); } catch { }
+            }
+            catch when (File.Exists(CachePath))
+            {
+                json = await File.ReadAllTextAsync(CachePath, ct);
+                LastFetchFromCache = true;
+            }
         }
         using var doc = JsonDocument.Parse(json);
         if (!doc.RootElement.TryGetProperty("plugins", out var arr))

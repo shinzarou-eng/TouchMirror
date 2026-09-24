@@ -671,5 +671,7 @@
   "ios.mode_portrait": "portrait",
   "ios.mode_direct": "direct",
   "ios.mode_inverse": "inverted portrait",
-  "ios.ble_recycling": "Bluetooth control restarting to lock the pointer space on the new orientation — reconnecting automatically"
+  "ios.ble_recycling": "Bluetooth control restarting to lock the pointer space on the new orientation — reconnecting automatically",
+  "mkt.cached": "cached catalog — some entries may be outdated",
+  "mkt.update_tip": "update available — open the catalog to install it"
 }

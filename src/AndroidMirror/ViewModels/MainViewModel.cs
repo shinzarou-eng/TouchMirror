@@ -1380,7 +1380,14 @@ public partial class MainViewModel : ObservableObject
                 item.Refresh(Plugins);
                 Catalog.Add(item);
             }
-            CatalogStatus = Catalog.Count == 0 ? "catalogue vide" : "";
+            foreach (var p in Plugins)
+            {
+                var e = entries.FirstOrDefault(x => x.Id == p.Id);
+                p.UpdateAvailable = e == null ? null : MarketplaceService.NewerVersion(p.Version, e.Version);
+            }
+            CatalogStatus = MarketplaceService.LastFetchFromCache
+                ? L("mkt.cached")
+                : Catalog.Count == 0 ? "catalogue vide" : "";
             _catalogLoaded = true;
             OnPropertyChanged(nameof(FeaturedPlugin));
             CatalogView.Refresh();

@@ -671,5 +671,7 @@
   "ios.mode_portrait": "portrait",
   "ios.mode_direct": "direct",
   "ios.mode_inverse": "portrait inversé",
-  "ios.ble_recycling": "contrôle Bluetooth relancé pour caler l’espace curseur sur la nouvelle orientation — reconnexion automatique"
+  "ios.ble_recycling": "contrôle Bluetooth relancé pour caler l’espace curseur sur la nouvelle orientation — reconnexion automatique",
+  "mkt.cached": "catalogue en cache — certaines entrées peuvent être périmées",
+  "mkt.update_tip": "mise à jour disponible — ouvrez le catalogue pour l’installer"
 }

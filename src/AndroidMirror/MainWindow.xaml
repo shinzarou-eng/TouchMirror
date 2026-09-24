@@ -577,6 +577,15 @@
                                        Fill="{DynamicResource WarnBrush}" VerticalAlignment="Center" Margin="5,0,0,0"
                                        ToolTip="{loc:Loc non_verifie_lis_le_code_avant_de_l_activer}"
                                        Visibility="{Binding IsVerified, Converter={StaticResource NotBoolToVis}}" />
+                        <Path Style="{StaticResource Ic}" Data="{StaticResource IcPlugDisconnected24}" Width="12" Height="12"
+                                       Fill="{DynamicResource WarnBrush}" VerticalAlignment="Center" Margin="5,0,0,0"
+                                       ToolTip="{Binding LastError}"
+                                       Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}" />
+                        <TextBlock Text="{Binding UpdateAvailable, StringFormat=' ↑ {0}'}"
+                                   FontSize="{StaticResource FsMeta}" VerticalAlignment="Center" Margin="5,0,0,0"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   ToolTip="{loc:Loc mkt.update_tip}"
+                                   Visibility="{Binding HasUpdate, Converter={StaticResource BoolToVis}}" />
                     </StackPanel>
                     <ui:Button Grid.Column="2" Appearance="Transparent" Padding="4,2" Margin="0,0,4,0"
                                VerticalAlignment="Center"
