@@ -27,9 +27,9 @@ public sealed class FairPlay
         Convert.FromHexString(
             "46504c59030102000000008202039001e1727e0f57f9f5880db104a6257a23f5" +
             "cfff1abbe1e93045251afb97eb9fc0011ebe0f3a81df5b691d76acb2f7a5c708" +
-            "e3d328f56bb39dbde5f29c8a17f481487e7e8ce20040e7871bda30f1f5d51e68" +
-            "6358f30bf5f7cb2e6900eb1511f82d75a0c91e9b3bf9f1d11877e24eb2fa1504" +
-            "46c8c3599445d89246c8c359"),
+            "e3d328f56bb39dbde5f29c8a17f481487e3ae863c678325422e6f78e166d18aa" +
+            "7fd636258bce28726f661f738893ce44311e4be6c0535193e5ef72e868623372" +
+            "9c227d820c999445d89246c8c359"),
     };
 
     private static readonly byte[] FpHeaderV3 = Convert.FromHexString("46504c590301040000000014");

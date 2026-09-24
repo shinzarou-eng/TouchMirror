@@ -132,27 +132,36 @@ public partial class MirrorView : UserControl
 
     public void AttachControl(ControlChannel control) => _control = control;
 
+    public bool HasControl => _control != null;
+
     public interface IIosPointer
     {
         void MoveTo(double rx, double ry);
-        void Down(double rx, double ry);
-        void Up(double rx, double ry);
+        void Down(double rx, double ry, int button);
+        void Up(double rx, double ry, int button);
         void Click(double rx, double ry);
         void Wheel(double rx, double ry, int steps);
+        bool Key(Key key, bool isDown);
+        void ReleaseAll();
     }
 
     private IIosPointer? _iosPointer;
     private bool _iosMouseDown;
+    private int _iosButtons;
     private double _iosRx, _iosRy;
+    private double _iosPendingRx, _iosPendingRy;
 
     public void SetIosPointer(IIosPointer? pointer)
     {
         if (_iosMouseDown)
         {
             _iosMouseDown = false;
+            _iosButtons = 0;
             _iosPendingMove = false;
-            _iosPointer?.Up(_iosRx, _iosRy);
+            _iosPointer?.Up(_iosRx, _iosRy, 0);
         }
+        if (pointer == null)
+            _iosPointer?.ReleaseAll();
         _iosPointer = pointer;
     }
 
@@ -530,7 +539,8 @@ public partial class MirrorView : UserControl
             return;
         if (_control == null)
         {
-            _iosPointer?.Click(kb.Rx, kb.Ry);
+            var (iu, iv) = TexNormToIos(kb.Rx, kb.Ry);
+            _iosPointer?.Click(iu, iv);
             if (_keybindEls.TryGetValue(kb, out var iosEl))
                 iosEl.BeginAnimation(OpacityProperty,
                     new System.Windows.Media.Animation.DoubleAnimation(0.35, _kbOpacity, TimeSpan.FromMilliseconds(220)));
@@ -727,6 +737,39 @@ public partial class MirrorView : UserControl
         return true;
     }
 
+    private bool TryMapIosPoint(Point p, out double u, out double v, bool strict = false)
+    {
+        u = v = 0;
+        if (!GetVideoDrawRect(out var ox, out var oy, out var scale, out var vw, out var vh))
+            return false;
+        var rx = (p.X - ox) / scale;
+        var ry = (p.Y - oy) / scale;
+        rx = rx / _zoom + (_zoomCx - 0.5 / _zoom) * vw;
+        ry = ry / _zoom + (_zoomCy - 0.5 / _zoom) * vh;
+        if (strict && (rx < 0 || ry < 0 || rx >= vw || ry >= vh))
+            return false;
+        u = Math.Clamp(rx / Math.Max(1, vw - 1), 0, 1);
+        v = Math.Clamp(ry / Math.Max(1, vh - 1), 0, 1);
+        if (vw > vh)
+            (u, v) = (1 - v, u);
+        return true;
+    }
+
+    private (double u, double v) TexNormToIos(double rx, double ry)
+    {
+        var (u, v) = _displayRotation switch
+        {
+            90 => (1 - ry, rx),
+            180 => (1 - rx, 1 - ry),
+            270 => (ry, 1 - rx),
+            _ => (rx, ry),
+        };
+        var landscape = _displayRotation is 90 or 270 ? _videoH > _videoW : _videoW > _videoH;
+        if (landscape)
+            (u, v) = (1 - v, u);
+        return (u, v);
+    }
+
     private static uint ButtonFlag(MouseButton b) => b switch
     {
         MouseButton.Left => AndroidMotionEvent.ButtonPrimary,
@@ -776,12 +819,20 @@ public partial class MirrorView : UserControl
 
         if (_control == null)
         {
-            if (_iosPointer != null && e.ChangedButton == MouseButton.Left
-                && TryMapPoint(e.GetPosition(InputSurface), out var ix, out var iy, strict: true))
+            var iosBtn = e.ChangedButton switch
             {
-                _iosRx = (double)ix / Math.Max(1, _videoW - 1);
-                _iosRy = (double)iy / Math.Max(1, _videoH - 1);
-                _iosPointer.Down(_iosRx, _iosRy);
+                MouseButton.Left => 1,
+                MouseButton.Right => 2,
+                MouseButton.Middle => 4,
+                _ => 0
+            };
+            if (_iosPointer != null && iosBtn != 0
+                && TryMapIosPoint(e.GetPosition(InputSurface), out var iu, out var iv, strict: true))
+            {
+                _iosRx = iu;
+                _iosRy = iv;
+                _iosButtons |= iosBtn;
+                _iosPointer.Down(_iosRx, _iosRy, iosBtn);
                 _iosMouseDown = true;
                 _moveFlush.Start();
                 InputSurface.CaptureMouse();
@@ -836,13 +887,16 @@ public partial class MirrorView : UserControl
             }
             return;
         }
-        if (_iosMouseDown && _iosPointer != null)
+        if (_iosPointer != null && _control == null)
         {
-            if (TryMapPoint(e.GetPosition(InputSurface), out var ix, out var iy))
+            if (TryMapIosPoint(e.GetPosition(InputSurface), out var iu, out var iv))
             {
-                _iosRx = (double)ix / Math.Max(1, _videoW - 1);
-                _iosRy = (double)iy / Math.Max(1, _videoH - 1);
+                _iosRx = iu;
+                _iosRy = iv;
+                _iosPendingRx = iu;
+                _iosPendingRy = iv;
                 _iosPendingMove = true;
+                _moveFlush.Start();
             }
             return;
         }
@@ -857,10 +911,12 @@ public partial class MirrorView : UserControl
 
     private void FlushPendingMove()
     {
-        if (_iosPendingMove && _iosMouseDown && _iosPointer != null)
+        if (_iosPendingMove && _iosPointer != null)
         {
             _iosPendingMove = false;
-            _iosPointer.MoveTo(_iosRx, _iosRy);
+            _iosPointer.MoveTo(_iosPendingRx, _iosPendingRy);
+            if (!_iosMouseDown && !_hasPendingMove)
+                _moveFlush.Stop();
         }
         if (!_hasPendingMove)
             return;
@@ -890,19 +946,30 @@ public partial class MirrorView : UserControl
         }
         if (_iosMouseDown)
         {
-            _iosMouseDown = false;
-            if (TryMapPoint(e.GetPosition(InputSurface), out var ix, out var iy))
+            var upBtn = e.ChangedButton switch
             {
-                _iosRx = (double)ix / Math.Max(1, _videoW - 1);
-                _iosRy = (double)iy / Math.Max(1, _videoH - 1);
+                MouseButton.Left => 1,
+                MouseButton.Right => 2,
+                MouseButton.Middle => 4,
+                _ => 0
+            };
+            _iosButtons &= ~upBtn;
+            if (TryMapIosPoint(e.GetPosition(InputSurface), out var iu, out var iv))
+            {
+                _iosRx = iu;
+                _iosRy = iv;
             }
-            _iosPointer?.Up(_iosRx, _iosRy);
+            _iosPointer?.Up(_iosRx, _iosRy, upBtn);
             _iosPendingMove = false;
-            _moveFlush.Stop();
-            if (_mouseCaptured)
+            if (_iosButtons == 0)
             {
-                InputSurface.ReleaseMouseCapture();
-                _mouseCaptured = false;
+                _iosMouseDown = false;
+                _moveFlush.Stop();
+                if (_mouseCaptured)
+                {
+                    InputSurface.ReleaseMouseCapture();
+                    _mouseCaptured = false;
+                }
             }
             return;
         }
@@ -932,8 +999,9 @@ public partial class MirrorView : UserControl
         if (_iosMouseDown)
         {
             _iosMouseDown = false;
+            _iosButtons = 0;
             _iosPendingMove = false;
-            _iosPointer?.Up(_iosRx, _iosRy);
+            _iosPointer?.Up(_iosRx, _iosRy, 0);
         }
         if (_pressedButtons != 0 && _control != null)
         {
@@ -956,9 +1024,8 @@ public partial class MirrorView : UserControl
         }
         if (_iosPointer != null && _control == null)
         {
-            if (TryMapPoint(e.GetPosition(InputSurface), out var wx, out var wy))
-                _iosPointer.Wheel((double)wx / Math.Max(1, _videoW - 1),
-                    (double)wy / Math.Max(1, _videoH - 1), e.Delta / 120);
+            if (TryMapIosPoint(e.GetPosition(InputSurface), out var wu, out var wv))
+                _iosPointer.Wheel(wu, wv, e.Delta / 120);
             return;
         }
         if (_editMode || _control == null)
@@ -1032,7 +1099,7 @@ public partial class MirrorView : UserControl
         }
 
         if (_control == null)
-            return false;
+            return _iosPointer?.Key(key, isDown) == true;
         var code = MapKey(key);
         if (code < 0)
             return false;
@@ -1045,6 +1112,7 @@ public partial class MirrorView : UserControl
 
     public void ReleaseHeldKeys()
     {
+        _iosPointer?.ReleaseAll();
         if (_heldCodes.Count == 0)
             return;
         var codes = _heldCodes.ToArray();
@@ -1121,6 +1189,7 @@ public partial class MirrorView : UserControl
         _bitmap = null;
         VideoImage.Source = null;
         _moveFlush.Stop();
+        _iosPointer = null;
         _zoom = 1.0;
         _zoomCx = _zoomCy = 0.5;
         _viewPanning = false;

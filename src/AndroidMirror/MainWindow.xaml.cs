@@ -1616,7 +1616,7 @@ public partial class MainWindow : FluentWindow
         if (view == null || IsTextInputTarget(e.OriginalSource))
             return;
 
-        if (e.Key == Key.V && Keyboard.Modifiers == ModifierKeys.Control)
+        if (e.Key == Key.V && Keyboard.Modifiers == ModifierKeys.Control && view.HasControl)
         {
             try
             {
