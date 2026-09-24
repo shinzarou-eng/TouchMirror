@@ -7,14 +7,38 @@ namespace TouchMirror;
 
 public partial class App : Application
 {
+    private static Mutex? _singleInstance;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool IsIconic(IntPtr hWnd);
+
     protected override void OnStartup(StartupEventArgs e)
     {
+        _singleInstance = new Mutex(true, @"Local\TouchMirror.SingleInstance", out var created);
+        if (!created)
+        {
+            var self = Environment.ProcessId;
+            foreach (var p in System.Diagnostics.Process.GetProcessesByName("TouchMirror"))
+            {
+                if (p.Id == self || p.MainWindowHandle == IntPtr.Zero) continue;
+                var h = p.MainWindowHandle;
+                if (IsIconic(h)) ShowWindow(h, 9);
+                SetForegroundWindow(h);
+                break;
+            }
+            Shutdown();
+            return;
+        }
         AppLogger.Write("Application démarrée");
         try
         {
             Wpf.Ui.Appearance.ApplicationThemeManager.Apply(Wpf.Ui.Appearance.ApplicationTheme.Dark);
             Wpf.Ui.Appearance.ApplicationAccentColorManager.Apply(
-                System.Windows.Media.Color.FromRgb(0xE8, 0xA3, 0x3D));
+                System.Windows.Media.Color.FromRgb(0x4E, 0xC9, 0x8E));
         }
         catch { }
         DispatcherUnhandledException += (_, args) =>

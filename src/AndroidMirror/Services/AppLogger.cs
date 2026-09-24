@@ -32,4 +32,8 @@ public static class AppLogger
     }
 
     public static void Write(Exception ex) => Write(ex.ToString());
+
+    public static void Forget(Task task)
+        => task.ContinueWith(t => Write($"async en arrière-plan : {t.Exception?.GetBaseException()}"),
+            TaskContinuationOptions.OnlyOnFaulted);
 }

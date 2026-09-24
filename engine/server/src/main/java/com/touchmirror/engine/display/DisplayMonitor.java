@@ -1,0 +1,159 @@
+package com.touchmirror.engine.display;
+
+import com.touchmirror.engine.AndroidVersions;
+import com.touchmirror.engine.device.Device;
+import com.touchmirror.engine.util.Ln;
+import com.touchmirror.engine.wrappers.DisplayManager;
+import com.touchmirror.engine.wrappers.DisplayWindowListener;
+import com.touchmirror.engine.wrappers.ServiceManager;
+
+import android.content.res.Configuration;
+import android.os.Build;
+import android.os.Handler;
+import android.os.HandlerThread;
+import android.view.IDisplayWindowListener;
+
+public class DisplayMonitor {
+
+    public interface Listener {
+        void onDisplayPropertiesChanged(DisplayProperties props);
+    }
+
+    private static final boolean USE_DEFAULT_METHOD = Build.VERSION.SDK_INT < AndroidVersions.API_34_ANDROID_14;
+
+    private DisplayManager.DisplayListenerHandle displayListenerHandle;
+    private HandlerThread handlerThread;
+
+    private IDisplayWindowListener displayWindowListener;
+
+    private int displayId = Device.DISPLAY_ID_NONE;
+
+    private DisplayProperties props;
+
+    private Listener listener;
+
+    private static final long POLL_INTERVAL_MS = 500;
+    private HandlerThread pollThread;
+    private Handler pollHandler;
+    private final Runnable pollRunnable = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                checkDisplayPropertiesChanged();
+            } catch (Throwable e) {
+                Ln.e("DisplayMonitor error", e);
+            }
+            Handler h = pollHandler;
+            if (h != null) {
+                h.postDelayed(this, POLL_INTERVAL_MS);
+            }
+        }
+    };
+
+    public void start(int displayId, Listener listener) {
+        assert listener != null;
+        this.listener = listener;
+
+        assert this.displayId == Device.DISPLAY_ID_NONE;
+        this.displayId = displayId;
+
+        if (USE_DEFAULT_METHOD) {
+            handlerThread = new HandlerThread("DisplayListener");
+            handlerThread.start();
+            Handler handler = new Handler(handlerThread.getLooper());
+            displayListenerHandle = ServiceManager.getDisplayManager().registerDisplayListener(eventDisplayId -> {
+                if (Ln.isEnabled(Ln.Level.VERBOSE)) {
+                    Ln.v("DisplayMonitor: onDisplayChanged(" + eventDisplayId + ")");
+                }
+
+                if (eventDisplayId == displayId) {
+                    try {
+                        checkDisplayPropertiesChanged();
+                    } catch (Throwable e) {
+                        Ln.e("DisplayMonitor error", e);
+                        throw e;
+                    }
+                }
+            }, handler);
+        } else {
+            displayWindowListener = new DisplayWindowListener() {
+                @Override
+                public void onDisplayConfigurationChanged(int eventDisplayId, Configuration newConfig) {
+                    if (Ln.isEnabled(Ln.Level.VERBOSE)) {
+                        Ln.v("DisplayMonitor: onDisplayConfigurationChanged(" + eventDisplayId + ")");
+                    }
+
+                    if (eventDisplayId == displayId) {
+                        try {
+                            checkDisplayPropertiesChanged();
+                        } catch (Throwable e) {
+                            Ln.e("DisplayMonitor error", e);
+                            throw e;
+                        }
+                    }
+                }
+            };
+            ServiceManager.getWindowManager().registerDisplayWindowListener(displayWindowListener);
+        }
+
+        pollThread = new HandlerThread("DisplayMonitorPoll");
+        pollThread.start();
+        pollHandler = new Handler(pollThread.getLooper());
+        pollHandler.postDelayed(pollRunnable, POLL_INTERVAL_MS);
+    }
+
+    public void stopAndRelease() {
+        if (USE_DEFAULT_METHOD) {
+            if (displayListenerHandle != null) {
+                ServiceManager.getDisplayManager().unregisterDisplayListener(displayListenerHandle);
+                displayListenerHandle = null;
+            }
+
+            if (handlerThread != null) {
+                handlerThread.quitSafely();
+            }
+        } else if (displayWindowListener != null) {
+            ServiceManager.getWindowManager().unregisterDisplayWindowListener(displayWindowListener);
+        }
+
+        if (pollThread != null) {
+            pollHandler = null;
+            pollThread.quitSafely();
+            pollThread = null;
+        }
+    }
+
+    private synchronized DisplayProperties getAndSetDisplayProperties(DisplayProperties props) {
+        DisplayProperties oldProps = this.props;
+        this.props = props;
+        return oldProps;
+    }
+
+    public synchronized void setSessionDisplayProperties(DisplayProperties props) {
+        this.props = props;
+    }
+
+    private synchronized void checkDisplayPropertiesChanged() {
+        DisplayInfo di = ServiceManager.getDisplayManager().getDisplayInfo(displayId);
+        if (di == null) {
+            Ln.w("DisplayInfo for " + displayId + " cannot be retrieved");
+            DisplayProperties oldProps = getAndSetDisplayProperties(null);
+            if (Ln.isEnabled(Ln.Level.VERBOSE)) {
+                Ln.v("DisplayMonitor: " + oldProps + " -> (unknown)");
+            }
+            listener.onDisplayPropertiesChanged(null);
+        } else {
+            DisplayProperties newProps = new DisplayProperties(di.getSize(), di.getRotation());
+
+            DisplayProperties oldProps = getAndSetDisplayProperties(newProps);
+            if (!newProps.equals(oldProps)) {
+                if (Ln.isEnabled(Ln.Level.VERBOSE)) {
+                    Ln.v("DisplayMonitor: " + oldProps + " -> " + newProps);
+                }
+                listener.onDisplayPropertiesChanged(newProps);
+            } else if (Ln.isEnabled(Ln.Level.VERBOSE)) {
+                Ln.v("DisplayMonitor: " + newProps + " (unchanged)");
+            }
+        }
+    }
+}

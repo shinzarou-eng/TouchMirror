@@ -1,20 +1,27 @@
 using System.Collections.Concurrent;
 using System.IO;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using FFmpeg.AutoGen;
+using TouchMirror.Services;
 
 namespace TouchMirror.Video;
 
-public sealed unsafe class VideoDecoder : IDisposable
+public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
 {
     private static readonly object _initLock = new();
     private static bool _initialized;
 
-    private readonly AVCodecContext* _ctx;
+    private AVCodecContext* _ctx;
     private readonly AVPacket* _packet;
     private readonly AVFrame* _frame;
+    private AVFrame* _swFrame;
+    private AVBufferRef* _hwDeviceCtx;
+    private int _hwFailCount;
     private SwsContext* _sws;
 
     private int _swsW = -1, _swsH = -1;
+    private int _swsColorInfo = -1;
     private AVPixelFormat _swsFmt = AVPixelFormat.AV_PIX_FMT_NONE;
 
     private readonly ConcurrentQueue<byte[]> _pool = new();
@@ -26,8 +33,18 @@ public sealed unsafe class VideoDecoder : IDisposable
     public event Action? FrameAvailable;
     public event Action<string>? Error;
 
+    public event Action<IntPtr, int, int, int, int>? GpuFrame;
+
+    public GpuPresenter? GpuPresenter { get; }
+
+    private IntPtr ExternalD3D11Device => GpuPresenter != null ? GpuPresenter.SharedDevicePtr : IntPtr.Zero;
+
     public int Width => _frameW;
     public int Height => _frameH;
+
+    public bool HardwareDecoding { get; private set; }
+
+    public int HardwareFallbacks => _hwFailCount;
 
     public static void InitializeFFmpeg()
     {
@@ -44,9 +61,10 @@ public sealed unsafe class VideoDecoder : IDisposable
         }
     }
 
-    public VideoDecoder(string codecId)
+    public VideoDecoder(string codecId, bool preferHardware = true, GpuPresenter? gpuPresenter = null)
     {
         InitializeFFmpeg();
+        GpuPresenter = gpuPresenter;
 
         var avCodecId = codecId switch
         {
@@ -57,26 +75,120 @@ public sealed unsafe class VideoDecoder : IDisposable
             _ => AVCodecID.AV_CODEC_ID_H264,
         };
 
-        var codec = ffmpeg.avcodec_find_decoder(avCodecId);
+        AVCodec* codec = null;
+        if (preferHardware && avCodecId == AVCodecID.AV_CODEC_ID_AV1)
+        {
+            var native = ffmpeg.avcodec_find_decoder_by_name("av1");
+            if (native != null)
+            {
+                OpenContext(native, hw: true);
+                if (_ctx != null)
+                {
+                    codec = native;
+                    _av1HwAttempt = true;
+                }
+            }
+        }
+        if (codec == null)
+            codec = ffmpeg.avcodec_find_decoder(avCodecId);
         if (codec == null)
             throw new InvalidOperationException($"Codec FFmpeg introuvable : {codecId}");
+        _avCodecId = avCodecId;
 
-        _ctx = ffmpeg.avcodec_alloc_context3(codec);
-        _ctx->flags |= ffmpeg.AV_CODEC_FLAG_LOW_DELAY;
-        _ctx->flags2 |= ffmpeg.AV_CODEC_FLAG2_FAST;
-        _ctx->thread_count = Math.Min(Environment.ProcessorCount, 8);
-        _ctx->thread_type = ffmpeg.FF_THREAD_SLICE;
-        _ctx->delay = 0;
-
-        var ret = ffmpeg.avcodec_open2(_ctx, codec, null);
-        if (ret < 0)
-            throw new InvalidOperationException($"avcodec_open2 a échoué ({ret})");
+        if (preferHardware && _ctx == null)
+            OpenContext(codec, hw: true);
+        if (_ctx == null)
+            OpenContext(codec, hw: false);
+        if (_ctx == null)
+            throw new InvalidOperationException("avcodec_open2 a échoué");
 
         _packet = ffmpeg.av_packet_alloc();
         _frame = ffmpeg.av_frame_alloc();
     }
 
-    public void Feed(byte[] data)
+    private readonly AVCodecID _avCodecId;
+    private bool _av1HwAttempt;
+    private int _av1SwFrames;
+
+    private void OpenContext(AVCodec* codec, bool hw)
+    {
+        var ctx = ffmpeg.avcodec_alloc_context3(codec);
+        ctx->flags |= ffmpeg.AV_CODEC_FLAG_LOW_DELAY;
+        ctx->flags2 |= ffmpeg.AV_CODEC_FLAG2_FAST;
+        ctx->thread_count = Math.Min(Environment.ProcessorCount, 8);
+        ctx->thread_type = ffmpeg.FF_THREAD_SLICE;
+        ctx->delay = 0;
+
+        if (hw)
+        {
+            AVBufferRef* dev = null;
+            if (ExternalD3D11Device != IntPtr.Zero)
+            {
+                dev = ffmpeg.av_hwdevice_ctx_alloc(AVHWDeviceType.AV_HWDEVICE_TYPE_D3D11VA);
+                if (dev != null)
+                {
+                    var hwctx = (AVD3D11VADeviceContext*)((AVHWDeviceContext*)dev->data)->hwctx;
+                    hwctx->device = (ID3D11Device*)ExternalD3D11Device;
+                    if (ffmpeg.av_hwdevice_ctx_init(dev) < 0)
+                        ffmpeg.av_buffer_unref(&dev);
+                }
+            }
+            else if (ffmpeg.av_hwdevice_ctx_create(&dev,
+                    AVHWDeviceType.AV_HWDEVICE_TYPE_D3D11VA, null, null, 0) < 0)
+            {
+                dev = null;
+            }
+            if (dev != null)
+            {
+                _hwDeviceCtx = dev;
+                ctx->hw_device_ctx = ffmpeg.av_buffer_ref(dev);
+                ctx->get_format = _getFormatCallback;
+            }
+        }
+
+        var ret = ffmpeg.avcodec_open2(ctx, codec, null);
+        if (ret < 0)
+        {
+            ffmpeg.avcodec_free_context(&ctx);
+            _ctx = null;
+            if (_hwDeviceCtx != null)
+            {
+                fixed (AVBufferRef** p = &_hwDeviceCtx)
+                    ffmpeg.av_buffer_unref(p);
+            }
+            return;
+        }
+        _ctx = ctx;
+        _hwFailCount = 0;
+    }
+
+    private static readonly AVCodecContext_get_format _getFormatCallback = SelectHwFormat;
+
+    private static AVPixelFormat SelectHwFormat(AVCodecContext* s, AVPixelFormat* fmts)
+    {
+        for (var p = fmts; *p != AVPixelFormat.AV_PIX_FMT_NONE; p++)
+            if (*p == AVPixelFormat.AV_PIX_FMT_D3D11)
+                return AVPixelFormat.AV_PIX_FMT_D3D11;
+        return fmts[0];
+    }
+
+    private void ReopenSoftware()
+    {
+        GpuPresenter?.ClearSources();
+        fixed (AVCodecContext** c = &_ctx)
+            ffmpeg.avcodec_free_context(c);
+        if (_hwDeviceCtx != null)
+        {
+            fixed (AVBufferRef** p = &_hwDeviceCtx)
+                ffmpeg.av_buffer_unref(p);
+        }
+        var codec = ffmpeg.avcodec_find_decoder(_avCodecId);
+        if (codec != null)
+            OpenContext(codec, hw: false);
+        Error?.Invoke(LocalizationService.Get("log.hw_fallback"));
+    }
+
+    public void Feed(byte[] data, int len)
     {
         lock (_sync)
         {
@@ -84,10 +196,10 @@ public sealed unsafe class VideoDecoder : IDisposable
                 return;
             try
             {
-            var ret = ffmpeg.av_new_packet(_packet, data.Length);
+            var ret = ffmpeg.av_new_packet(_packet, len);
             if (ret < 0)
                 return;
-            System.Runtime.InteropServices.Marshal.Copy(data, 0, (IntPtr)_packet->data, data.Length);
+            System.Runtime.InteropServices.Marshal.Copy(data, 0, (IntPtr)_packet->data, len);
 
             ret = ffmpeg.avcodec_send_packet(_ctx, _packet);
             ffmpeg.av_packet_unref(_packet);
@@ -101,7 +213,47 @@ public sealed unsafe class VideoDecoder : IDisposable
                         break;
                     if (ret < 0)
                         break;
-                    ConvertAndPublish(_frame);
+
+                    var src = _frame;
+                    if (_frame->format == (int)AVPixelFormat.AV_PIX_FMT_D3D11)
+                    {
+                        _av1SwFrames = 0;
+                        if (GpuFrame != null)
+                        {
+                            if (!HardwareDecoding)
+                            {
+                                HardwareDecoding = true;
+                                Error?.Invoke(LocalizationService.Get("log.hw_decode"));
+                            }
+                            GpuFrame.Invoke((IntPtr)_frame->data[0],
+                                (int)(IntPtr)_frame->data[1], _frame->width, _frame->height,
+                                FrameColorInfo(_frame));
+                            continue;
+                        }
+                        if (_swFrame == null)
+                            _swFrame = ffmpeg.av_frame_alloc();
+                        ffmpeg.av_frame_unref(_swFrame);
+                        if (ffmpeg.av_hwframe_transfer_data(_swFrame, _frame, 0) < 0)
+                        {
+                            if (++_hwFailCount > 30)
+                                ReopenSoftware();
+                            continue;
+                        }
+                        _hwFailCount = 0;
+                        if (!HardwareDecoding)
+                        {
+                            HardwareDecoding = true;
+                            Error?.Invoke(LocalizationService.Get("log.hw_decode"));
+                        }
+                        src = _swFrame;
+                    }
+                    else if (_av1HwAttempt && ++_av1SwFrames > 15)
+                    {
+                        _av1HwAttempt = false;
+                        ReopenSoftware();
+                        break;
+                    }
+                    ConvertAndPublish(src);
                 }
             }
             catch (Exception ex)
@@ -109,6 +261,40 @@ public sealed unsafe class VideoDecoder : IDisposable
                 Error?.Invoke(ex.Message);
             }
         }
+    }
+
+    private static int FrameColorInfo(AVFrame* f)
+    {
+        int space = f->colorspace switch
+        {
+            AVColorSpace.AVCOL_SPC_BT470BG or AVColorSpace.AVCOL_SPC_SMPTE170M => 0,
+            AVColorSpace.AVCOL_SPC_BT2020_NCL or AVColorSpace.AVCOL_SPC_BT2020_CL => 2,
+            AVColorSpace.AVCOL_SPC_BT709 => 1,
+            _ => f->height > 576 ? 1 : 0,
+        };
+        return space * 2 + (f->color_range == AVColorRange.AVCOL_RANGE_JPEG ? 1 : 0);
+    }
+
+    private static SwsContext* CreateSws(int w, int h, AVPixelFormat fmt)
+    {
+        var ctx = ffmpeg.sws_alloc_context();
+        if (ctx == null)
+            return null;
+        ffmpeg.av_opt_set_int(ctx, "srcw", w, 0);
+        ffmpeg.av_opt_set_int(ctx, "srch", h, 0);
+        ffmpeg.av_opt_set_int(ctx, "dstw", w, 0);
+        ffmpeg.av_opt_set_int(ctx, "dsth", h, 0);
+        ffmpeg.av_opt_set_int(ctx, "src_format", (long)fmt, 0);
+        ffmpeg.av_opt_set_int(ctx, "dst_format", (long)AVPixelFormat.AV_PIX_FMT_BGRA, 0);
+        ffmpeg.av_opt_set_int(ctx, "sws_flags", (long)SwsFlags.SWS_BILINEAR, 0);
+        ffmpeg.av_opt_set_int(ctx, "threads", Math.Min(Environment.ProcessorCount, 4), 0);
+        if (ffmpeg.sws_init_context(ctx, null, null) < 0)
+        {
+            ffmpeg.sws_freeContext(ctx);
+            return ffmpeg.sws_getContext(w, h, fmt, w, h,
+                AVPixelFormat.AV_PIX_FMT_BGRA, (int)SwsFlags.SWS_BILINEAR, null, null, null);
+        }
+        return ctx;
     }
 
     private void ConvertAndPublish(AVFrame* f)
@@ -123,17 +309,25 @@ public sealed unsafe class VideoDecoder : IDisposable
         {
             if (_sws != null)
                 ffmpeg.sws_freeContext(_sws);
-            _sws = ffmpeg.sws_getContext(w, h, fmt, w, h,
-                AVPixelFormat.AV_PIX_FMT_BGRA,
-                (int)SwsFlags.SWS_BILINEAR,
-                null, null, null);
+            _sws = CreateSws(w, h, fmt);
             if (_sws == null)
                 return;
             _swsW = w;
             _swsH = h;
             _swsFmt = fmt;
+            _swsColorInfo = -1;
             _frameW = w;
             _frameH = h;
+        }
+
+        var colorInfo = FrameColorInfo(f);
+        if (colorInfo != _swsColorInfo)
+        {
+            int swsCs = (colorInfo >> 1) switch { 0 => 5, 2 => 9, _ => 1 };
+            int srcRange = colorInfo & 1;
+            var coefs = *(int_array4*)ffmpeg.sws_getCoefficients(swsCs);
+            ffmpeg.sws_setColorspaceDetails(_sws, coefs, srcRange, coefs, 1, 0, 1 << 16, 1 << 16);
+            _swsColorInfo = colorInfo;
         }
 
         var needed = w * h * 4;
@@ -186,8 +380,15 @@ public sealed unsafe class VideoDecoder : IDisposable
                 ffmpeg.av_packet_free(p);
             fixed (AVFrame** f = &_frame)
                 ffmpeg.av_frame_free(f);
+            fixed (AVFrame** f = &_swFrame)
+                ffmpeg.av_frame_free(f);
             fixed (AVCodecContext** c = &_ctx)
                 ffmpeg.avcodec_free_context(c);
+            if (_hwDeviceCtx != null)
+            {
+                fixed (AVBufferRef** p = &_hwDeviceCtx)
+                    ffmpeg.av_buffer_unref(p);
+            }
         }
     }
 }

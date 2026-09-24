@@ -18,24 +18,18 @@ public enum ControlMsgType : byte
     SetClipboard = 9,
     SetDisplayPower = 10,
     RotateDevice = 11,
-    UhidCreate = 12,
-    UhidInput = 13,
-    UhidDestroy = 14,
     OpenHardKeyboardSettings = 15,
     StartApp = 16,
     ResetVideo = 17,
-    CameraSetTorch = 18,
-    CameraZoomIn = 19,
-    CameraZoomOut = 20,
     ResizeDisplay = 21,
     ScanFile = 22,
+    SetVideoParams = 23,
 }
 
 public enum DeviceMsgType : byte
 {
     Clipboard = 0,
     AckClipboard = 1,
-    UhidOutput = 2,
 }
 
 public static class AndroidMotionEvent
@@ -95,8 +89,8 @@ public static class AndroidKeyCode
 public sealed class ControlChannel : IDisposable
 {
     private readonly Socket _socket;
-    private readonly object _writeLock = new();
     private readonly CancellationTokenSource _cts = new();
+    private readonly System.Collections.Concurrent.BlockingCollection<byte[]> _sendQueue = new(1024);
 
     public event Action<string>? ClipboardReceived;
 
@@ -104,14 +98,24 @@ public sealed class ControlChannel : IDisposable
     {
         _socket = socket;
         Task.Run(ReadLoopAsync);
+        Task.Run(SendLoop);
     }
 
     private void Send(ReadOnlySpan<byte> msg)
     {
-        lock (_writeLock)
+        if (_sendQueue.IsAddingCompleted)
+            return;
+        try { _sendQueue.TryAdd(msg.ToArray()); } catch { }
+    }
+
+    private void SendLoop()
+    {
+        try
         {
-            _socket.Send(msg);
+            foreach (var msg in _sendQueue.GetConsumingEnumerable())
+                _socket.Send(msg);
         }
+        catch { }
     }
 
     public void InjectTouch(byte action, ulong pointerId, uint x, uint y, ushort w, ushort h,
@@ -166,7 +170,12 @@ public sealed class ControlChannel : IDisposable
     {
         var bytes = Encoding.UTF8.GetBytes(text);
         if (bytes.Length > 300)
-            bytes = bytes[..300];
+        {
+            var end = 300;
+            while (end > 0 && (bytes[end - 1] & 0xC0) == 0x80)
+                end--;
+            bytes = bytes[..end];
+        }
         var buf = new byte[5 + bytes.Length];
         buf[0] = (byte)ControlMsgType.InjectText;
         BinaryPrimitives.WriteUInt32BigEndian(buf.AsSpan(1, 4), (uint)bytes.Length);
@@ -206,6 +215,18 @@ public sealed class ControlChannel : IDisposable
             cx, (uint)Math.Max(0, (long)cy - d1), w, h, 0f, AndroidMotionEvent.ButtonPrimary, 0);
     }
 
+    public void StartApp(string spec)
+    {
+        var bytes = Encoding.UTF8.GetBytes(spec);
+        if (bytes.Length > 255)
+            bytes = bytes[..255];
+        var buf = new byte[2 + bytes.Length];
+        buf[0] = (byte)ControlMsgType.StartApp;
+        buf[1] = (byte)bytes.Length;
+        bytes.CopyTo(buf, 2);
+        Send(buf);
+    }
+
     public void BackOrScreenOn(byte action)
     {
         Span<byte> buf = stackalloc byte[2] { (byte)ControlMsgType.BackOrScreenOn, action };
@@ -224,13 +245,12 @@ public sealed class ControlChannel : IDisposable
         Send(buf);
     }
 
-    public void StartApp(string packageName)
+    public void SetVideoParams(int bitRate, bool suspend)
     {
-        var bytes = Encoding.UTF8.GetBytes(packageName);
-        var buf = new byte[2 + bytes.Length];
-        buf[0] = (byte)ControlMsgType.StartApp;
-        buf[1] = (byte)Math.Min(bytes.Length, 255);
-        bytes.AsSpan(0, buf[1]).CopyTo(buf.AsSpan(2));
+        Span<byte> buf = stackalloc byte[6];
+        buf[0] = (byte)ControlMsgType.SetVideoParams;
+        BinaryPrimitives.WriteInt32BigEndian(buf.Slice(1, 4), bitRate);
+        buf[5] = (byte)(suspend ? 1 : 0);
         Send(buf);
     }
 
@@ -243,6 +263,16 @@ public sealed class ControlChannel : IDisposable
         buf[9] = (byte)(paste ? 1 : 0);
         BinaryPrimitives.WriteUInt32BigEndian(buf.AsSpan(10, 4), (uint)bytes.Length);
         bytes.CopyTo(buf, 14);
+        Send(buf);
+    }
+
+    public void ScanFile(string path)
+    {
+        var bytes = Encoding.UTF8.GetBytes(path);
+        var buf = new byte[5 + bytes.Length];
+        buf[0] = (byte)ControlMsgType.ScanFile;
+        BinaryPrimitives.WriteUInt32BigEndian(buf.AsSpan(1, 4), (uint)bytes.Length);
+        bytes.CopyTo(buf, 5);
         Send(buf);
     }
 
@@ -274,12 +304,6 @@ public sealed class ControlChannel : IDisposable
                     case DeviceMsgType.AckClipboard:
                         if (!await ReadExactAsync(header.AsMemory(0, 8))) return;
                         break;
-                    case DeviceMsgType.UhidOutput:
-                        if (!await ReadExactAsync(header.AsMemory(0, 4))) return;
-                        var size = BinaryPrimitives.ReadUInt16BigEndian(header.AsSpan(2));
-                        var skip = new byte[size];
-                        if (!await ReadExactAsync(skip)) return;
-                        break;
                     default:
                         return;
                 }
@@ -303,7 +327,9 @@ public sealed class ControlChannel : IDisposable
     public void Dispose()
     {
         _cts.Cancel();
+        try { _sendQueue.CompleteAdding(); } catch { }
         try { _socket.Dispose(); } catch { }
         _cts.Dispose();
+        _sendQueue.Dispose();
     }
 }

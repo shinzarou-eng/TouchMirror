@@ -1,0 +1,159 @@
+{
+    "plugins":  [
+                    {
+                        "id":  "almanax",
+                        "name":  "Almanax",
+                        "version":  "1.1",
+                        "author":  "TouchMirror",
+                        "icon":  "📅",
+                        "description":  "Badge sur chaque miroir : offrande et bonus du jour en alternance (calendrier complet hors-ligne), badge rouge pendant le rappel de 20h. Heure réglable en tête du script.",
+                        "official":  true,
+                        "featured":  false,
+                        "tags":  [
+                                     "rappel",
+                                     "dofus",
+                                     "almanax"
+                                 ],
+                        "hash":  "6d9679ef4a407f58a04415bf6b4f0ecaf10e58ba4e02ca019a82935a2eeaffcb"
+                    },
+                    {
+                        "id":  "automute",
+                        "name":  "Auto-mute",
+                        "version":  "1.0",
+                        "author":  "TouchMirror",
+                        "icon":  "🔇",
+                        "description":  "Un seul miroir sonore : l\u0027actif. Ré-applique la règle en continu — couvre l\u0027audio qui démarre après le changement de focus. Le volume du téléphone n\u0027est pas touché.",
+                        "official":  true,
+                        "featured":  true,
+                        "tags":  [
+                                     "audio",
+                                     "multi-compte"
+                                 ],
+                        "hash":  "3b23ae38347b9a7d8ff71d3af01708339a0d19608d8667b4d374830ee4b28a6c"
+                    },
+                    {
+                        "id":  "bridge",
+                        "name":  "Bridge",
+                        "version":  "1.0",
+                        "author":  "TouchMirror",
+                        "icon":  "📡",
+                        "description":  "Affiche le contenu de data.txt sur les miroirs — n\u0027importe quel outil externe peut y écrire (alertes stream, scripts, données maison). Un pont simple entre tes scripts et les miroirs.",
+                        "official":  true,
+                        "featured":  false,
+                        "tags":  [
+                                     "overlay",
+                                     "intégration",
+                                     "stream"
+                                 ],
+                        "hash":  "8ef6edc93851a96c8b64073aeea321f0e25e166d36b7c93c02d7020f2908f0b1"
+                    },
+                    {
+                        "id":  "checklist",
+                        "name":  "Checklist",
+                        "version":  "1.0",
+                        "author":  "TouchMirror",
+                        "icon":  "✅",
+                        "description":  "Bloc-note éditable sur chaque miroir — modifie checklist.txt au bloc-notes, clic sur une ligne pour cocher. Parfait pour Almanax, archis, HDV, quêtes.",
+                        "official":  true,
+                        "featured":  true,
+                        "tags":  [
+                                     "overlay",
+                                     "dofus",
+                                     "organisation"
+                                 ],
+                        "hash":  "af862e0b5d8c37bfc67a6d9ae2159139c8d1270f7d4e866d006f86cf20e9d9a9"
+                    },
+                    {
+                        "id":  "guides",
+                        "name":  "Guides Dofus",
+                        "version":  "1.0",
+                        "author":  "TouchMirror",
+                        "icon":  "📖",
+                        "description":  "Active la section Guides — navigateur intégré avec encyclopédie, Atlas, carte interactive, Almanax, Papycha et support Ankama. L\u0027app reste épurée sans ce module.",
+                        "official":  true,
+                        "featured":  true,
+                        "tags":  [
+                                     "guides",
+                                     "dofus"
+                                 ],
+                        "hash":  "c784fe5066cbb4411631dbe31c598ee8e1838382a1b20660270b1b442098834d"
+                    },
+                    {
+                        "id":  "hud",
+                        "name":  "HUD",
+                        "version":  "1.0",
+                        "author":  "TouchMirror",
+                        "icon":  "📈",
+                        "description":  "Panneau déplaçable sur chaque miroir — courbe FPS, résolution, retard du flux et débit. Fusionne les anciens plugins Graphs, Stats et Perf.",
+                        "official":  true,
+                        "featured":  true,
+                        "tags":  [
+                                     "stats",
+                                     "overlay"
+                                 ],
+                        "hash":  "8a86191ba6a2ccd2b6a525758ca1c9b9ea6dce991b33657058c122ef3329a326"
+                    },
+                    {
+                        "id":  "reconnect",
+                        "name":  "Reconnect",
+                        "version":  "2.1",
+                        "author":  "TouchMirror",
+                        "icon":  "🔗",
+                        "description":  "Restaure un miroir dont la session a lâché (câble, WiFi, plantage) ou dont le flux est figé (0 fps) — jamais après une déconnexion volontaire, jamais de lancement sur le téléphone.",
+                        "official":  true,
+                        "featured":  true,
+                        "tags":  [
+                                     "fiabilité",
+                                     "connexion"
+                                 ],
+                        "hash":  "a2ff5e3a8f69d80f26897ebf9a45cc24c984c93f872ce3abd242e55c2bc83cf9"
+                    },
+                    {
+                        "id":  "session-log",
+                        "name":  "Session Log",
+                        "version":  "1.0",
+                        "author":  "TouchMirror",
+                        "icon":  "📋",
+                        "description":  "Journalise les événements de session — connexions, coupures, changements de miroir actif et enregistrements — dans le journal de l\u0027app.",
+                        "official":  true,
+                        "featured":  false,
+                        "tags":  [
+                                     "journal",
+                                     "diagnostic"
+                                 ],
+                        "hash":  "72675b1735bde5fc8094103c83b0748a42a8dd794aedd507d9e06548e21a67e6"
+                    },
+                    {
+                        "id":  "splits",
+                        "name":  "Splits",
+                        "version":  "1.0",
+                        "author":  "TouchMirror",
+                        "icon":  "⏱️",
+                        "description":  "Chrono de run sur chaque miroir : clic sur le chrono pour poser un split, reset pour un nouveau run, record personnel sauvegardé par téléphone. Idéal pour les donjons en boucle.",
+                        "official":  true,
+                        "featured":  true,
+                        "tags":  [
+                                     "chrono",
+                                     "dofus",
+                                     "farm"
+                                 ],
+                        "hash":  "ba71186cb90b3beba5344e6cf5da368ebdff7baed0c0205a5a1c05b97d5a72f1"
+                    },
+                    {
+                        "id":  "uptime",
+                        "name":  "Uptime",
+                        "version":  "1.0",
+                        "author":  "TouchMirror",
+                        "icon":  "⏱️",
+                        "description":  "Journal de session par miroir : durée de la connexion en cours et nombre de coupures depuis le lancement. Repère d\u0027un coup l\u0027appareil qui lâche.",
+                        "official":  true,
+                        "featured":  false,
+                        "tags":  [
+                                     "session",
+                                     "fiabilité",
+                                     "overlay"
+                                 ],
+                        "hash":  "d03cb04afb4205a7e467bd47b8781d046e3371dc9117451ffa79c3832e84c0e7"
+                    }
+                ]
+}

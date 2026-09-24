@@ -1,0 +1,9 @@
+{
+  "name": "Splits",
+  "description": "Chrono de run sur chaque miroir : clic sur le chrono pour poser un split, reset pour un nouveau run, record personnel sauvegardé par téléphone. Idéal pour les donjons en boucle.",
+  "version": "1.0",
+  "author": "TouchMirror",
+  "icon": "⏱️",
+  "featured": true,
+  "tags": ["chrono", "dofus", "farm"]
+}

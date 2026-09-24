@@ -13,15 +13,22 @@ public sealed class ScrcpyOptions
     public int MaxSize { get; init; } = 0;
     public int MaxFps { get; init; } = 60;
     public int VideoBitRate { get; init; } = 8_000_000;
-    public string VideoCodec { get; init; } = "h264";
+    public string VideoCodec { get; init; } = "auto";
+    public string VideoDecoder { get; init; } = "gpu";
+    public bool VideoSharpen { get; init; }
     public bool StayAwake { get; init; }
     public bool Audio { get; init; } = true;
     public bool TurnScreenOff { get; init; }
+    public string? NewDisplay { get; init; }
+    public string? AutoLaunchPackage { get; init; }
+    public bool AdaptiveBitrate { get; init; }
+    public bool ClipboardAutosync { get; init; } = true;
 }
 
 public sealed class VideoPacket
 {
     public required byte[] Data { get; init; }
+    public int Length { get; init; }
     public bool IsConfig { get; init; }
     public bool IsKeyFrame { get; init; }
     public long Pts { get; init; }
@@ -29,8 +36,8 @@ public sealed class VideoPacket
 
 public sealed class ScrcpySession : IAsyncDisposable
 {
-    private const string ServerVersion = "4.1";
-    private const string RemoteJarPath = "/data/local/tmp/scrcpy-server-touchmirror.jar";
+    private const string ServerVersion = "4.1-tm.2";
+    private const string RemoteJarPath = "/data/local/tmp/touchmirror-engine.jar";
 
     private readonly AdbDevice _device;
     private readonly ScrcpyOptions _options;
@@ -42,7 +49,6 @@ public sealed class ScrcpySession : IAsyncDisposable
     private Socket? _audioSocket;
     private ControlChannel? _control;
     private string _socketName = "";
-    private string? _virtualDisplaySize;
     private Task? _videoTask;
     private Task? _audioTask;
 
@@ -69,32 +75,25 @@ public sealed class ScrcpySession : IAsyncDisposable
 
     public async Task StartAsync()
     {
-        var jarPath = Path.Combine(AppContext.BaseDirectory, "assets", "scrcpy-server.jar");
+        var jarPath = Path.Combine(AppContext.BaseDirectory, "assets", "touchmirror-engine.jar");
         if (!File.Exists(jarPath))
-            throw new FileNotFoundException("scrcpy-server.jar manquant", jarPath);
+            throw new FileNotFoundException("touchmirror-engine.jar manquant", jarPath);
 
+        Services.AppLogger.Write("session: push begin");
         await AdbService.PushAsync(_device.Serial, jarPath, RemoteJarPath, _cts.Token);
-
-        if (_options.TurnScreenOff)
-        {
-            try
-            {
-                var (w, h) = await AdbService.GetScreenSizeAsync(_device.Serial, _cts.Token);
-                if (w > 0 && h > 0)
-                    _virtualDisplaySize = $"{w}x{h}";
-            }
-            catch { }
-        }
+        Services.AppLogger.Write("session: push done");
 
         var scid = Random.Shared.Next(0, 0x7fffffff);
         var scidHex = scid.ToString("x8");
-        _socketName = $"scrcpy_{scidHex}";
+        _socketName = $"touchmirror_{scidHex}";
 
         var port = FindFreePort();
         _listener = new TcpListener(IPAddress.Loopback, port);
         _listener.Start();
 
+        Services.AppLogger.Write("session: reverse begin");
         await AdbService.ReverseAsync(_device.Serial, _socketName, port, _cts.Token);
+        Services.AppLogger.Write("session: reverse done");
 
         var args = BuildServerArgs(scidHex);
         ServerLog?.Invoke($"server args: {args}");
@@ -118,10 +117,12 @@ public sealed class ScrcpySession : IAsyncDisposable
         acceptCts.CancelAfter(TimeSpan.FromSeconds(15));
 
         _videoSocket = await AcceptWithTimeout(acceptCts.Token);
+        Services.AppLogger.Write("session: video socket accepted");
         if (_options.Audio)
             _audioSocket = await AcceptWithTimeout(acceptCts.Token);
         var controlSocket = await AcceptWithTimeout(acceptCts.Token);
         _listener.Stop();
+        Services.AppLogger.Write("session: sockets accepted");
 
         var metaBuf = new byte[64];
         await ReadExactAsync(_videoSocket, metaBuf);
@@ -129,7 +130,7 @@ public sealed class ScrcpySession : IAsyncDisposable
 
         var codecBuf = new byte[4];
         await ReadExactAsync(_videoSocket, codecBuf);
-        VideoCodecId = Encoding.ASCII.GetString(codecBuf);
+        VideoCodecId = Encoding.ASCII.GetString(codecBuf).Trim('\0');
 
         if (_audioSocket != null)
         {
@@ -140,6 +141,9 @@ public sealed class ScrcpySession : IAsyncDisposable
 
         _control = new ControlChannel(controlSocket);
         _control.ClipboardReceived += t => DeviceClipboard?.Invoke(t);
+
+        if (!string.IsNullOrWhiteSpace(_options.AutoLaunchPackage) && _options.NewDisplay != null)
+            try { _control.StartApp(_options.AutoLaunchPackage); } catch { }
 
         _videoTask = Task.Run(VideoReadLoopAsync);
         if (_audioSocket != null)
@@ -156,9 +160,10 @@ public sealed class ScrcpySession : IAsyncDisposable
         sb.Append(" control=true");
         sb.Append($" video_codec={_options.VideoCodec}");
         sb.Append(" cleanup=true");
-        sb.Append(_options.TurnScreenOff ? " power_on=false" : " power_on=true");
-        if (_virtualDisplaySize != null)
-            sb.Append($" new_display={_virtualDisplaySize}");
+        sb.Append(" power_on=true");
+        sb.Append(" downsize_on_error=true");
+        if (_options.ClipboardAutosync)
+            sb.Append(" clipboard_autosync=true");
         if (_options.MaxSize > 0)
             sb.Append($" max_size={_options.MaxSize}");
         if (_options.MaxFps > 0)
@@ -167,6 +172,10 @@ public sealed class ScrcpySession : IAsyncDisposable
             sb.Append($" video_bit_rate={_options.VideoBitRate}");
         if (_options.StayAwake)
             sb.Append(" stay_awake=true");
+        if (_options.NewDisplay != null)
+            sb.Append($" new_display={_options.NewDisplay}");
+        if (!string.IsNullOrWhiteSpace(_options.AutoLaunchPackage) && _options.NewDisplay == null)
+            sb.Append($" start_app={_options.AutoLaunchPackage}");
         return sb.ToString();
     }
 
@@ -220,17 +229,24 @@ public sealed class ScrcpySession : IAsyncDisposable
                 var flags = header[0];
                 var pts = (long)(BinaryPrimitives.ReadUInt64BigEndian(header.AsSpan(0)) & 0x3FFFFFFFFFFFFFFF);
                 var size = (int)BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(8));
-                var payload = new byte[size];
-                if (!await ReadExactAsync(_videoSocket!, payload, _cts.Token))
+                if (size is < 0 or > 64 << 20)
                     break;
-
-                VideoPacketReceived?.Invoke(new VideoPacket
+                var payload = System.Buffers.ArrayPool<byte>.Shared.Rent(size);
+                try
                 {
-                    Data = payload,
-                    IsConfig = (flags & 0x40) != 0,
-                    IsKeyFrame = (flags & 0x20) != 0,
-                    Pts = pts
-                });
+                    if (!await ReadExactAsync(_videoSocket!, payload.AsMemory(0, size), _cts.Token))
+                        break;
+
+                    VideoPacketReceived?.Invoke(new VideoPacket
+                    {
+                        Data = payload,
+                        Length = size,
+                        IsConfig = (flags & 0x40) != 0,
+                        IsKeyFrame = (flags & 0x20) != 0,
+                        Pts = pts
+                    });
+                }
+                finally { System.Buffers.ArrayPool<byte>.Shared.Return(payload); }
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -250,16 +266,23 @@ public sealed class ScrcpySession : IAsyncDisposable
                 if (!await ReadExactAsync(_audioSocket!, header, _cts.Token))
                     break;
                 var size = (int)BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(8));
-                var payload = new byte[size];
-                if (!await ReadExactAsync(_audioSocket!, payload, _cts.Token))
+                if (size is < 0 or > 16 << 20)
                     break;
-                AudioPacketReceived?.Invoke(new VideoPacket
+                var payload = System.Buffers.ArrayPool<byte>.Shared.Rent(size);
+                try
                 {
-                    Data = payload,
-                    IsConfig = (header[0] & 0x40) != 0,
-                    IsKeyFrame = (header[0] & 0x20) != 0,
-                    Pts = (long)(BinaryPrimitives.ReadUInt64BigEndian(header.AsSpan(0)) & 0x3FFFFFFFFFFFFFFF)
-                });
+                    if (!await ReadExactAsync(_audioSocket!, payload.AsMemory(0, size), _cts.Token))
+                        break;
+                    AudioPacketReceived?.Invoke(new VideoPacket
+                    {
+                        Data = payload,
+                        Length = size,
+                        IsConfig = (header[0] & 0x40) != 0,
+                        IsKeyFrame = (header[0] & 0x20) != 0,
+                        Pts = (long)(BinaryPrimitives.ReadUInt64BigEndian(header.AsSpan(0)) & 0x3FFFFFFFFFFFFFFF)
+                    });
+                }
+                finally { System.Buffers.ArrayPool<byte>.Shared.Return(payload); }
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -277,6 +300,9 @@ public sealed class ScrcpySession : IAsyncDisposable
         try { _listener?.Stop(); } catch { }
         try { if (_serverProcess is { HasExited: false }) _serverProcess.Kill(); } catch { }
         _serverProcess?.Dispose();
+        var tasks = new[] { _videoTask, _audioTask }.Where(t => t != null).Cast<Task>().ToArray();
+        if (tasks.Length > 0)
+            try { await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(3)); } catch { }
         if (!string.IsNullOrEmpty(_socketName))
             await AdbService.ReverseRemoveAsync(_device.Serial, _socketName);
         _cts.Dispose();

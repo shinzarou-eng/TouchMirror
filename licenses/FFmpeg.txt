@@ -1,0 +1,18 @@
+FFmpeg
+======
+
+This application bundles FFmpeg libraries (avcodec, avdevice, avfilter,
+avformat, avutil, swresample, swscale), version 63.x, in
+`assets/ffmpeg/` and inside `assets/ffmpeg.zip`.
+
+FFmpeg is free software licensed under the GNU Lesser General Public
+License (LGPL) version 2.1 or later:
+https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+
+FFmpeg source code: https://ffmpeg.org/download.html
+
+TouchMirror accesses FFmpeg through the FFmpeg.AutoGen bindings
+(MIT license): https://github.com/Ruslan-B/FFmpeg.AutoGen
+
+The FFmpeg binaries are used unmodified. You may replace the DLLs in
+`assets/ffmpeg/` with your own LGPL-compatible FFmpeg build.

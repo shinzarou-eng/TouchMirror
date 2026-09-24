@@ -1,0 +1,27 @@
+﻿using System.Collections.Generic;
+
+namespace TouchMirror.Services;
+
+public static class VerifiedPlugins
+{
+    public static readonly HashSet<string> Hashes = new(System.StringComparer.OrdinalIgnoreCase)
+    {
+        "6d9679ef4a407f58a04415bf6b4f0ecaf10e58ba4e02ca019a82935a2eeaffcb",
+        "c548614863aa531086df3d4fc0d77eeffe7ac7c979a3eda67a3a6db490c3912b",
+        "6bb87a11593b9b3f6da92a22a973ddad67db5640c9b57e3d3517c6568b625f73",
+        "9f07f6c4ee753f994f002e75a169c1eb6ed161a63498d0f1630eb4f3463216cb",
+        "c784fe5066cbb4411631dbe31c598ee8e1838382a1b20660270b1b442098834d",
+        "8a86191ba6a2ccd2b6a525758ca1c9b9ea6dce991b33657058c122ef3329a326",
+        "b6cfccd3e22b58432d7c16c88456d911430bfc0ad95fd45009faf18caad62160",
+        "72675b1735bde5fc8094103c83b0748a42a8dd794aedd507d9e06548e21a67e6",
+        "7c249ca3c3cc4424b536f9ce35bb810b8319f803aaeda4e6614e44141057db69",
+        "a32aef592ade66100367ab1b6a70bcac823e31046a3bdf717863b91ded8296f2",
+        "c548614863aa531086df3d4fc0d77eeffe7ac7c979a3eda67a3a6db490c3912b",
+        "6bb87a11593b9b3f6da92a22a973ddad67db5640c9b57e3d3517c6568b625f73",
+        "9f07f6c4ee753f994f002e75a169c1eb6ed161a63498d0f1630eb4f3463216cb",
+        "8a86191ba6a2ccd2b6a525758ca1c9b9ea6dce991b33657058c122ef3329a326",
+        "b6cfccd3e22b58432d7c16c88456d911430bfc0ad95fd45009faf18caad62160",
+        "7c249ca3c3cc4424b536f9ce35bb810b8319f803aaeda4e6614e44141057db69",
+        "a32aef592ade66100367ab1b6a70bcac823e31046a3bdf717863b91ded8296f2",
+    };
+}

@@ -1,0 +1,27 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace = 'com.touchmirror.engine'
+    compileSdk = 36
+    defaultConfig {
+        applicationId = "com.touchmirror.engine"
+        minSdkVersion 21
+        targetSdkVersion 36
+        versionCode 40101
+        versionName "4.1-tm.2"
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+    buildFeatures {
+        buildConfig = true
+        aidl = true
+    }
+    lint {
+        disable 'UseRequiresApi'
+    }
+}
+
+apply from: "$project.rootDir/config/android-checkstyle.gradle"
