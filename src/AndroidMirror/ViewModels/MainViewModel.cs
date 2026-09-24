@@ -3850,6 +3850,8 @@ public partial class MainViewModel : ObservableObject
             brands.Add("Vivo");
         if (models.Contains("huawei") || models.Contains("honor"))
             brands.Add("Huawei");
+        if (models.Contains("pixel"))
+            brands.Add("Google");
         return brands;
     }
 
@@ -4521,6 +4523,31 @@ public partial class MainViewModel : ObservableObject
             else
                 foreach (var p in foreign)
                     sb.Append("- ").Append(p.Name).Append("  ").Append(p.Path ?? "?").Append(nl);
+            sb.Append(nl).Append("== compatibilité ==").Append(nl);
+            if (brands.Count == 0)
+            {
+                sb.Append(string.Format(L("oem.matrix_label"),
+                    string.Join(", ", OemMatrix.All.Select(e => $"{e.Brand} ({e.Issues.Count})")))).Append(nl);
+            }
+            else
+            {
+                foreach (var b in brands.OrderBy(b => b))
+                {
+                    var entry = OemMatrix.For(b);
+                    if (entry is not { Issues.Count: > 0 })
+                    {
+                        sb.Append("« ").Append(b).Append(" » — ").Append(L("oem.none")).Append(nl);
+                        continue;
+                    }
+                    sb.Append("« ").Append(b).Append(" » — ")
+                        .Append(string.Format(L("oem.known"), entry.Issues.Count)).Append(nl);
+                    foreach (var issue in entry.Issues)
+                        sb.Append("  · ").Append(L(issue.TitleKey)).Append(" — ")
+                            .Append(L(issue.DetailKey)).Append(nl);
+                    if (entry.RecommendationKey is { } rk)
+                        sb.Append("  ").Append(string.Format(L("oem.rec_label"), L(rk))).Append(nl);
+                }
+            }
             sb.Append(nl).Append("== miroirs ==").Append(nl);
             if (Mirrors.Count == 0)
                 sb.Append("(aucun)").Append(nl);
