@@ -3399,7 +3399,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _diagGuideTitle = "";
     [ObservableProperty] private string _diagGuideText = "";
     [ObservableProperty] private bool _diagDevmgmtVisible;
-
+    [ObservableProperty] private bool _exportOpen;
+    [ObservableProperty] private string _exportReport = "";
     private QrPairSession? _pairSession;
 
     [RelayCommand]
@@ -3574,7 +3575,7 @@ public partial class MainViewModel : ObservableObject
             return;
         try
         {
-            System.Windows.Clipboard.SetText(MaskReport(DebugReport));
+            System.Windows.Clipboard.SetText(ReportSanitizer.Sanitize(DebugReport, CollectReportIds()));
             DebugNote = L("dbg.masked");
         }
         catch (Exception ex)
@@ -3585,6 +3586,54 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void DiagExport()
+    {
+        if (string.IsNullOrEmpty(DebugReport))
+            return;
+        ExportReport = L("dbg.sanitized_note") + Environment.NewLine + Environment.NewLine
+            + ReportSanitizer.Sanitize(DebugReport, CollectReportIds());
+        ExportOpen = true;
+    }
+
+    [RelayCommand]
+    private void DiagExportCopy()
+    {
+        if (string.IsNullOrEmpty(ExportReport))
+            return;
+        try
+        {
+            System.Windows.Clipboard.SetText(ExportReport);
+            DebugNote = L("dbg.masked");
+        }
+        catch (Exception ex) { DebugNote = ex.Message; }
+        _ = ClearDebugNoteAsync();
+    }
+
+    [RelayCommand]
+    private void DiagExportSave()
+    {
+        if (string.IsNullOrEmpty(ExportReport))
+            return;
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "Texte (*.txt)|*.txt",
+            FileName = $"touchmirror-diagnostic-{DateTime.Now:yyyyMMdd-HHmmss}.txt"
+        };
+        if (dlg.ShowDialog() != true)
+            return;
+        try
+        {
+            File.WriteAllText(dlg.FileName, ExportReport);
+            DebugNote = L("dbg.export_saved");
+        }
+        catch (Exception ex) { DebugNote = ex.Message; }
+        _ = ClearDebugNoteAsync();
+    }
+
+    [RelayCommand]
+    private void DiagExportClose() => ExportOpen = false;
+
+    [RelayCommand]
     private void PurgeThumbs()
     {
         DeviceThumbs.ClearAll();
@@ -3592,22 +3641,21 @@ public partial class MainViewModel : ObservableObject
         _ = ClearDebugNoteAsync();
     }
 
-    private string MaskReport(string report)
+    private IEnumerable<string> CollectReportIds()
     {
-        var masked = System.Text.RegularExpressions.Regex.Replace(
-            report, @"\b(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}\b", "$1.$2.×.×");
-        masked = System.Text.RegularExpressions.Regex.Replace(
-            masked, @"\b(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}\b", "xx:xx:xx:xx:xx:xx");
-        var user = Environment.UserName;
-        if (user.Length > 0)
-            masked = masked.Replace($@"C:\Users\{user}", @"C:\Users\…",
-                StringComparison.OrdinalIgnoreCase);
         foreach (var s in Devices.SelectMany(d => new[] { d.Serial, d.HardwareSerial })
                      .Concat(Mirrors.Select(m => m.Device.Serial))
                      .Concat(Mirrors.Select(m => m.Device.HardwareSerial))
-                     .Where(x => !string.IsNullOrEmpty(x)).Distinct())
-            masked = masked.Replace(s!, "«serial»");
-        return masked;
+                     .Append(LocalApiToken)
+                     .Where(x => !string.IsNullOrWhiteSpace(x)))
+            yield return s!;
+        var identity = AirPlay.AirPlaySession.PairingIdentity;
+        if (!string.IsNullOrEmpty(identity.PairingId))
+            yield return identity.PairingId!;
+        if (identity.PublicKey is { Length: > 0 } pk)
+            yield return Convert.ToHexString(pk);
+        foreach (var id in AirPlay.PairedClientsStore.Instance.AllIds())
+            yield return id;
     }
 
     private async Task ClearDebugNoteAsync()

@@ -73,6 +73,8 @@ public sealed class PairedClientsStore
         return false;
     }
 
+    public IReadOnlyCollection<string> AllIds() => _clients.Keys.ToArray();
+
     public IEnumerable<byte[]> AllLtpks()
     {
         foreach (var v in _clients.Values)
