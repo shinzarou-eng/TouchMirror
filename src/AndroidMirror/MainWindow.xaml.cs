@@ -1202,6 +1202,12 @@ public partial class MainWindow : FluentWindow
     }
 
     private async void OnAccountCreateClick(object sender, RoutedEventArgs e)
+        => await CreateAccountFromPopupAsync(false);
+
+    private async void OnAccountCreateManagedClick(object sender, RoutedEventArgs e)
+        => await CreateAccountFromPopupAsync(true);
+
+    private async Task CreateAccountFromPopupAsync(bool managed)
     {
         var device = _vm.AccountsDevice;
         if (device == null || _vm.IsBusy)
@@ -1209,7 +1215,7 @@ public partial class MainWindow : FluentWindow
         var name = _vm.NewAccountName.Trim();
         if (name.Length == 0)
             name = "Compte";
-        await _vm.CreateAccountAsync(device, name);
+        await _vm.CreateAccountAsync(device, name, managed);
         if (_vm.AccountNotice == null)
             AccountsPopup.IsOpen = false;
     }

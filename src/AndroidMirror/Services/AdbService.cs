@@ -81,7 +81,7 @@ public sealed record AdbDevice(string Serial, string Model, string State, int? B
             : this;
 }
 
-public sealed record AndroidProfile(int Id, string Name, bool Running, bool Owned = false, string? Type = null);
+public sealed record AndroidProfile(int Id, string Name, bool Running, bool Owned = false, string? Type = null, bool HasProfileOwner = false);
 
 public static class AdbService
 {
@@ -496,6 +496,7 @@ public static class AdbService
     {
         var output = await RunAsync($"-s {S(serial)} shell pm list users", ct);
         var types = new Dictionary<int, string>();
+        var owners = new Dictionary<int, bool>();
         try
         {
             var dump = await RunAsync($"-s {S(serial)} shell dumpsys user", ct);
@@ -511,6 +512,9 @@ public static class AdbService
                 var tm = Regex.Match(line, @"Type:\s*(\S+)");
                 if (tm.Success && lastId >= 0 && !types.ContainsKey(lastId))
                     types[lastId] = tm.Groups[1].Value;
+                var om = Regex.Match(line, @"Has profile owner:\s*(true|false)", RegexOptions.IgnoreCase);
+                if (om.Success && lastId >= 0)
+                    owners[lastId] = om.Groups[1].Value.Equals("true", StringComparison.OrdinalIgnoreCase);
             }
         }
         catch { }
@@ -529,7 +533,8 @@ public static class AdbService
             var name = m.Groups[2].Value;
             list.Add(new AndroidProfile(id,
                 string.IsNullOrEmpty(name) ? $"Profil {id}" : name,
-                m.Groups[3].Value.Contains("running"), Type: t));
+                m.Groups[3].Value.Contains("running"), Type: t,
+                HasProfileOwner: owners.TryGetValue(id, out var o) && o));
         }
         return list;
     }
@@ -617,19 +622,25 @@ public static class AdbService
 
     public static async Task<int> CreateCloneProfileAsync(string serial, string name, CancellationToken ct = default)
     {
-        if (!ProfileNameOk.IsMatch(name))
-            throw new ArgumentException($"nom de profil invalide : « {name} »");
-        string output;
         try
         {
-            output = await RunAsync(
-                $"-s {S(serial)} shell pm create-user --profileOf 0 --user-type android.os.usertype.profile.CLONE \"{name}\"", ct);
+            return await CreateProfileAsync(serial, name, "android.os.usertype.profile.CLONE", ct);
         }
         catch (Exception ex) when (ex.Message.Contains("Maximum number"))
         {
-            output = await RunAsync(
-                $"-s {S(serial)} shell pm create-user --profileOf 0 --user-type android.os.usertype.profile.MANAGED \"{name}\"", ct);
+            return await CreateProfileAsync(serial, name, "android.os.usertype.profile.MANAGED", ct);
         }
+    }
+
+    public static async Task<int> CreateManagedProfileAsync(string serial, string name, CancellationToken ct = default)
+        => await CreateProfileAsync(serial, name, "android.os.usertype.profile.MANAGED", ct);
+
+    private static async Task<int> CreateProfileAsync(string serial, string name, string userType, CancellationToken ct)
+    {
+        if (!ProfileNameOk.IsMatch(name))
+            throw new ArgumentException($"nom de profil invalide : « {name} »");
+        var output = await RunAsync(
+            $"-s {S(serial)} shell pm create-user --profileOf 0 --user-type {userType} \"{name}\"", ct);
         var m = Regex.Match(output, @"user id (\d+)");
         if (!m.Success)
             throw new InvalidOperationException(string.Format(LocalizationService.Get("ex.profile_denied"), output.Trim()));

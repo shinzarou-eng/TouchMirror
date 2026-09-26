@@ -8,6 +8,8 @@
   "acct.count": "{0} accounts · {1} active",
   "acct.count.one": "1 account · {0} active",
   "acct.create": "Create",
+  "acct.create_work": "work",
+  "acct.create_work_tip": "create an Android work profile — extra account, removable",
   "acct.managed": "work",
   "acct.primary": "Main",
   "acct.running": "running",

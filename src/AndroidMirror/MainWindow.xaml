@@ -2923,12 +2923,10 @@
                                                                    Visibility="{Binding CanDelete, Converter={StaticResource BoolToVis}}">
                                                             <ui:Button.Style>
                                                                 <Style BasedOn="{StaticResource BtnAction}" TargetType="ui:Button">
-                                                                    <Setter Property="Opacity" Value="0" />
-                                                                    <Setter Property="IsHitTestVisible" Value="False" />
+                                                                    <Setter Property="Opacity" Value="0.55" />
                                                                     <Style.Triggers>
                                                                         <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType={x:Type Border}}}" Value="True">
                                                                             <Setter Property="Opacity" Value="1" />
-                                                                            <Setter Property="IsHitTestVisible" Value="True" />
                                                                         </DataTrigger>
                                                                     </Style.Triggers>
                                                                 </Style>
@@ -3087,6 +3085,7 @@
                                                         <ColumnDefinition Width="Auto" />
                                                         <ColumnDefinition Width="*" />
                                                         <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="Auto" />
                                                     </Grid.ColumnDefinitions>
                                                     <Border Width="34" Height="34" Margin="0,0,9,0" CornerRadius="9"
                                                             Cursor="Hand" BorderThickness="1"
@@ -3130,6 +3129,13 @@
                                                                 <TextBlock Text="{loc:Loc acct.creating}" />
                                                             </StackPanel>
                                                         </Grid>
+                                                    </ui:Button>
+                                                    <ui:Button Grid.Column="3" Style="{StaticResource BtnAction}" Height="32"
+                                                               Padding="10,0" Margin="6,0,0,0" FontSize="{StaticResource FsMeta}"
+                                                               FontWeight="SemiBold" Click="OnAccountCreateManagedClick"
+                                                               IsEnabled="{Binding CanEditAccount}"
+                                                               ToolTip="{loc:Loc acct.create_work_tip}">
+                                                        <TextBlock Text="{loc:Loc acct.create_work}" />
                                                     </ui:Button>
                                                 </Grid>
                                                 <TextBlock Text="{Binding AccountsHint}" FontSize="8" Margin="2,7,0,0"

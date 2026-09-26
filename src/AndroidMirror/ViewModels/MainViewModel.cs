@@ -2803,6 +2803,8 @@ public partial class MainViewModel : ObservableObject
                 }
                 else if (clone)
                     result.Add(p);
+                else if (!p.HasProfileOwner)
+                    result.Add(p with { Owned = true });
             }
             return result;
         }
@@ -2824,7 +2826,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    public async Task CreateAccountAsync(AdbDevice device, string name)
+    public async Task CreateAccountAsync(AdbDevice device, string name, bool managed = false)
     {
         IsBusy = true;
         AccountCreating = true;
@@ -2832,8 +2834,10 @@ public partial class MainViewModel : ObservableObject
         try
         {
             Status = string.Format(L("st.creating_account"), name);
-            var userId = await AdbService.CreateCloneProfileAsync(device.Serial, name);
-            Log($"profil clone créé : {name} (user {userId})");
+            var userId = managed
+                ? await AdbService.CreateManagedProfileAsync(device.Serial, name)
+                : await AdbService.CreateCloneProfileAsync(device.Serial, name);
+            Log($"profil {(managed ? "travail" : "clone")} créé : {name} (user {userId})");
             MarkOwnedProfile(device, userId);
             if (PendingAvatarKey != null)
                 SetAvatarKey(device, userId, PendingAvatarKey);
@@ -2877,6 +2881,8 @@ public partial class MainViewModel : ObservableObject
         {
             if (!profile.Running)
                 await AdbService.StartUserAsync(device.Serial, profile.Id);
+            if (!await AdbService.HasPackageForUserAsync(device.Serial, profile.Id, "com.ankama.dofustouch"))
+                await AdbService.InstallAppForUserAsync(device.Serial, profile.Id, "com.ankama.dofustouch");
             await ConnectDeviceAsync(device, null,
                 new MirrorAccount(profile.Id, AccountNameFor(device, profile.Id) ?? profile.Name));
         }
