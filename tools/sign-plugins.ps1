@@ -29,6 +29,7 @@ $($entries -join "`n")
     };
 }
 "@
-[System.IO.File]::WriteAllText($out, $content + "`r`n", [System.Text.UTF8Encoding]::new($false))
+$content = $content -replace "`r`n", "`n"
+[System.IO.File]::WriteAllText($out, $content + "`n", [System.Text.UTF8Encoding]::new($false))
 
 Write-Output "VerifiedPlugins.cs régénéré ($($files.Count) plugin(s))."

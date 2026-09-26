@@ -1,2 +1,3 @@
 plugins/** text eol=lf
 marketplace/** text eol=lf
+src/AndroidMirror/Services/VerifiedPlugins.cs text eol=lf
