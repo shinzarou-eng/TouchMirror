@@ -22,7 +22,9 @@ public sealed class EmptyToVisibilityConverter : IValueConverter
 public sealed class NonEmptyToVisibilityConverter : IValueConverter
 {
     public object Convert(object value, Type t, object p, System.Globalization.CultureInfo c)
-        => value is int n && n > 0 ? Visibility.Visible : Visibility.Collapsed;
+        => value is int n ? n > 0 ? Visibility.Visible : Visibility.Collapsed
+            : value is string s ? s.Length > 0 ? Visibility.Visible : Visibility.Collapsed
+            : value != null ? Visibility.Visible : Visibility.Collapsed;
     public object ConvertBack(object v, Type t, object p, System.Globalization.CultureInfo c)
         => Binding.DoNothing;
 }
@@ -1600,6 +1602,12 @@ public partial class MainWindow : FluentWindow
             e.Handled = true;
             return;
         }
+        if (e.Key == Key.G && mods == ModifierKeys.Control)
+        {
+            _vm.GridMode = !_vm.GridMode;
+            e.Handled = true;
+            return;
+        }
         if (mods.HasFlag(ModifierKeys.Control) && !mods.HasFlag(ModifierKeys.Alt)
             && e.Key is >= Key.D1 and <= Key.D9 or >= Key.NumPad1 and <= Key.NumPad9)
         {
@@ -1629,9 +1637,10 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
-        if (view.HandleKey(e.Key, true, e.IsRepeat))
+        var downKey = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (view.HandleKey(downKey, true, e.IsRepeat))
         {
-            _keyTargets[e.Key] = view;
+            _keyTargets[downKey] = view;
             e.Handled = true;
         }
     }
@@ -1647,16 +1656,17 @@ public partial class MainWindow : FluentWindow
 
     private void OnPreviewKeyUp(object sender, KeyEventArgs e)
     {
-        if (_keyTargets.Remove(e.Key, out var target))
+        var upKey = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (_keyTargets.Remove(upKey, out var target))
         {
-            if (target.HandleKey(e.Key, false, e.IsRepeat))
+            if (target.HandleKey(upKey, false, e.IsRepeat))
                 e.Handled = true;
             return;
         }
         var view = _vm.ShowMirrorSurface && _confirmTcs == null ? _vm.ActiveMirror?.View : null;
         if (view == null || IsTextInputTarget(e.OriginalSource))
             return;
-        if (view.HandleKey(e.Key, false, e.IsRepeat))
+        if (view.HandleKey(upKey, false, e.IsRepeat))
             e.Handled = true;
     }
 

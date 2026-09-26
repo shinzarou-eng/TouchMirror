@@ -58,8 +58,8 @@ public final class DisplayManager {
 
     public static DisplayInfo parseDisplayInfo(String dumpsysDisplayOutput, int displayId) {
         Pattern pattern = Pattern.compile(
-                "^    mOverrideDisplayInfo=DisplayInfo\\{\".*?, displayId " + displayId + ".*?(, FLAG_.*)?, real ([0-9]+) x ([0-9]+).*?, "
-                        + "rotation ([0-9]+).*?, density ([0-9]+).*?, layerStack ([0-9]+)",
+                "^    mBaseDisplayInfo=DisplayInfo\\{\".*?, displayId " + displayId + ".*?(, FLAG_.*)?, real ([0-9]+) x ([0-9]+).*?, "
+                        + "rotation ([0-9]+), state ([A-Z_]+).*?, density ([0-9]+).*?, layerStack ([0-9]+)",
                 Pattern.MULTILINE);
         Matcher matcher = pattern.matcher(dumpsysDisplayOutput);
         if (!matcher.find()) {
@@ -70,10 +70,19 @@ public final class DisplayManager {
         int width = Integer.parseInt(matcher.group(2));
         int height = Integer.parseInt(matcher.group(3));
         int rotation = Integer.parseInt(matcher.group(4));
-        int density = Integer.parseInt(matcher.group(5));
-        int layerStack = Integer.parseInt(matcher.group(6));
+        int state = parseDisplayState(matcher.group(5));
+        int density = Integer.parseInt(matcher.group(6));
+        int layerStack = Integer.parseInt(matcher.group(7));
 
-        return new DisplayInfo(displayId, new Size(width, height), rotation, layerStack, flags, density, null);
+        return new DisplayInfo(displayId, new Size(width, height), rotation, layerStack, flags, density, null, state);
+    }
+
+    private static int parseDisplayState(String text) {
+        try {
+            return Display.class.getDeclaredField("STATE_" + text).getInt(null);
+        } catch (ReflectiveOperationException e) {
+            return Display.STATE_ON;
+        }
     }
 
     private static DisplayInfo getDisplayInfoFromDumpsys(int displayId) {
@@ -125,7 +134,13 @@ public final class DisplayManager {
             } catch (NoSuchFieldException e) {
                 uniqueId = null;
             }
-            return new DisplayInfo(displayId, new Size(width, height), rotation, layerStack, flags, dpi, uniqueId);
+            int state;
+            try {
+                state = cls.getDeclaredField("state").getInt(displayInfo);
+            } catch (NoSuchFieldException e) {
+                state = Display.STATE_ON;
+            }
+            return new DisplayInfo(displayId, new Size(width, height), rotation, layerStack, flags, dpi, uniqueId, state);
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }

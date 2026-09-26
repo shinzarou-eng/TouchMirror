@@ -65,4 +65,21 @@ public sealed class SecurityTests
     [InlineData("x.js", false)]
     public void MarketplaceId_Validated(string id, bool expected)
         => Assert.Equal(expected, MarketplaceService.IsValidId(id));
+
+    [Fact]
+    public void ParseMdnsEndpoints_OnlyConnectServices()
+    {
+        var output = string.Join('\n',
+            "List of discovered mdns services",
+            "adb-RFGL22M2JQM-abc123\t_adb-tls-connect._tcp\t192.168.1.42:38307",
+            "studio-a1b2c3d4e5\t_adb-tls-pairing._tcp\t192.168.1.42:45555",
+            "adb-other\t_adb-tls-connect._tcp\t192.168.1.77:37123",
+            "garbage line");
+        var eps = AdbService.ParseMdnsEndpoints(output, "_adb-tls-connect._tcp");
+        Assert.Equal(new[] { "192.168.1.42:38307", "192.168.1.77:37123" }, eps);
+    }
+
+    [Fact]
+    public void ParseMdnsEndpoints_EmptyOnNoise()
+        => Assert.Empty(AdbService.ParseMdnsEndpoints("", "_adb-tls-connect._tcp"));
 }

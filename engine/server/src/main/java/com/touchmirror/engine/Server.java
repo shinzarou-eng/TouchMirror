@@ -76,6 +76,9 @@ public final class Server {
         try {
             int caps = Protocol.CAP_VIDEO | Protocol.CAP_AUDIO | Protocol.CAP_CONTROL | Protocol.CAP_CLIPBOARD
                     | Protocol.CAP_H265 | Protocol.CAP_AV1 | Protocol.CAP_VDISPLAY;
+            if (com.touchmirror.engine.uhid.UhidDevice.isSupported()) {
+                caps |= Protocol.CAP_UHID;
+            }
             connection.sendHello(Device.getDeviceName(), caps);
 
             ControlChannel controlChannel = connection.getControlChannel();

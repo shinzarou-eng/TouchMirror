@@ -718,6 +718,25 @@ public static class AdbService
         return null;
     }
 
+    public static List<string> ParseMdnsEndpoints(string output, string serviceType)
+    {
+        var list = new List<string>();
+        var pattern = @"^\S+\s+" + Regex.Escape(serviceType) + @"\s+(\d+\.\d+\.\d+\.\d+):(\d+)";
+        foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var m = Regex.Match(line, pattern);
+            if (m.Success)
+                list.Add($"{m.Groups[1].Value}:{m.Groups[2].Value}");
+        }
+        return list;
+    }
+
+    public static async Task<List<string>> ListWirelessEndpointsAsync(CancellationToken ct = default)
+    {
+        try { return ParseMdnsEndpoints(await RunAsync("mdns services", ct), "_adb-tls-connect._tcp"); }
+        catch { return new List<string>(); }
+    }
+
     public static async Task<string?> FindMdnsServiceAddressAsync(string instanceName, CancellationToken ct = default)
     {
         try { return ParseMdnsServiceAddress(await RunAsync("mdns services", ct), instanceName); }

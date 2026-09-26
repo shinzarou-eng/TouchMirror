@@ -23,6 +23,9 @@ import android.graphics.Rect;
 import android.hardware.display.VirtualDisplay;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.SystemClock;
+import android.view.Display;
+import android.view.KeyEvent;
 import android.view.Surface;
 
 import java.io.IOException;
@@ -32,6 +35,7 @@ public class ScreenCapture extends SurfaceCapture {
 
     private final VirtualDisplayListener vdListener;
     private final int displayId;
+    private final boolean powerOn;
     private final Rect crop;
     private Orientation.Lock captureOrientationLock;
     private Orientation captureOrientation;
@@ -56,6 +60,7 @@ public class ScreenCapture extends SurfaceCapture {
     public ScreenCapture(VirtualDisplayListener vdListener, Options options) {
         this.vdListener = vdListener;
         this.displayId = options.getDisplayId();
+        this.powerOn = options.getPowerOn();
         assert displayId != Device.DISPLAY_ID_NONE;
         this.crop = options.getCrop();
         this.captureOrientationLock = options.getCaptureOrientationLock();
@@ -107,6 +112,8 @@ public class ScreenCapture extends SurfaceCapture {
 
     @Override
     public void start(Surface surface) throws IOException {
+        ensureDisplayOn();
+
         if (display != null) {
             SurfaceControl.destroyDisplay(display);
             display = null;
@@ -172,6 +179,27 @@ public class ScreenCapture extends SurfaceCapture {
         if (captureSuspended) {
             setSuspended(true);
         }
+    }
+
+    private void ensureDisplayOn() {
+        if (!powerOn) {
+            return;
+        }
+        int state = currentDisplayState();
+        Ln.i("Display " + displayId + " state=" + state + " before capture start");
+        if (state == Display.STATE_ON) {
+            return;
+        }
+        Ln.i("Display " + displayId + " not on (state=" + state + "), waking it up");
+        Device.pressReleaseKeycode(KeyEvent.KEYCODE_WAKEUP, displayId, Device.INJECT_MODE_ASYNC);
+        for (int i = 0; i < 30 && currentDisplayState() != Display.STATE_ON; ++i) {
+            SystemClock.sleep(100);
+        }
+    }
+
+    private int currentDisplayState() {
+        DisplayInfo info = ServiceManager.getDisplayManager().getDisplayInfo(displayId);
+        return info != null ? info.getState() : Display.STATE_ON;
     }
 
     @Override

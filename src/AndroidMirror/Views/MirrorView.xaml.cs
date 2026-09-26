@@ -72,6 +72,24 @@ public partial class MirrorView : UserControl
 
     public ImageSource? VideoSource => VideoImage.Source;
 
+    public string VideoDiag
+    {
+        get
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"{(VideoImage.Source?.GetType().Name ?? "null")} img={(int)VideoImage.ActualWidth}x{(int)VideoImage.ActualHeight} vis={VideoImage.IsVisible} hostvis={IsVisible} host={(int)ActualWidth}x{(int)ActualHeight}");
+            DependencyObject? cur = this;
+            for (var i = 0; i < 12 && cur != null; i++)
+            {
+                cur = System.Windows.Media.VisualTreeHelper.GetParent(cur);
+                if (cur == null) break;
+                var fe = cur as FrameworkElement;
+                sb.Append($" <- {cur.GetType().Name}[{(fe != null ? fe.Visibility.ToString() : "?")},{(fe != null ? (int)fe.ActualWidth : -1)}x{(fe != null ? (int)fe.ActualHeight : -1)}]");
+            }
+            return sb.ToString();
+        }
+    }
+
     public void AttachDecoder(IFrameSource decoder)
     {
         _decoder = decoder;
@@ -133,6 +151,51 @@ public partial class MirrorView : UserControl
     }
 
     public void AttachControl(ControlChannel control) => _control = control;
+
+    private bool _uhid;
+    private byte _uhidButtons;
+    private ushort _uhidX;
+    private ushort _uhidY;
+    private byte _uhidMods;
+    private readonly List<byte> _uhidKeys = new();
+    private bool _uhidPendingMove;
+
+    public void SetUhid(bool enabled)
+    {
+        var was = _uhid;
+        _uhid = enabled && _control != null;
+        if (was && !_uhid)
+            ReleaseUhid();
+    }
+
+    private bool TryMapUhidPoint(System.Windows.Point pos)
+    {
+        if (!TryMapPoint(pos, out var x, out var y, strict: true) || _videoW <= 0 || _videoH <= 0)
+            return false;
+        _uhidX = (ushort)Math.Clamp((long)x * 32767 / _videoW, 0, 32767);
+        _uhidY = (ushort)Math.Clamp((long)y * 32767 / _videoH, 0, 32767);
+        return true;
+    }
+
+    private void SendUhidMouse(sbyte wheel = 0, sbyte pan = 0)
+        => _control?.UhidInput(UhidDevices.MouseId,
+            UhidDevices.MouseReport(_uhidButtons, _uhidX, _uhidY, wheel, pan));
+
+    private void SendUhidKeyboard()
+        => _control?.UhidInput(UhidDevices.KeyboardId,
+            UhidDevices.KeyboardReport(_uhidMods, _uhidKeys.ToArray()));
+
+    private void ReleaseUhid()
+    {
+        if (_uhidButtons == 0 && _uhidMods == 0 && _uhidKeys.Count == 0)
+            return;
+        _uhidButtons = 0;
+        _uhidMods = 0;
+        _uhidKeys.Clear();
+        _uhidPendingMove = false;
+        SendUhidMouse();
+        SendUhidKeyboard();
+    }
 
     public bool HasControl => _control != null;
 
@@ -899,14 +962,27 @@ public partial class MirrorView : UserControl
             return;
         }
 
-        if (e.ChangedButton == MouseButton.Right)
-        {
-            _control?.InjectKeyPress(AndroidKeyCode.Back);
-            return;
-        }
         if (e.ChangedButton == MouseButton.Middle)
         {
             _control?.InjectKeyPress(AndroidKeyCode.Home);
+            return;
+        }
+
+        if (_uhid)
+        {
+            if (TryMapUhidPoint(e.GetPosition(InputSurface)))
+            {
+                _uhidButtons |= (byte)ButtonFlag(e.ChangedButton);
+                SendUhidMouse();
+                InputSurface.CaptureMouse();
+                _mouseCaptured = true;
+            }
+            return;
+        }
+
+        if (e.ChangedButton == MouseButton.Right)
+        {
+            _control?.InjectKeyPress(AndroidKeyCode.Back);
             return;
         }
 
@@ -957,7 +1033,18 @@ public partial class MirrorView : UserControl
             }
             return;
         }
-        if (_editMode || _control == null || _pressedButtons == 0)
+        if (_editMode || _control == null)
+            return;
+        if (_uhid)
+        {
+            if (TryMapUhidPoint(e.GetPosition(InputSurface)))
+            {
+                _uhidPendingMove = true;
+                _moveFlush.Start();
+            }
+            return;
+        }
+        if (_pressedButtons == 0)
             return;
         if (!TryMapPoint(e.GetPosition(InputSurface), out var x, out var y))
             return;
@@ -973,6 +1060,14 @@ public partial class MirrorView : UserControl
             _iosPendingMove = false;
             _iosPointer.MoveTo(_iosPendingRx, _iosPendingRy);
             if (!_iosMouseDown && !_hasPendingMove)
+                _moveFlush.Stop();
+        }
+        if (_uhidPendingMove)
+        {
+            _uhidPendingMove = false;
+            if (_uhid && _control != null)
+                SendUhidMouse();
+            if (!_hasPendingMove && !_iosPendingMove)
                 _moveFlush.Stop();
         }
         if (!_hasPendingMove)
@@ -1031,6 +1126,18 @@ public partial class MirrorView : UserControl
             return;
         }
         var flag = ButtonFlag(e.ChangedButton);
+        if (_uhid && _control != null)
+        {
+            TryMapUhidPoint(e.GetPosition(InputSurface));
+            _uhidButtons &= (byte)~flag;
+            SendUhidMouse();
+            if (_uhidButtons == 0 && _mouseCaptured)
+            {
+                InputSurface.ReleaseMouseCapture();
+                _mouseCaptured = false;
+            }
+            return;
+        }
         if (_control != null && (_pressedButtons & flag) != 0
             && TryMapPoint(e.GetPosition(InputSurface), out var x, out var y))
         {
@@ -1066,6 +1173,11 @@ public partial class MirrorView : UserControl
                 0, 0, (ushort)_videoW, (ushort)_videoH, 0f, 0, 0);
             _pressedButtons = 0;
         }
+        if (_uhid && _uhidButtons != 0)
+        {
+            _uhidButtons = 0;
+            SendUhidMouse();
+        }
         _hasPendingMove = false;
         _moveFlush.Stop();
         _mouseCaptured = false;
@@ -1095,10 +1207,22 @@ public partial class MirrorView : UserControl
             return;
         }
 
+        if (_uhid)
+        {
+            if (TryMapUhidPoint(e.GetPosition(InputSurface)))
+                SendUhidMouse((sbyte)Math.Clamp(e.Delta / 120, -127, 127));
+            return;
+        }
+
         if (!TryMapPoint(e.GetPosition(InputSurface), out var x, out var y))
             return;
         var vscroll = e.Delta / 120f;
         _control.InjectScroll(x, y, (ushort)_videoW, (ushort)_videoH, 0, vscroll, _pressedButtons);
+    }
+
+    public (long hash, bool uniform)? SampleFrame()
+    {
+        return _presenter?.SampleFrame();
     }
 
     public void SaveScreenshot(string path)
@@ -1106,17 +1230,18 @@ public partial class MirrorView : UserControl
         if (_presenter != null)
         {
             var px = _presenter.CaptureBgra(out var gw, out var gh);
-            if (px == null)
-                return;
-            var gpuBmp = new WriteableBitmap(gw, gh, 96, 96, PixelFormats.Bgra32, null);
-            gpuBmp.WritePixels(new Int32Rect(0, 0, gw, gh), px, gw * 4, 0);
-            using (var gfs = System.IO.File.Create(path))
+            if (px != null)
             {
-                var gpuEnc = new PngBitmapEncoder();
-                gpuEnc.Frames.Add(BitmapFrame.Create(gpuBmp));
-                gpuEnc.Save(gfs);
+                var gpuBmp = new WriteableBitmap(gw, gh, 96, 96, PixelFormats.Bgra32, null);
+                gpuBmp.WritePixels(new Int32Rect(0, 0, gw, gh), px, gw * 4, 0);
+                using (var gfs = System.IO.File.Create(path))
+                {
+                    var gpuEnc = new PngBitmapEncoder();
+                    gpuEnc.Frames.Add(BitmapFrame.Create(gpuBmp));
+                    gpuEnc.Save(gfs);
+                }
+                return;
             }
-            return;
         }
         if (_bitmap == null)
             return;
@@ -1164,6 +1289,32 @@ public partial class MirrorView : UserControl
 
         if (_control == null)
             return _iosPointer?.Key(key, isDown) == true;
+        if (_uhid)
+        {
+            var mod = UhidDevices.ModifierBit(key);
+            if (mod >= 0)
+            {
+                if (isDown) _uhidMods |= (byte)mod; else _uhidMods &= (byte)~mod;
+                SendUhidKeyboard();
+                return true;
+            }
+            var usage = UhidDevices.HidUsage(key);
+            if (usage < 0)
+                return false;
+            if (isDown)
+            {
+                if (isRepeat)
+                    return true;
+                if (!_uhidKeys.Contains((byte)usage))
+                    _uhidKeys.Add((byte)usage);
+            }
+            else
+            {
+                _uhidKeys.Remove((byte)usage);
+            }
+            SendUhidKeyboard();
+            return true;
+        }
         var code = MapKey(key);
         if (code < 0)
             return false;
@@ -1177,6 +1328,8 @@ public partial class MirrorView : UserControl
     public void ReleaseHeldKeys()
     {
         _iosPointer?.ReleaseAll();
+        if (_uhid)
+            ReleaseUhid();
         if (_heldCodes.Count == 0)
             return;
         var codes = _heldCodes.ToArray();
@@ -1241,6 +1394,7 @@ public partial class MirrorView : UserControl
     public void Detach()
     {
         ReleaseHeldKeys();
+        _uhid = false;
         _decoder = null;
         _control = null;
         _pressedButtons = 0;

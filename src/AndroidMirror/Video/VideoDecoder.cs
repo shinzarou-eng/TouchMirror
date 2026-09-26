@@ -24,8 +24,14 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
     private int _swsColorInfo = -1;
     private AVPixelFormat _swsFmt = AVPixelFormat.AV_PIX_FMT_NONE;
 
+    private sealed class PendingFrame
+    {
+        public required byte[] Data;
+        public required int W;
+        public required int H;
+    }
     private readonly ConcurrentQueue<byte[]> _pool = new();
-    private byte[]? _latest;
+    private PendingFrame? _latest;
     private int _frameW, _frameH;
     private readonly object _sync = new();
     private bool _disposed;
@@ -370,16 +376,18 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
             ffmpeg.sws_scale(_sws, srcSlice, srcStride, 0, h, dstSlice, dstStride);
         }
 
-        var previous = Interlocked.Exchange(ref _latest, buffer);
+        var previous = Interlocked.Exchange(ref _latest,
+            new PendingFrame { Data = buffer, W = w, H = h });
         if (previous != null)
-            _pool.Enqueue(previous);
+            _pool.Enqueue(previous.Data);
     }
 
     public bool TryTakeLatest(out byte[]? buffer, out int width, out int height)
     {
-        buffer = Interlocked.Exchange(ref _latest, null);
-        width = _frameW;
-        height = _frameH;
+        var f = Interlocked.Exchange(ref _latest, null);
+        buffer = f?.Data;
+        width = f?.W ?? 0;
+        height = f?.H ?? 0;
         return buffer != null;
     }
 

@@ -24,6 +24,9 @@ public final class ControlMessage {
     public static final int TYPE_RESIZE_DISPLAY = Protocol.MSG_RESIZE_DISPLAY;
     public static final int TYPE_SCAN_FILE = Protocol.MSG_SCAN_FILE;
     public static final int TYPE_SET_VIDEO_PARAMS = Protocol.MSG_SET_VIDEO_PARAMS;
+    public static final int TYPE_UHID_CREATE = Protocol.MSG_UHID_CREATE;
+    public static final int TYPE_UHID_INPUT = Protocol.MSG_UHID_INPUT;
+    public static final int TYPE_UHID_DESTROY = Protocol.MSG_UHID_DESTROY;
 
     public static final long SEQUENCE_INVALID = 0;
 
@@ -53,6 +56,10 @@ public final class ControlMessage {
     private int bitRate;
     private boolean suspend;
     private byte[] config;
+    private int id;
+    private int vendor;
+    private int product;
+    private byte[] data;
 
     private ControlMessage() {
     }
@@ -170,6 +177,32 @@ public final class ControlMessage {
         return msg;
     }
 
+    public static ControlMessage createUhidCreate(int id, int vendor, int product, String name, byte[] reportDesc) {
+        ControlMessage msg = new ControlMessage();
+        msg.type = TYPE_UHID_CREATE;
+        msg.id = id;
+        msg.vendor = vendor;
+        msg.product = product;
+        msg.text = name;
+        msg.data = reportDesc;
+        return msg;
+    }
+
+    public static ControlMessage createUhidInput(int id, byte[] data) {
+        ControlMessage msg = new ControlMessage();
+        msg.type = TYPE_UHID_INPUT;
+        msg.id = id;
+        msg.data = data;
+        return msg;
+    }
+
+    public static ControlMessage createUhidDestroy(int id) {
+        ControlMessage msg = new ControlMessage();
+        msg.type = TYPE_UHID_DESTROY;
+        msg.id = id;
+        return msg;
+    }
+
     public int getType() {
         return type;
     }
@@ -256,5 +289,21 @@ public final class ControlMessage {
 
     public byte[] getConfig() {
         return config;
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public int getVendor() {
+        return vendor;
+    }
+
+    public int getProduct() {
+        return product;
+    }
+
+    public byte[] getData() {
+        return data;
     }
 }

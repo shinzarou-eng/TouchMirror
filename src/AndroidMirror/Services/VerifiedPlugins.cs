@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 
 namespace TouchMirror.Services;
 
@@ -15,7 +15,7 @@ public static class VerifiedPlugins
         "8a86191ba6a2ccd2b6a525758ca1c9b9ea6dce991b33657058c122ef3329a326",
         "4c0cf752aee30790cb243576b2f3c1d151d18556a433c108858124637d19deb6",
         "b6cfccd3e22b58432d7c16c88456d911430bfc0ad95fd45009faf18caad62160",
-        "1eee7734cfc2fd4b11d7fbd9f3169ce11bbb360d476bdb4d2e231469f4289c3e",
+        "72675b1735bde5fc8094103c83b0748a42a8dd794aedd507d9e06548e21a67e6",
         "7c249ca3c3cc4424b536f9ce35bb810b8319f803aaeda4e6614e44141057db69",
         "de8b7fbea8440a3473c1c3007db861e6a91fc8448565259a1e7a3f2fe336062e",
         "a32aef592ade66100367ab1b6a70bcac823e31046a3bdf717863b91ded8296f2",

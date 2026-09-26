@@ -11,6 +11,7 @@ import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.view.Display;
 import android.view.IDisplayWindowListener;
 
 public class DisplayMonitor {
@@ -24,6 +25,7 @@ public class DisplayMonitor {
 
     private int displayId = Device.DISPLAY_ID_NONE;
     private DisplayProperties props;
+    private Boolean screenOn;
     private Listener listener;
 
     private DisplayManager.DisplayListenerHandle displayListenerHandle;
@@ -53,6 +55,7 @@ public class DisplayMonitor {
 
         this.listener = listener;
         this.displayId = displayId;
+        this.screenOn = null;
 
         if (USE_LEGACY_LISTENER) {
             listenerThread = new HandlerThread("DisplayListener");
@@ -120,6 +123,7 @@ public class DisplayMonitor {
         DisplayInfo displayInfo = ServiceManager.getDisplayManager().getDisplayInfo(displayId);
         if (displayInfo == null) {
             Ln.w("DisplayInfo for " + displayId + " cannot be retrieved");
+            screenOn = null;
             DisplayProperties old = swapDisplayProperties(null);
             if (Ln.isEnabled(Ln.Level.VERBOSE)) {
                 Ln.v("DisplayMonitor: " + old + " -> (unknown)");
@@ -133,7 +137,16 @@ public class DisplayMonitor {
         if (Ln.isEnabled(Ln.Level.VERBOSE)) {
             Ln.v("DisplayMonitor: " + old + " -> " + newProps + (newProps.equals(old) ? " (unchanged)" : ""));
         }
-        if (!newProps.equals(old)) {
+
+        boolean on = displayInfo.getState() == Display.STATE_ON;
+        Boolean previousOn = screenOn;
+        screenOn = on;
+        boolean wokeUp = previousOn != null && !previousOn && on;
+        if (previousOn == null || previousOn != on) {
+            Ln.i("DisplayMonitor: display " + displayId + " state=" + displayInfo.getState() + " on=" + on);
+        }
+
+        if (!newProps.equals(old) || wokeUp) {
             listener.onDisplayPropertiesChanged(newProps);
         }
     }

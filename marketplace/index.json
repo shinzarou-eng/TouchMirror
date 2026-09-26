@@ -5,8 +5,8 @@
                         "name":  "Almanax",
                         "version":  "1.2",
                         "author":  "TouchMirror",
-                        "icon":  "📅",
-                        "description":  "Badge sur chaque miroir : offrande dans le titre et bonus du jour affiché en entier (calendrier complet hors-ligne), badge rouge pendant le rappel de 20h. Heure réglable en tête du script.",
+                        "icon":  "\ud83d\udcc5",
+                        "description":  "Badge sur chaque miroir : offrande dans le titre et bonus du jour affich\u00e9 en entier (calendrier complet hors-ligne), badge rouge pendant le rappel de 20h. Heure r\u00e9glable en t\u00eate du script.",
                         "official":  true,
                         "featured":  false,
                         "tags":  [
@@ -21,8 +21,8 @@
                         "name":  "Archis",
                         "version":  "1.0",
                         "author":  "TouchMirror",
-                        "icon":  "🎯",
-                        "description":  "Traque d\u0027archimonstres façon Metamob — les 15 avis de recherche et 192 archimonstres officiels pré-chargés par tranche de niveau. Navigue section par section, clic pour cocher une capture, progression en un coup d\u0027œil. Liste éditable dans archis.txt.",
+                        "icon":  "\ud83c\udfaf",
+                        "description":  "Traque d\u0027archimonstres fa\u00e7on Metamob \u2014 les 15 avis de recherche et 192 archimonstres officiels pr\u00e9-charg\u00e9s par tranche de niveau. Navigue section par section, clic pour cocher une capture, progression en un coup d\u0027\u0153il. Liste \u00e9ditable dans archis.txt.",
                         "official":  true,
                         "featured":  true,
                         "tags":  [
@@ -37,8 +37,8 @@
                         "name":  "Auto-mute",
                         "version":  "1.0",
                         "author":  "TouchMirror",
-                        "icon":  "🔇",
-                        "description":  "Un seul miroir sonore : l\u0027actif. Ré-applique la règle en continu — couvre l\u0027audio qui démarre après le changement de focus. Le volume du téléphone n\u0027est pas touché.",
+                        "icon":  "\ud83d\udd07",
+                        "description":  "Un seul miroir sonore : l\u0027actif. R\u00e9-applique la r\u00e8gle en continu \u2014 couvre l\u0027audio qui d\u00e9marre apr\u00e8s le changement de focus. Le volume du t\u00e9l\u00e9phone n\u0027est pas touch\u00e9.",
                         "official":  true,
                         "featured":  true,
                         "tags":  [
@@ -52,13 +52,13 @@
                         "name":  "Bridge",
                         "version":  "1.0",
                         "author":  "TouchMirror",
-                        "icon":  "📡",
-                        "description":  "Affiche le contenu de data.txt sur les miroirs — n\u0027importe quel outil externe peut y écrire (alertes stream, scripts, données maison). Un pont simple entre tes scripts et les miroirs.",
+                        "icon":  "\ud83d\udce1",
+                        "description":  "Affiche le contenu de data.txt sur les miroirs \u2014 n\u0027importe quel outil externe peut y \u00e9crire (alertes stream, scripts, donn\u00e9es maison). Un pont simple entre tes scripts et les miroirs.",
                         "official":  true,
                         "featured":  false,
                         "tags":  [
                                      "overlay",
-                                     "intégration",
+                                     "int\u00e9gration",
                                      "stream"
                                  ],
                         "hash":  "6bb87a11593b9b3f6da92a22a973ddad67db5640c9b57e3d3517c6568b625f73"
@@ -68,8 +68,8 @@
                         "name":  "Checklist",
                         "version":  "1.0",
                         "author":  "TouchMirror",
-                        "icon":  "✅",
-                        "description":  "Bloc-note éditable sur chaque miroir — modifie checklist.txt au bloc-notes, clic sur une ligne pour cocher. Parfait pour Almanax, archis, HDV, quêtes.",
+                        "icon":  "\u2705",
+                        "description":  "Bloc-note \u00e9ditable sur chaque miroir \u2014 modifie checklist.txt au bloc-notes, clic sur une ligne pour cocher. Parfait pour Almanax, archis, HDV, qu\u00eates.",
                         "official":  true,
                         "featured":  true,
                         "tags":  [
@@ -84,8 +84,8 @@
                         "name":  "Guides Dofus",
                         "version":  "1.0",
                         "author":  "TouchMirror",
-                        "icon":  "📖",
-                        "description":  "Active la section Guides — navigateur intégré avec encyclopédie, Atlas, carte interactive, Almanax, Papycha et support Ankama. L\u0027app reste épurée sans ce module.",
+                        "icon":  "\ud83d\udcd6",
+                        "description":  "Active la section Guides \u2014 navigateur int\u00e9gr\u00e9 avec encyclop\u00e9die, Atlas, carte interactive, Almanax, Papycha et support Ankama. L\u0027app reste \u00e9pur\u00e9e sans ce module.",
                         "official":  true,
                         "featured":  true,
                         "tags":  [
@@ -99,8 +99,8 @@
                         "name":  "HUD",
                         "version":  "1.0",
                         "author":  "TouchMirror",
-                        "icon":  "📈",
-                        "description":  "Panneau déplaçable sur chaque miroir — courbe FPS, résolution, retard du flux et débit. Fusionne les anciens plugins Graphs, Stats et Perf.",
+                        "icon":  "\ud83d\udcc8",
+                        "description":  "Panneau d\u00e9pla\u00e7able sur chaque miroir \u2014 courbe FPS, r\u00e9solution, retard du flux et d\u00e9bit. Fusionne les anciens plugins Graphs, Stats et Perf.",
                         "official":  true,
                         "featured":  true,
                         "tags":  [
@@ -114,8 +114,8 @@
                         "name":  "Mixeur audio",
                         "version":  "1.0",
                         "author":  "TouchMirror",
-                        "icon":  "🔊",
-                        "description":  "Volume par miroir sur l\u0027overlay : chaque ligne affiche une tuile avec sa barre de volume, clic pour descendre par paliers (100 → 60 → 30 → 10 → muet) puis remonter à 100. Le son du téléphone n\u0027est pas touché.",
+                        "icon":  "\ud83d\udd0a",
+                        "description":  "Volume par miroir sur l\u0027overlay : chaque ligne affiche une tuile avec sa barre de volume, clic pour descendre par paliers (100 \u2192 60 \u2192 30 \u2192 10 \u2192 muet) puis remonter \u00e0 100. Le son du t\u00e9l\u00e9phone n\u0027est pas touch\u00e9.",
                         "official":  true,
                         "featured":  false,
                         "tags":  [
@@ -129,12 +129,12 @@
                         "name":  "Reconnect",
                         "version":  "2.1",
                         "author":  "TouchMirror",
-                        "icon":  "🔗",
-                        "description":  "Restaure un miroir dont la session a lâché (câble, WiFi, plantage) ou dont le flux est figé (0 fps) — jamais après une déconnexion volontaire, jamais de lancement sur le téléphone.",
+                        "icon":  "\ud83d\udd17",
+                        "description":  "Restaure un miroir dont la session a l\u00e2ch\u00e9 (c\u00e2ble, WiFi, plantage) ou dont le flux est fig\u00e9 (0 fps) \u2014 jamais apr\u00e8s une d\u00e9connexion volontaire, jamais de lancement sur le t\u00e9l\u00e9phone.",
                         "official":  true,
                         "featured":  true,
                         "tags":  [
-                                     "fiabilité",
+                                     "fiabilit\u00e9",
                                      "connexion"
                                  ],
                         "hash":  "b6cfccd3e22b58432d7c16c88456d911430bfc0ad95fd45009faf18caad62160"
@@ -144,23 +144,23 @@
                         "name":  "Session Log",
                         "version":  "1.0",
                         "author":  "TouchMirror",
-                        "icon":  "📋",
-                        "description":  "Journalise les événements de session — connexions, coupures, changements de miroir actif et enregistrements — dans le journal de l\u0027app.",
+                        "icon":  "\ud83d\udccb",
+                        "description":  "Journalise les \u00e9v\u00e9nements de session \u2014 connexions, coupures, changements de miroir actif et enregistrements \u2014 dans le journal de l\u0027app.",
                         "official":  true,
                         "featured":  false,
                         "tags":  [
                                      "journal",
                                      "diagnostic"
                                  ],
-                        "hash":  "1eee7734cfc2fd4b11d7fbd9f3169ce11bbb360d476bdb4d2e231469f4289c3e"
+                        "hash":  "72675b1735bde5fc8094103c83b0748a42a8dd794aedd507d9e06548e21a67e6"
                     },
                     {
                         "id":  "splits",
                         "name":  "Splits",
                         "version":  "1.0",
                         "author":  "TouchMirror",
-                        "icon":  "⏱️",
-                        "description":  "Chrono de run sur chaque miroir : clic sur le chrono pour poser un split, reset pour un nouveau run, record personnel sauvegardé par téléphone. Idéal pour les donjons en boucle.",
+                        "icon":  "\u23f1\ufe0f",
+                        "description":  "Chrono de run sur chaque miroir : clic sur le chrono pour poser un split, reset pour un nouveau run, record personnel sauvegard\u00e9 par t\u00e9l\u00e9phone. Id\u00e9al pour les donjons en boucle.",
                         "official":  true,
                         "featured":  true,
                         "tags":  [
@@ -175,8 +175,8 @@
                         "name":  "Timers",
                         "version":  "1.0",
                         "author":  "TouchMirror",
-                        "icon":  "⏱️",
-                        "description":  "Minuteurs nommés sur les miroirs : édite timers.txt (« Percepteur = 45m », « Boss = 1h30 »), clic sur une ligne pour lancer ou réarmer. Badge orange quand le temps est écoulé. Repop, percepteurs, files koli, potions.",
+                        "icon":  "\u23f1\ufe0f",
+                        "description":  "Minuteurs nomm\u00e9s sur les miroirs : \u00e9dite timers.txt (\u00ab Percepteur = 45m \u00bb, \u00ab Boss = 1h30 \u00bb), clic sur une ligne pour lancer ou r\u00e9armer. Badge orange quand le temps est \u00e9coul\u00e9. Repop, percepteurs, files koli, potions.",
                         "official":  true,
                         "featured":  false,
                         "tags":  [
@@ -191,13 +191,13 @@
                         "name":  "Uptime",
                         "version":  "1.0",
                         "author":  "TouchMirror",
-                        "icon":  "⏱️",
-                        "description":  "Journal de session par miroir : durée de la connexion en cours et nombre de coupures depuis le lancement. Repère d\u0027un coup l\u0027appareil qui lâche.",
+                        "icon":  "\u23f1\ufe0f",
+                        "description":  "Journal de session par miroir : dur\u00e9e de la connexion en cours et nombre de coupures depuis le lancement. Rep\u00e8re d\u0027un coup l\u0027appareil qui l\u00e2che.",
                         "official":  true,
                         "featured":  false,
                         "tags":  [
                                      "session",
-                                     "fiabilité",
+                                     "fiabilit\u00e9",
                                      "overlay"
                                  ],
                         "hash":  "a32aef592ade66100367ab1b6a70bcac823e31046a3bdf717863b91ded8296f2"

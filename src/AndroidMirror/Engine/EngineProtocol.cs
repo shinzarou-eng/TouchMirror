@@ -25,12 +25,17 @@ public enum ControlMsgType : byte
     SetVideoParams = 0x32,
     GetClipboard = 0x40,
     SetClipboard = 0x41,
+    UhidCreate = 0x50,
+    UhidInput = 0x51,
+    UhidDestroy = 0x52,
 }
 
 public enum DeviceMsgType : byte
 {
     Clipboard = 0x50,
     AckClipboard = 0x51,
+    UhidOutput = 0x60,
+    UhidError = 0x61,
 }
 
 public static class AndroidMotionEvent
@@ -100,6 +105,8 @@ public sealed class ControlChannel : IDisposable
 
     public event Action<string>? ClipboardReceived;
     public event Action? SendQueueFaulted;
+    public event Action<ushort, byte[]>? UhidOutputReceived;
+    public event Action<ushort, byte>? UhidErrorReceived;
 
     private int _faulted;
 
@@ -166,6 +173,20 @@ public sealed class ControlChannel : IDisposable
                 ClipboardReceived?.Invoke(Encoding.UTF8.GetString(payload.Slice(5, (int)len)));
                 break;
             case DeviceMsgType.AckClipboard:
+                break;
+            case DeviceMsgType.UhidOutput:
+                if (payload.Length < 5)
+                    return;
+                var outId = BinaryPrimitives.ReadUInt16BigEndian(payload.Slice(1));
+                var outLen = BinaryPrimitives.ReadUInt16BigEndian(payload.Slice(3));
+                if (outLen > payload.Length - 5)
+                    return;
+                UhidOutputReceived?.Invoke(outId, payload.Slice(5, outLen).ToArray());
+                break;
+            case DeviceMsgType.UhidError:
+                if (payload.Length < 4)
+                    return;
+                UhidErrorReceived?.Invoke(BinaryPrimitives.ReadUInt16BigEndian(payload.Slice(1)), payload[3]);
                 break;
         }
     }
@@ -395,6 +416,45 @@ public sealed class ControlChannel : IDisposable
         buf[0] = (byte)ControlMsgType.ScanFile;
         BinaryPrimitives.WriteUInt32BigEndian(buf.AsSpan(1, 4), (uint)bytes.Length);
         bytes.CopyTo(buf, 5);
+        Send(buf);
+    }
+
+    public void UhidCreate(ushort id, ushort vendor, ushort product, string name, byte[] reportDesc)
+    {
+        var nameBytes = Encoding.UTF8.GetBytes(name);
+        if (nameBytes.Length > 127)
+            nameBytes = nameBytes[..127];
+        if (reportDesc.Length > 4096)
+            reportDesc = reportDesc[..4096];
+        var buf = new byte[10 + nameBytes.Length + reportDesc.Length];
+        buf[0] = (byte)ControlMsgType.UhidCreate;
+        BinaryPrimitives.WriteUInt16BigEndian(buf.AsSpan(1, 2), id);
+        BinaryPrimitives.WriteUInt16BigEndian(buf.AsSpan(3, 2), vendor);
+        BinaryPrimitives.WriteUInt16BigEndian(buf.AsSpan(5, 2), product);
+        buf[7] = (byte)nameBytes.Length;
+        nameBytes.CopyTo(buf, 8);
+        BinaryPrimitives.WriteUInt16BigEndian(buf.AsSpan(8 + nameBytes.Length, 2), (ushort)reportDesc.Length);
+        reportDesc.CopyTo(buf, 10 + nameBytes.Length);
+        Send(buf);
+    }
+
+    public void UhidInput(ushort id, byte[] data)
+    {
+        if (data.Length > 4096)
+            return;
+        var buf = new byte[5 + data.Length];
+        buf[0] = (byte)ControlMsgType.UhidInput;
+        BinaryPrimitives.WriteUInt16BigEndian(buf.AsSpan(1, 2), id);
+        BinaryPrimitives.WriteUInt16BigEndian(buf.AsSpan(3, 2), (ushort)data.Length);
+        data.CopyTo(buf, 5);
+        Send(buf);
+    }
+
+    public void UhidDestroy(ushort id)
+    {
+        Span<byte> buf = stackalloc byte[3];
+        buf[0] = (byte)ControlMsgType.UhidDestroy;
+        BinaryPrimitives.WriteUInt16BigEndian(buf.Slice(1, 2), id);
         Send(buf);
     }
 

@@ -115,7 +115,7 @@ public sealed class PluginApi
         catch (JsonException) { return new LocalApiHost.ApiResult(false, "options invalides"); }
     }
 
-    private static readonly HashSet<string> AllowedExt = new(StringComparer.OrdinalIgnoreCase)
+    internal static readonly HashSet<string> AllowedExt = new(StringComparer.OrdinalIgnoreCase)
         { ".txt", ".md", ".json", ".csv", ".log" };
     private const int MaxFileBytes = 256 * 1024;
 

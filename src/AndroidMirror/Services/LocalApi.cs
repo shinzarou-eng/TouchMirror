@@ -17,7 +17,8 @@ public sealed class LocalApiHost
 
     public sealed record MirrorDto(int Slot, string Name, string Serial, string Model,
         bool Connected, bool Active, bool Recording, bool Wifi, double Fps,
-        int W, int H, double Lag, double Jit, int Bitrate, bool Muted, double Volume);
+        int W, int H, double Lag, double Jit, int Bitrate, bool Muted, double Volume,
+        long Pkts, long Dec, bool Stalled, int Front, long Inv, string Diag);
     public sealed record DeviceDto(string Serial, string Name, string Model,
         bool Ready, bool Remembered, bool Wifi, bool Blocked);
     public sealed record ApiResult(bool Ok, string? Message = null, object? Data = null);
@@ -81,11 +82,13 @@ public sealed class LocalApiHost
 
     public Task<ApiResult> GetMirrorsAsync() => Ui(() => new ApiResult(true,
         Data: _vm.Mirrors.Select(m => new MirrorDto(
-            m.Slot, m.DeviceName, m.Device.Serial, m.Device.Model, m.IsConnected,
-            ReferenceEquals(m, _vm.ActiveMirror), m.IsRecording, m.Device.IsWifi,
+            m.Slot, m.DeviceName, m.ResolvedDevice.Serial, m.ResolvedDevice.Model, m.IsConnected,
+            ReferenceEquals(m, _vm.ActiveMirror), m.IsRecording, m.ResolvedDevice.IsWifi,
             m.View.CurrentFps, m.View.VideoWidth, m.View.VideoHeight,
             Math.Max(0, m.StreamLagMs), m.StreamJitterMs, m.CurrentBitRate,
-            m.AudioMuted, m.AudioVolume)).ToList()));
+            m.AudioMuted, m.AudioVolume, m.Session?.VideoPackets ?? -1,
+            m.Decoder?.DecodedFrames ?? -1, m.RendererStalled, m.FrontOk, m.InvCopied,
+            m.ViewDiag)).ToList()));
 
     public Task<ApiResult> GetDevicesAsync() => Ui(() => new ApiResult(true,
         Data: _vm.Devices.Select(d => new DeviceDto(

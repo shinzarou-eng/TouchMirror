@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
+using System.Text;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Threading;
@@ -140,7 +141,7 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<MissingDeviceItem> MissingDevices { get; } = new();
     public ObservableCollection<ActivityEntry> ActivityLog { get; } = new();
     public bool HasMissingDevices => MissingDevices.Count > 0;
-    public bool HasStripContent => HasInactiveMirrors || HasMissingDevices;
+    public bool HasStripContent => (!ShowGridSurface && HasInactiveMirrors) || HasMissingDevices;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasDeviceScope))]
     private bool _settingsScopeGlobal;
@@ -160,6 +161,7 @@ public partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsSecondaryAccountMirror))]
     [NotifyPropertyChangedFor(nameof(DisplaySourceEnabled))]
     [NotifyPropertyChangedFor(nameof(BenchTitle))]
+    [NotifyPropertyChangedFor(nameof(SingleMirrorView))]
     private MirrorInstance? _activeMirror;
 
     public bool IsActiveMirrorIos => ActiveMirror?.IsIos == true;
@@ -211,10 +213,49 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowMirrorSurface))]
     [NotifyPropertyChangedFor(nameof(ShowHubSurface))]
+    [NotifyPropertyChangedFor(nameof(ShowGridSurface))]
+    [NotifyPropertyChangedFor(nameof(ShowSingleMirror))]
+    [NotifyPropertyChangedFor(nameof(GridMirrors))]
+    [NotifyPropertyChangedFor(nameof(StripMirrors))]
+    [NotifyPropertyChangedFor(nameof(SingleMirrorView))]
     private bool _showHub;
 
     public bool ShowMirrorSurface => Mirrors.Count > 0 && !ShowHub;
     public bool ShowHubSurface => Mirrors.Count == 0 || ShowHub;
+    public bool ShowGridSurface => Mirrors.Count > 1 && !ShowHub && GridMode;
+    public bool ShowSingleMirror => ShowMirrorSurface && !ShowGridSurface;
+    public IEnumerable<MirrorInstance>? GridMirrors => ShowGridSurface ? Mirrors : null;
+    public IEnumerable<MirrorInstance>? StripMirrors => ShowMirrorSurface && !ShowGridSurface ? InactiveMirrors : null;
+    public Views.MirrorView? SingleMirrorView => ShowSingleMirror ? ActiveMirror?.View : null;
+    public int GridColumns => Mirrors.Count switch { <= 1 => 1, <= 4 => 2, <= 9 => 3, _ => 4 };
+
+    private void NotifyHostSources()
+    {
+        OnPropertyChanged(nameof(GridMirrors));
+        OnPropertyChanged(nameof(StripMirrors));
+        OnPropertyChanged(nameof(SingleMirrorView));
+    }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowGridSurface))]
+    [NotifyPropertyChangedFor(nameof(ShowSingleMirror))]
+    [NotifyPropertyChangedFor(nameof(HasStripContent))]
+    [NotifyPropertyChangedFor(nameof(GridMirrors))]
+    [NotifyPropertyChangedFor(nameof(StripMirrors))]
+    [NotifyPropertyChangedFor(nameof(SingleMirrorView))]
+    private bool _gridMode;
+
+    partial void OnGridModeChanged(bool value)
+    {
+        if (ActiveWorkspace != null)
+            ActiveWorkspace.Model.GridMode = value;
+        foreach (var m in Mirrors)
+            m.SetVideoHidden(m != ActiveMirror && !ShowGridSurface);
+        ScheduleSave();
+    }
+
+    [RelayCommand]
+    private void ToggleGrid() => GridMode = !GridMode;
 
     [RelayCommand]
     private void ToggleHub() => ShowHub = !ShowHub;
@@ -238,6 +279,11 @@ public partial class MainViewModel : ObservableObject
         m is { AdaptiveBitrate: true, IsConnected: true }
             ? $"~{Math.Round(m.CurrentBitRate / 1e6, 1)} Mbps"
             : BitRateShort;
+
+    private static string LagSuffix(MirrorInstance? m) =>
+        m is { IsConnected: true } && m.StreamLagMs > 0.5
+            ? $" · {Math.Round(m.StreamLagMs)} ms"
+            : "";
 
     public Visibility RecordingVisibility =>
         ActiveMirror?.IsRecording == true ? Visibility.Visible : Visibility.Collapsed;
@@ -276,7 +322,7 @@ public partial class MainViewModel : ObservableObject
             SessionElapsed = cs.HasValue ? (DateTime.Now - cs.Value).ToString(@"hh\:mm\:ss") : "00:00:00";
             var view = ActiveMirror?.View;
             SessionStats = view != null && view.VideoWidth > 0
-                ? $"{view.VideoWidth}×{view.VideoHeight} · {view.CurrentFps:0} fps · {EffectiveBitRate(ActiveMirror)} · {CodecShort}"
+                ? $"{view.VideoWidth}×{view.VideoHeight} · {view.CurrentFps:0} fps · {EffectiveBitRate(ActiveMirror)} · {CodecShort}{LagSuffix(ActiveMirror)}"
                 : $"{QualityShort} · {BitRateShort} · {CodecShort}";
             foreach (var m in Mirrors)
                 m.TickSessionElapsed();
@@ -290,6 +336,14 @@ public partial class MainViewModel : ObservableObject
         };
 
         _settings = SettingsStore.Load();
+        MirrorInstance.GpuBackoffCheck = () =>
+            _settings.GpuBackoffUntil > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        MirrorInstance.GpuBackoffHit = () =>
+            Application.Current.Dispatcher.BeginInvoke(() =>
+            {
+                _settings.GpuBackoffUntil = DateTimeOffset.UtcNow.AddHours(6).ToUnixTimeMilliseconds();
+                ScheduleSave();
+            });
         _wizardOpen = !_settings.WizardSeen;
         LocalizationService.Instance.Load(_settings.Language);
         Status = L("st.select_device");
@@ -339,6 +393,8 @@ public partial class MainViewModel : ObservableObject
         SyncDeviceClipboard = _settings.SyncDeviceClipboard;
         Topmost = _settings.Topmost;
         TurnScreenOff = _settings.TurnScreenOff;
+        UhidInput = _settings.UhidInput;
+        WifiHandover = _settings.WifiHandover;
         Language = _settings.Language;
         Theme = _settings.Theme;
         AutoLaunchDofus = _settings.AutoLaunchDofus;
@@ -400,6 +456,7 @@ public partial class MainViewModel : ObservableObject
         _settings.LocalApiEnabled = LocalApiEnabled;
         _settings.DiscordPresence = DiscordPresenceEnabled;
         _settings.AnonymousStats = AnonymousStatsEnabled;
+        _settings.WifiHandover = WifiHandover;
         _settings.LocalApiPort = LocalApiPort;
         _settings.LocalApiToken = string.IsNullOrEmpty(LocalApiToken) ? null : LocalApiToken;
         _settings.LastSelectedDeviceKey = SelectedDevice?.DeviceKey;
@@ -424,6 +481,7 @@ public partial class MainViewModel : ObservableObject
                 dp.NewDisplay = wd.NewDisplay;
                 dp.AdaptiveBitrate = wd.AdaptiveBitrate;
                 dp.AdaptiveCeiling = wd.AdaptiveCeiling;
+                dp.UhidInput = wd.UhidInput;
             }
         }
         SettingsStore.Save(_settings);
@@ -466,6 +524,8 @@ public partial class MainViewModel : ObservableObject
     private bool _turnScreenOff;
     [ObservableProperty] private bool _autoLaunchDofus;
     [ObservableProperty] private bool _adaptiveBitrate = true;
+    [ObservableProperty] private bool _uhidInput = true;
+    [ObservableProperty] private bool _wifiHandover = true;
     public string TurnScreenOffText => TurnScreenOff ? L("misc.on") : L("misc.off");
 
     [ObservableProperty]
@@ -554,7 +614,7 @@ public partial class MainViewModel : ObservableObject
         {
             m.IsActive = m == instance;
             m.SetAudioMuted(m != instance);
-            m.SetVideoHidden(m != instance);
+            m.SetVideoHidden(m != instance && !ShowGridSurface);
             m.KeybindEditMode = KeybindEditMode && m == instance;
         }
         RefreshInactiveMirrors();
@@ -831,7 +891,8 @@ public partial class MainViewModel : ObservableObject
             EnableAudio = dp?.EnableAudio,
             TurnScreenOff = dp?.TurnScreenOff,
             NewDisplay = dp?.NewDisplay,
-            AdaptiveBitrate = dp?.AdaptiveBitrate
+            AdaptiveBitrate = dp?.AdaptiveBitrate,
+            UhidInput = dp?.UhidInput
         };
     }
 
@@ -871,7 +932,8 @@ public partial class MainViewModel : ObservableObject
                     EnableAudio = prev?.EnableAudio,
                     TurnScreenOff = prev?.TurnScreenOff,
                     NewDisplay = prev?.NewDisplay,
-                    AdaptiveBitrate = prev?.AdaptiveBitrate
+                    AdaptiveBitrate = prev?.AdaptiveBitrate,
+                    UhidInput = prev?.UhidInput
                 });
             }
             m.Prefs = next[^1];
@@ -943,6 +1005,7 @@ public partial class MainViewModel : ObservableObject
             SetActive(active);
         RefreshMissingDevices();
         LoadEffectiveSettings();
+        GridMode = ws.GridMode;
         SaveNow();
         var missing = MissingDevices.Count;
         Status = missing == 0
@@ -1440,8 +1503,78 @@ public partial class MainViewModel : ObservableObject
     private void SelectPlugin(MarketplaceItem? item)
     {
         SelectedPlugin = item;
+        LoadPluginFiles(item);
         if (item != null)
             AppLogger.Forget(LoadDetailAsync(item));
+    }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPluginFiles))]
+    private ObservableCollection<string> _pluginFiles = new();
+    public bool HasPluginFiles => PluginFiles.Count > 0;
+
+    [ObservableProperty] private string? _selectedPluginFile;
+    [ObservableProperty] private string _pluginFileContent = "";
+    [ObservableProperty] private string _pluginFileStatus = "";
+
+    private void LoadPluginFiles(MarketplaceItem? item)
+    {
+        PluginFiles.Clear();
+        SelectedPluginFile = null;
+        PluginFileContent = "";
+        PluginFileStatus = "";
+        var dir = item?.Installed is { } p ? Path.GetDirectoryName(p.FilePath) : null;
+        if (dir == null || !Directory.Exists(dir))
+            return;
+        foreach (var f in Directory.EnumerateFiles(dir))
+        {
+            var name = Path.GetFileName(f);
+            if (name.Equals("plugin.json", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("plugin.js", StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (PluginApi.AllowedExt.Contains(Path.GetExtension(name)))
+                PluginFiles.Add(name);
+        }
+        OnPropertyChanged(nameof(HasPluginFiles));
+    }
+
+    [RelayCommand]
+    private void SelectPluginFile(string? name)
+    {
+        if (name == null || SelectedPlugin?.Installed is not { } p)
+            return;
+        var path = Path.Combine(Path.GetDirectoryName(p.FilePath)!, name);
+        try
+        {
+            if (!File.Exists(path) || new FileInfo(path).Length > 256 * 1024)
+            {
+                PluginFileStatus = L("plugin.file.toolarge");
+                return;
+            }
+            PluginFileContent = File.ReadAllText(path);
+            SelectedPluginFile = name;
+            PluginFileStatus = "";
+        }
+        catch (Exception ex) { PluginFileStatus = ex.Message; }
+    }
+
+    [RelayCommand]
+    private void SavePluginFile()
+    {
+        if (SelectedPluginFile == null || SelectedPlugin?.Installed is not { } p)
+            return;
+        var path = Path.Combine(Path.GetDirectoryName(p.FilePath)!, SelectedPluginFile);
+        try
+        {
+            if (Encoding.UTF8.GetByteCount(PluginFileContent) > 256 * 1024)
+            {
+                PluginFileStatus = L("plugin.file.toolarge");
+                return;
+            }
+            File.WriteAllText(path, PluginFileContent);
+            PluginFileStatus = L("plugin.file.saved");
+        }
+        catch (Exception ex) { PluginFileStatus = ex.Message; }
     }
 
     [RelayCommand]
@@ -1622,6 +1755,10 @@ public partial class MainViewModel : ObservableObject
             if (!ReferenceEquals(m, ActiveMirror) && !InactiveMirrors.Contains(m))
                 InactiveMirrors.Add(m);
         OnPropertyChanged(nameof(HasInactiveMirrors));
+        OnPropertyChanged(nameof(ShowGridSurface));
+        OnPropertyChanged(nameof(ShowSingleMirror));
+        OnPropertyChanged(nameof(GridColumns));
+        NotifyHostSources();
         RefreshMissingDevices();
     }
 
@@ -1639,6 +1776,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(IsDisconnected));
         OnPropertyChanged(nameof(ShowMirrorSurface));
         OnPropertyChanged(nameof(ShowHubSurface));
+        NotifyHostSources();
         OnPropertyChanged(nameof(StatusDotColor));
         OnPropertyChanged(nameof(RecordingVisibility));
         for (var i = 0; i < Devices.Count; i++)
@@ -1686,7 +1824,9 @@ public partial class MainViewModel : ObservableObject
             ? $"com.ankama.dofustouch@{account.UserId}"
             : AutoLaunchDofus ? "com.ankama.dofustouch" : null,
         AdaptiveBitrate = o?.AdaptiveBitrate ?? _settings.AdaptiveBitrate,
+        UhidInput = o?.UhidInput ?? _settings.UhidInput,
         ClipboardAutosync = SyncDeviceClipboard,
+        WifiHandover = WifiHandover,
     };
 
     private WorkspaceDevice? ActivePrefs() => SettingsScopeGlobal ? null : ActiveMirror?.Prefs;
@@ -1704,6 +1844,7 @@ public partial class MainViewModel : ObservableObject
         EnableAudio = o?.EnableAudio ?? _settings.EnableAudio;
         TurnScreenOff = o?.TurnScreenOff ?? _settings.TurnScreenOff;
         AdaptiveBitrate = o?.AdaptiveBitrate ?? _settings.AdaptiveBitrate;
+        UhidInput = o?.UhidInput ?? _settings.UhidInput;
         if (o != null && ActiveMirror != null)
             ActiveMirror.AdaptiveBitrate = AdaptiveBitrate;
         var spec = o?.NewDisplay ?? _settings.NewDisplay;
@@ -1770,6 +1911,13 @@ public partial class MainViewModel : ObservableObject
         if (ActiveMirror != null)
             ActiveMirror.AdaptiveBitrate = value;
     }
+    partial void OnUhidInputChanged(bool value)
+    {
+        if (_suppressSave) return;
+        if (ActivePrefs() is { } o) o.UhidInput = value; else _settings.UhidInput = value;
+        ScheduleSave();
+        if (!_suppressReconnect) AppLogger.Forget(ReconnectActiveAsync());
+    }
     partial void OnVideoSharpenChanged(bool value)
     {
         foreach (var m in Mirrors)
@@ -1822,6 +1970,7 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnStayAwakeChanged(bool value) => ScheduleSave();
     partial void OnAutoLaunchDofusChanged(bool value) => ScheduleSave();
+    partial void OnWifiHandoverChanged(bool value) => ScheduleSave();
     partial void OnAutoFullscreenChanged(bool value) => ScheduleSave();
     partial void OnSyncDeviceClipboardChanged(bool value) => ScheduleSave();
     partial void OnTopmostChanged(bool value) => ScheduleSave();
@@ -3393,6 +3542,13 @@ public partial class MainViewModel : ObservableObject
             _apiHost.Publish("mirror.connected",
                 new { slot = m.Slot, name = m.DeviceName, serial = m.Device.Serial });
         };
+        instance.TransportChanged += m =>
+        {
+            var wifi = m.ResolvedDevice.IsWifi;
+            AddActivity(wifi ? "wifi" : "usb", L(wifi ? "act.transport_wifi" : "act.transport_usb"), m.Device.ShortName);
+            _apiHost.Publish("mirror.transport",
+                new { slot = m.Slot, name = m.DeviceName, serial = m.ResolvedDevice.Serial, wifi });
+        };
         instance.Disconnected += m =>
         {
             AddActivity("dismiss", L("act.mirror_stopped"), m.Device.ShortName);
@@ -3463,9 +3619,9 @@ public partial class MainViewModel : ObservableObject
         var list = new List<PredictiveMonitor.WifiProbe>();
         foreach (var m in Mirrors)
         {
-            if (!m.Device.IsWifi)
+            if (!m.ResolvedDevice.IsWifi)
                 continue;
-            var ip = m.Device.Serial.Split(':')[0];
+            var ip = m.ResolvedDevice.Serial.Split(':')[0];
             if (ip.Contains('.'))
                 list.Add(new PredictiveMonitor.WifiProbe(m.Device.ShortName, ip));
         }
@@ -3474,8 +3630,8 @@ public partial class MainViewModel : ObservableObject
 
     private async void OnWifiDegraded(PredictiveMonitor.WifiProbe probe)
     {
-        var m = Mirrors.FirstOrDefault(x => x.Device.IsWifi
-            && x.Device.Serial.Split(':')[0] == probe.Ip);
+        var m = Mirrors.FirstOrDefault(x => x.ResolvedDevice.IsWifi
+            && x.ResolvedDevice.Serial.Split(':')[0] == probe.Ip);
         if (m == null || m.IsRecording || !_usbSwitched.Add(m.IdentityKey))
             return;
         var twin = Devices.FirstOrDefault(d =>

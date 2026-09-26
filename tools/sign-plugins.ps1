@@ -16,7 +16,7 @@ $entries = foreach ($f in $files) {
     '        "{0}",' -f $h
 }
 
-@"
+$content = @"
 using System.Collections.Generic;
 
 namespace TouchMirror.Services;
@@ -28,6 +28,7 @@ public static class VerifiedPlugins
 $($entries -join "`n")
     };
 }
-"@ | Set-Content $out -Encoding utf8
+"@
+[System.IO.File]::WriteAllText($out, $content + "`r`n", [System.Text.UTF8Encoding]::new($false))
 
 Write-Output "VerifiedPlugins.cs régénéré ($($files.Count) plugin(s))."

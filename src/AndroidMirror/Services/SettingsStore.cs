@@ -33,6 +33,7 @@ public sealed class DevicePrefs
     public string? NewDisplay { get; set; }
     public bool? AdaptiveBitrate { get; set; }
     public int? AdaptiveCeiling { get; set; }
+    public bool? UhidInput { get; set; }
     public List<int> OwnedUserIds { get; set; } = new();
     public Dictionary<int, string> AccountAvatars { get; set; } = new();
     public Dictionary<int, string> AccountNames { get; set; } = new();
@@ -57,6 +58,7 @@ public sealed class WorkspaceDevice
     public string? AccountName { get; set; }
     public bool? AdaptiveBitrate { get; set; }
     public int? AdaptiveCeiling { get; set; }
+    public bool? UhidInput { get; set; }
 }
 
 public sealed class Workspace
@@ -65,6 +67,7 @@ public sealed class Workspace
     public string Name { get; set; } = "";
     public List<WorkspaceDevice> Devices { get; set; } = new();
     public string? ActiveDeviceKey { get; set; }
+    public bool GridMode { get; set; }
 }
 
 public sealed class AppSettings
@@ -74,6 +77,7 @@ public sealed class AppSettings
     public int VideoBitRate { get; set; } = 16_000_000;
     public string VideoCodec { get; set; } = "auto";
     public string VideoDecoder { get; set; } = "gpu";
+    public long GpuBackoffUntil { get; set; }
     public bool VideoSharpen { get; set; }
     public bool VideoFxaa { get; set; }
     public double VideoBrightness { get; set; }
@@ -89,6 +93,8 @@ public sealed class AppSettings
     public bool TurnScreenOff { get; set; }
     public bool AutoLaunchDofus { get; set; }
     public bool AdaptiveBitrate { get; set; } = true;
+    public bool UhidInput { get; set; } = true;
+    public bool WifiHandover { get; set; } = true;
     public List<string> SetupDismissed { get; set; } = new();
     public bool WizardSeen { get; set; }
     public string? NewDisplay { get; set; }

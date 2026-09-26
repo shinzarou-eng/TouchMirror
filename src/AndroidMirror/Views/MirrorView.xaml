@@ -115,6 +115,26 @@
                        FontWeight="SemiBold" />
         </Border>
 
+        <Border Padding="10,5"
+                CornerRadius="{StaticResource RadiusControl}"
+                Background="{DynamicResource AppModalSolidBrush}"
+                BorderThickness="1"
+                BorderBrush="{DynamicResource AppBorderBrush}"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Margin="0,12,12,0"
+                IsHitTestVisible="False"
+                Visibility="{Binding TransportBadgeVisibility}">
+            <StackPanel Orientation="Horizontal">
+                <Path Style="{StaticResource Ic}" Data="{StaticResource IcWifi124}" Width="12" Height="12"
+                               Fill="{DynamicResource OnDarkTextBrush}" Margin="0,0,7,0" />
+                <TextBlock Text="{Binding TransportBadge}"
+                           Foreground="{DynamicResource OnDarkTextBrush}"
+                           FontSize="{StaticResource FsMeta}"
+                           FontWeight="SemiBold" />
+            </StackPanel>
+        </Border>
+
         <Grid x:Name="WaitingOverlay"
               Background="{DynamicResource AppScrimBrush}"
               Visibility="Collapsed">

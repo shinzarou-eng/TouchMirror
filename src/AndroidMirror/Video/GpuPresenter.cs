@@ -21,6 +21,17 @@ public sealed class GpuPresenter : IDisposable
         {
             lock (_deviceLock)
             {
+                var removed = false;
+                if (_device != null)
+                {
+                    try { removed = _device.DeviceRemovedReason.Failure; }
+                    catch { }
+                }
+                if (removed)
+                {
+                    try { _device!.Dispose(); } catch { }
+                    _device = null;
+                }
                 if (_device == null)
                 {
                     var r = Vortice.Direct3D11.D3D11.D3D11CreateDevice(
@@ -79,6 +90,7 @@ public sealed class GpuPresenter : IDisposable
 
     public event Action? FrameReady;
     public event Action<int, int>? SizeChanged;
+    public bool PendingRebind => _pendingRebind;
 
     private const string VsSrc = @"
 struct VSOut { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };
@@ -334,13 +346,16 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
 
     public void Redraw()
     {
-        lock (_sync)
+        if (_gpuDead || !Monitor.TryEnter(_sync))
+            return;
+        try
         {
             if (_disposed || _frameRtv == null || _pendingRebind || _lastY == null)
                 return;
             UpdateColor(_lastColorInfo);
             Draw(_lastY, _lastUV!, _w, _h);
         }
+        finally { Monitor.Exit(_sync); }
         Invalidate();
     }
 
@@ -394,7 +409,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
 
     public unsafe void Present(IntPtr srcTexture, int sliceIndex, int w, int h, int colorInfo)
     {
-        if (srcTexture == IntPtr.Zero || _disposed)
+        if (srcTexture == IntPtr.Zero || _disposed || _gpuDead)
             return;
         lock (_sync)
         {
@@ -446,7 +461,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
     public unsafe void PresentSoftware(IntPtr yPlane, int yStride, IntPtr uPlane, int uStride,
         IntPtr vPlane, int vStride, int w, int h, int colorInfo)
     {
-        if (yPlane == IntPtr.Zero || uPlane == IntPtr.Zero || _disposed)
+        if (yPlane == IntPtr.Zero || uPlane == IntPtr.Zero || _disposed || _gpuDead)
             return;
         lock (_sync)
         {
@@ -517,41 +532,91 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         }
     }
 
+    private int _rebindRetryQueued;
+    private int _rebindBusy;
+    private int _rebindFails;
+    private volatile bool _gpuDead;
+    private int _frontOk = -1;
+    private long _invCopied;
+    public int FrontOk => _frontOk;
+    public long InvCopied => Interlocked.Read(ref _invCopied);
+    public event Action? GpuFailed;
+    private static readonly object _d3d9Lock = new();
+
+    private void ScheduleRebindRetry()
+    {
+        var img = _image;
+        if (img == null || Interlocked.Exchange(ref _rebindRetryQueued, 1) == 1)
+            return;
+        img.Dispatcher.BeginInvoke(() =>
+        {
+            _rebindRetryQueued = 0;
+            if (_pendingRebind && !_disposed)
+                Rebind();
+        });
+    }
+
     public void Rebind()
     {
-        if (_image == null || _w <= 0 || !_image.IsFrontBufferAvailable)
+        var img = _image;
+        if (img == null || _w <= 0 || _disposed || _gpuDead || !img.IsFrontBufferAvailable)
             return;
-
-        if (_dev9 == null)
+        if (Interlocked.Exchange(ref _rebindBusy, 1) == 1)
+            return;
+        var w = _w; var h = _h; var hwnd = _hwnd;
+        Task.Run(() => RebindWorker(img, w, h, hwnd));
+        _ = Task.Run(async () =>
         {
-            _d3d9 = D3D9.D3D9.Direct3DCreate9Ex();
-            var pp = new D3D9.PresentParameters
+            await Task.Delay(5000);
+            if (Volatile.Read(ref _rebindBusy) == 1 && !_disposed && !_gpuDead)
             {
-                Windowed = true,
-                SwapEffect = D3D9.SwapEffect.Discard,
-                BackBufferFormat = D3D9.Format.X8R8G8B8,
-                BackBufferWidth = 1,
-                BackBufferHeight = 1,
-                PresentationInterval = D3D9.PresentInterval.Default,
-            };
-            _dev9 = _d3d9.CreateDeviceEx(0, D3D9.DeviceType.Hardware, _hwnd,
-                D3D9.CreateFlags.HardwareVertexProcessing | D3D9.CreateFlags.Multithreaded |
-                D3D9.CreateFlags.FpuPreserve, pp);
-        }
+                _gpuDead = true;
+                _pendingRebind = true;
+                GpuFailed?.Invoke();
+            }
+        });
+    }
 
-        IntPtr handle = IntPtr.Zero;
-        _tex9?.Dispose();
-        _tex9 = _dev9.CreateTexture((uint)_w, (uint)_h, 1,
-            D3D9.Usage.RenderTarget, D3D9.Format.X8R8G8B8,
-            D3D9.Pool.Default, ref handle);
-        var surface = _tex9.GetSurfaceLevel(0);
-
-        lock (_sync)
+    private void RebindWorker(D3DImage img, int w, int h, IntPtr hwnd)
+    {
+        D3D9.IDirect3DTexture9? tex9 = null;
+        D3D9.IDirect3DSurface9? surface = null;
+        try
         {
-            _frameRtv?.Dispose(); _frame?.Dispose(); _bgra?.Dispose();
-            _bgra = SharedDevice!.OpenSharedResource<ID3D11Texture2D>(handle);
-            var d = _bgra.Description;
-            _frame = SharedDevice!.CreateTexture2D(new Texture2DDescription
+            lock (_d3d9Lock)
+            {
+                if (_dev9 == null)
+                {
+                    _d3d9 = D3D9.D3D9.Direct3DCreate9Ex();
+                    var pp = new D3D9.PresentParameters
+                    {
+                        Windowed = true,
+                        SwapEffect = D3D9.SwapEffect.Discard,
+                        BackBufferFormat = D3D9.Format.X8R8G8B8,
+                        BackBufferWidth = 1,
+                        BackBufferHeight = 1,
+                        PresentationInterval = D3D9.PresentInterval.Default,
+                    };
+                    _dev9 = _d3d9.CreateDeviceEx(0, D3D9.DeviceType.Hardware, hwnd,
+                        D3D9.CreateFlags.HardwareVertexProcessing | D3D9.CreateFlags.Multithreaded |
+                        D3D9.CreateFlags.FpuPreserve, pp);
+                }
+            }
+            if (_disposed || _gpuDead)
+                return;
+
+            IntPtr handle = IntPtr.Zero;
+            tex9 = _dev9!.CreateTexture((uint)w, (uint)h, 1,
+                D3D9.Usage.RenderTarget, D3D9.Format.X8R8G8B8,
+                D3D9.Pool.Default, ref handle);
+            surface = tex9.GetSurfaceLevel(0);
+
+            var dev = SharedDevice;
+            if (dev == null)
+                throw new InvalidOperationException("D3D11 indisponible");
+            var bgraNew = dev.OpenSharedResource<ID3D11Texture2D>(handle);
+            var d = bgraNew.Description;
+            var frameNew = dev.CreateTexture2D(new Texture2DDescription
             {
                 Width = d.Width, Height = d.Height, MipLevels = 1, ArraySize = 1,
                 Format = d.Format,
@@ -561,30 +626,97 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
                 CPUAccessFlags = CpuAccessFlags.None,
                 MiscFlags = ResourceOptionFlags.None,
             });
-            _frameRtv = SharedDevice!.CreateRenderTargetView(_frame);
-            _pendingRebind = false;
+            var rtvNew = dev.CreateRenderTargetView(frameNew);
+
+            if (!Monitor.TryEnter(_sync, 3000))
+            {
+                rtvNew.Dispose(); frameNew.Dispose(); bgraNew.Dispose();
+                FailRebind();
+                return;
+            }
+            try
+            {
+                if (_disposed || _gpuDead || w != _w || h != _h)
+                {
+                    rtvNew.Dispose(); frameNew.Dispose(); bgraNew.Dispose();
+                    tex9?.Dispose(); surface?.Dispose();
+                    Interlocked.Exchange(ref _rebindBusy, 0);
+                    if (!_disposed && !_gpuDead)
+                        ScheduleRebindRetry();
+                    return;
+                }
+                _frameRtv?.Dispose(); _frame?.Dispose(); _bgra?.Dispose();
+                _bgra = bgraNew; _frame = frameNew; _frameRtv = rtvNew;
+                var old = _tex9;
+                _tex9 = tex9;
+                tex9 = null;
+                try { old?.Dispose(); } catch { }
+                _pendingRebind = false;
+            }
+            finally { Monitor.Exit(_sync); }
+
+            img.Dispatcher.BeginInvoke(() =>
+            {
+                try
+                {
+                    if (!_disposed && _image == img && img.IsFrontBufferAvailable && surface != null)
+                    {
+                        img.Lock();
+                        img.SetBackBuffer(D3DResourceType.IDirect3DSurface9, surface.NativePointer);
+                        img.Unlock();
+                    }
+                }
+                catch { }
+                try { surface?.Dispose(); } catch { }
+                Interlocked.Exchange(ref _rebindBusy, 0);
+            });
+            _rebindFails = 0;
+            return;
+        }
+        catch
+        {
+            tex9?.Dispose();
+            surface?.Dispose();
+            FailRebind();
+            return;
         }
 
-        _image.Lock();
-        _image.SetBackBuffer(D3DResourceType.IDirect3DSurface9, surface.NativePointer);
-        _image.Unlock();
-        surface.Dispose();
+        void FailRebind()
+        {
+            Interlocked.Exchange(ref _rebindBusy, 0);
+            _pendingRebind = true;
+            if (++_rebindFails >= 4)
+            {
+                _gpuDead = true;
+                GpuFailed?.Invoke();
+            }
+            else if (!_disposed)
+            {
+                ScheduleRebindRetry();
+            }
+        }
     }
 
     public unsafe byte[]? CaptureBgra(out int w, out int h)
     {
-        lock (_sync)
+        if (_gpuDead || !Monitor.TryEnter(_sync))
+        {
+            w = 0; h = 0;
+            return null;
+        }
+        try
         {
             w = _w; h = _h;
-            if (_frame == null || _w <= 0)
+            var src2 = _bgra ?? _frame;
+            if (src2 == null || _w <= 0)
                 return null;
-            var desc = _frame.Description;
+            var desc = src2.Description;
             desc.Usage = ResourceUsage.Staging;
             desc.BindFlags = BindFlags.None;
             desc.CPUAccessFlags = CpuAccessFlags.Read;
             desc.MiscFlags = ResourceOptionFlags.None;
             using var staging = SharedDevice!.CreateTexture2D(desc);
-            _ctx.CopyResource(staging, _frame);
+            _ctx.CopyResource(staging, src2);
             var map = _ctx.Map(staging, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
             try
             {
@@ -607,20 +739,86 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
                 _ctx.Unmap(staging, 0);
             }
         }
+        finally { Monitor.Exit(_sync); }
+    }
+
+    public unsafe (long hash, bool uniform)? SampleFrame()
+    {
+        if (_gpuDead || !Monitor.TryEnter(_sync))
+            return null;
+        try
+        {
+            if (_frame == null || _w <= 0 || _h <= 0)
+                return null;
+            var desc = _frame.Description;
+            desc.Usage = ResourceUsage.Staging;
+            desc.BindFlags = BindFlags.None;
+            desc.CPUAccessFlags = CpuAccessFlags.Read;
+            desc.MiscFlags = ResourceOptionFlags.None;
+            using var staging = SharedDevice!.CreateTexture2D(desc);
+            _ctx.CopyResource(staging, _frame);
+            var map = _ctx.Map(staging, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+            try
+            {
+                var src = (byte*)map.DataPointer;
+                var pitch = (int)map.RowPitch;
+                var rowStep = Math.Max(1, _h / 64);
+                var colStep = Math.Max(4, _w * 4 / 256) & ~3;
+                int minB = 255, maxB = 0, minG = 255, maxG = 0, minR = 255, maxR = 0;
+                unchecked
+                {
+                    long hash = -3750763034362895579L;
+                    for (var row = 0; row < _h; row += rowStep)
+                    {
+                        var r = src + (long)row * pitch;
+                        for (var col = 0; col + 3 < _w * 4; col += colStep)
+                        {
+                            var v = *(uint*)(r + col);
+                            hash = (hash ^ v) * 1099511628211L;
+                            int b = (int)(v & 0xFF), g = (int)((v >> 8) & 0xFF), rr = (int)((v >> 16) & 0xFF);
+                            if (b < minB) minB = b; if (b > maxB) maxB = b;
+                            if (g < minG) minG = g; if (g > maxG) maxG = g;
+                            if (rr < minR) minR = rr; if (rr > maxR) maxR = rr;
+                        }
+                    }
+                    var uniform = (maxB - minB) < 10 && (maxG - minG) < 10 && (maxR - minR) < 10;
+                    return (hash, uniform);
+                }
+            }
+            finally { _ctx.Unmap(staging, 0); }
+        }
+        finally { Monitor.Exit(_sync); }
     }
 
     public void Invalidate()
     {
         var img = _image;
-        if (_disposed || img == null || !img.IsFrontBufferAvailable)
+        _frontOk = img == null ? -1 : img.IsFrontBufferAvailable ? 1 : 0;
+        if (_disposed || _gpuDead || img == null || !img.IsFrontBufferAvailable)
             return;
         img.Lock();
         try
         {
-            lock (_sync)
+            if (Monitor.TryEnter(_sync))
             {
-                if (_bgra != null && _frame != null)
-                    _ctx.CopyResource(_bgra, _frame);
+                try
+                {
+                    if (_bgra != null && _frame != null)
+                    {
+                        try
+                        {
+                            _ctx.CopyResource(_bgra, _frame);
+                            Interlocked.Increment(ref _invCopied);
+                        }
+                        catch (SharpGen.Runtime.SharpGenException)
+                        {
+                            _gpuDead = true;
+                            _pendingRebind = true;
+                            _ = Task.Run(() => GpuFailed?.Invoke());
+                        }
+                    }
+                }
+                finally { Monitor.Exit(_sync); }
             }
             img.AddDirtyRect(new Int32Rect(0, 0, _w, _h));
         }
@@ -657,6 +855,11 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         {
             _image.IsFrontBufferAvailableChanged -= OnFrontBufferChanged;
             _image = null;
+        }
+        if (_gpuDead)
+        {
+            Drop(ref _tex9);
+            return;
         }
         lock (_sync)
         {

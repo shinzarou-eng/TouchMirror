@@ -29,7 +29,9 @@ public sealed record EngineOptions
     public string? NewDisplay { get; init; }
     public string? AutoLaunchPackage { get; init; }
     public bool AdaptiveBitrate { get; init; }
+    public bool UhidInput { get; init; }
     public bool ClipboardAutosync { get; init; } = true;
+    public bool WifiHandover { get; init; } = true;
 }
 
 public sealed class VideoPacket
@@ -75,6 +77,7 @@ public sealed class EngineSession : IAsyncDisposable
 
     public string? DeviceName { get; private set; }
     public uint EngineCaps { get; private set; }
+    public bool SupportsUhid => (EngineCaps & 0x80) != 0;
     public string? VideoCodecId { get; private set; }
     public string? AudioCodecId { get; private set; }
     public int VideoWidth { get; private set; }

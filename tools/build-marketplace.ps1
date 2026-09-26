@@ -25,5 +25,8 @@ Get-ChildItem "$root\marketplace" -Directory | Sort-Object Name | ForEach-Object
 }
 
 $json = @{ plugins = $plugins } | ConvertTo-Json -Depth 5
+$json = [regex]::Replace($json, '[^\x00-\x7F]', { '\u{0:x4}' -f [int][char]$args[0].Value })
+$json = [regex]::Replace($json, "['<>&+``]", { '\u{0:x4}' -f [int][char]$args[0].Value })
+$json = $json -replace "`r`n", "`n"
 [System.IO.File]::WriteAllText("$root\marketplace\index.json", $json, [System.Text.UTF8Encoding]::new($false))
 $plugins | ForEach-Object { Write-Output ("  {0} v{1}  {2}..." -f $_.id, $_.version, $_.hash.Substring(0,16)) }

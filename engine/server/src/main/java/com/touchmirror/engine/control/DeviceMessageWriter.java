@@ -37,6 +37,18 @@ public class DeviceMessageWriter {
             case DeviceMessage.TYPE_ACK_CLIPBOARD:
                 dos.writeLong(msg.getSequence());
                 break;
+            case DeviceMessage.TYPE_UHID_OUTPUT:
+                byte[] data = msg.getData();
+                dos.writeShort(msg.getId());
+                dos.writeShort(data != null ? data.length : 0);
+                if (data != null) {
+                    dos.write(data);
+                }
+                break;
+            case DeviceMessage.TYPE_UHID_ERROR:
+                dos.writeShort(msg.getId());
+                dos.writeByte(msg.getCode());
+                break;
             default:
                 throw new ControlProtocolException("Unknown event type: " + type);
         }

@@ -1121,9 +1121,10 @@
 
                     <Border CornerRadius="{StaticResource RadiusControl}" Margin="4" Background="Black"
                             BorderBrush="{DynamicResource AppBorderBrush}"
-                            BorderThickness="1" ClipToBounds="True">
+                            BorderThickness="1" ClipToBounds="True"
+                            Visibility="{Binding ShowSingleMirror, Converter={StaticResource BoolToVis}}">
                         <Grid>
-                            <ContentPresenter Content="{Binding ActiveMirror.View}" />
+                            <ContentPresenter Content="{Binding SingleMirrorView}" />
 
 
                             <Border Background="{DynamicResource AppScrimBrush}">
@@ -1158,6 +1159,63 @@
                             </Border>
                         </Grid>
                     </Border>
+                    <ItemsControl ItemsSource="{Binding GridMirrors}" Grid.Column="0" Margin="4"
+                                  Visibility="{Binding ShowGridSurface, Converter={StaticResource BoolToVis}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="{Binding GridColumns}" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="4" CornerRadius="{StaticResource RadiusControl}"
+                                        Background="Black" BorderThickness="1" ClipToBounds="True"
+                                        BorderBrush="{DynamicResource AppBorderBrush}">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource DofusAccentBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <Grid>
+                                        <ContentPresenter Content="{Binding View}" />
+                                        <Border VerticalAlignment="Top" HorizontalAlignment="Left"
+                                                Margin="6" Padding="7,3" IsHitTestVisible="False"
+                                                CornerRadius="{StaticResource RadiusBadge}"
+                                                Background="{DynamicResource AppGlassAltBrush}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Ellipse Width="6" Height="6" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                         Fill="{Binding AccentHex, Converter={StaticResource HexToBrush}}"
+                                                         Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}" />
+                                                <TextBlock Text="{Binding DeviceName, Mode=OneWay}"
+                                                           FontSize="{StaticResource FsMeta}" FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource OnDarkTextBrush}" />
+                                                <Ellipse Width="6" Height="6" Margin="7,0,0,0" VerticalAlignment="Center"
+                                                         Fill="{DynamicResource DangerBrush}"
+                                                         Visibility="{Binding IsRecording, Converter={StaticResource BoolToVis}}" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                                                Margin="6" Padding="7,2" IsHitTestVisible="False"
+                                                CornerRadius="{StaticResource RadiusBadge}"
+                                                Background="{DynamicResource AppGlassAltBrush}"
+                                                Visibility="{Binding HasSessionElapsed, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock Text="{Binding SessionElapsed}" FontSize="{StaticResource FsMeta}"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </Border>
+                                        <Border Background="#C80B0E11" IsHitTestVisible="False"
+                                                Visibility="{Binding IsReconnecting, Converter={StaticResource BoolToVis}}">
+                                            <ui:ProgressRing IsIndeterminate="True" Width="18" Height="18"
+                                                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                             <Border x:Name="CmdPill" Grid.Column="0" VerticalAlignment="Top" HorizontalAlignment="Center"
                                     Margin="0,0,0,0" Padding="5,4,5,5" CornerRadius="0,0,12,12"
                                     Background="{DynamicResource AppGlassAltBrush}"
@@ -1192,6 +1250,13 @@
                                             BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1"
                                             Visibility="{Binding ActiveMirror.CodecBadgeVisibility}">
                                         <TextBlock Text="{Binding ActiveMirror.CodecBadge}" FontSize="{StaticResource FsCaption}"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                    </Border>
+                                    <Border Margin="5,0,0,0" Padding="6,1" CornerRadius="{StaticResource RadiusBadge}"
+                                            VerticalAlignment="Center"
+                                            BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1"
+                                            Visibility="{Binding ActiveMirror.TransportBadgeVisibility}">
+                                        <TextBlock Text="{Binding ActiveMirror.TransportBadge}" FontSize="{StaticResource FsCaption}"
                                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                     </Border>
                                     <Border Margin="5,0,0,0" Padding="6,1" CornerRadius="{StaticResource RadiusBadge}"
@@ -1468,7 +1533,8 @@
                                   HorizontalScrollBarVisibility="Disabled"
                                   Visibility="{Binding HasStripContent, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
-                        <ItemsControl ItemsSource="{Binding InactiveMirrors}" Margin="0,4,0,4">
+                        <ItemsControl ItemsSource="{Binding StripMirrors}" Margin="0,4,0,4"
+                                      Visibility="{Binding ShowGridSurface, Converter={StaticResource NotBoolToVis}}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Border Width="172" Height="112" Margin="6,4"
@@ -3130,6 +3196,11 @@
                                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                            <ui:Button Style="{StaticResource BtnAction}" Width="30" Height="28" Padding="0" Margin="0,0,7,0"
+                                                       Command="{Binding ToggleGridCommand}" ToolTip="{loc:Loc grid.tip}"
+                                                       Visibility="{Binding HasInactiveMirrors, Converter={StaticResource BoolToVis}}">
+                                                <Path Style="{StaticResource Ic}" Data="{StaticResource IcAppsGrid24}" Width="13" Height="13" />
+                                            </ui:Button>
                                             <ui:Button Style="{StaticResource BtnPrimary}" Padding="12,0" Height="28"
                                                        FontSize="{StaticResource FsCaption}" FontWeight="SemiBold"
                                                        Command="{Binding ToggleHubCommand}" ToolTip="{loc:Loc retour_au_hub}">
@@ -3811,18 +3882,32 @@
                                     </StackPanel>
                                 </ToggleButton>
                             </UniformGrid>
-                            <UniformGrid Columns="1" Margin="0,0,0,7">
+                            <UniformGrid Columns="2" Margin="0,0,0,7">
                                 <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding DiscordPresenceEnabled}"
-                                              Margin="0" ToolTip="{loc:Loc tile.discord.tip}">
+                                              Margin="0,0,4,0" ToolTip="{loc:Loc tile.discord.tip}">
                                     <StackPanel>
                                         <TextBlock Style="{StaticResource TileTitle}" Text="{loc:Loc tile.discord}" />
                                         <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.discord.c}" />
                                     </StackPanel>
                                 </ToggleButton>
+                                <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding UhidInput}"
+                                              Margin="4,0,0,0" ToolTip="{loc:Loc tile.uhid.tip}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource TileTitle}" Text="{loc:Loc tile.uhid}" />
+                                        <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.uhid.c}" />
+                                    </StackPanel>
+                                </ToggleButton>
                             </UniformGrid>
-                            <UniformGrid Columns="1" Margin="0,0,0,7">
+                            <UniformGrid Columns="2" Margin="0,0,0,7">
+                                <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding WifiHandover}"
+                                              Margin="0,0,4,0" ToolTip="{loc:Loc tile.handover.tip}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource TileTitle}" Text="{loc:Loc tile.handover}" />
+                                        <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.handover.c}" />
+                                    </StackPanel>
+                                </ToggleButton>
                                 <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding AnonymousStatsEnabled}"
-                                              Margin="0" ToolTip="{loc:Loc tile.stats.tip}">
+                                              Margin="4,0,0,0" ToolTip="{loc:Loc tile.stats.tip}">
                                     <StackPanel>
                                         <TextBlock Style="{StaticResource TileTitle}" Text="{loc:Loc tile.stats}" />
                                         <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.stats.c}" />
@@ -4776,6 +4861,60 @@
                                     <TextBlock FontSize="{StaticResource FsMeta}" Margin="1,10,0,0" TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                                Text="{loc:Loc le_hash_ci_dessus_identifie_exactement_ce_code_t}" />
+                                    <Border Margin="0,12,0,0" BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="0,1,0,0" Padding="0,10,0,0"
+                                            Visibility="{Binding HasPluginFiles, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="{loc:Loc plugin.files}" FontSize="{StaticResource FsMeta}" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                    </Border>
+                                    <ItemsControl ItemsSource="{Binding PluginFiles}" Margin="0,5,0,0"
+                                                  Visibility="{Binding HasPluginFiles, Converter={StaticResource BoolToVis}}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <ui:Button Appearance="Transparent" Padding="8,3" Margin="0,0,5,5"
+                                                               Command="{Binding DataContext.SelectPluginFileCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                               CommandParameter="{Binding}">
+                                                        <Button.Template>
+                                                            <ControlTemplate TargetType="Button">
+                                                                <Border Padding="8,3" CornerRadius="{StaticResource RadiusBadge}"
+                                                                        BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1"
+                                                                        Background="{DynamicResource SurfaceFaintBrush}">
+                                                                    <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="{StaticResource FsMeta}"
+                                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                                </Border>
+                                                            </ControlTemplate>
+                                                        </Button.Template>
+                                                    </ui:Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    <StackPanel Visibility="{Binding SelectedPluginFile, Converter={StaticResource NonEmptyToVis}}">
+                                        <Border Margin="0,3,0,0" Padding="10,8" CornerRadius="{StaticResource RadiusControl}"
+                                                Background="{DynamicResource CodeBackgroundBrush}" BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1">
+                                            <TextBox Text="{Binding PluginFileContent, UpdateSourceTrigger=PropertyChanged}"
+                                                     FontFamily="Consolas" FontSize="12.5" AcceptsReturn="True"
+                                                     MaxHeight="200" VerticalScrollBarVisibility="Auto"
+                                                     Background="Transparent" BorderThickness="0"
+                                                     Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </Border>
+                                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                            <ui:Button Style="{StaticResource BtnAction}" Padding="10,0" Height="24"
+                                                       FontSize="{StaticResource FsCaption}"
+                                                       Command="{Binding SavePluginFileCommand}">
+                                                <TextBlock Text="{loc:Loc plugin.file.save}" />
+                                            </ui:Button>
+                                            <TextBlock Text="{Binding PluginFileStatus}" FontSize="{StaticResource FsMeta}"
+                                                       VerticalAlignment="Center" Margin="10,0,0,0"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                        </StackPanel>
+                                        <TextBlock FontSize="{StaticResource FsMeta}" Margin="1,6,0,0" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                   Text="{loc:Loc plugin.file.note}" />
+                                    </StackPanel>
                                 </StackPanel>
                             </ScrollViewer>
                         </Grid>

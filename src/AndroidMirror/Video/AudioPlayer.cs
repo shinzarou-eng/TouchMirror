@@ -160,6 +160,8 @@ public sealed unsafe class AudioPlayer : IDisposable
     {
         if (_swr == null)
         {
+            if (_swrFailed)
+                return;
             AVChannelLayout outLayout;
             ffmpeg.av_channel_layout_default(&outLayout, 2);
             SwrContext* swr;
@@ -169,6 +171,7 @@ public sealed unsafe class AudioPlayer : IDisposable
                 0, null);
             if (ret < 0 || swr == null || ffmpeg.swr_init(swr) < 0)
             {
+                _swrFailed = true;
                 Error?.Invoke($"swr_init a échoué ({ret}) in_ch={f->ch_layout.nb_channels} in_sr={f->sample_rate} in_fmt={f->format}");
                 return;
             }
@@ -201,6 +204,7 @@ public sealed unsafe class AudioPlayer : IDisposable
     }
 
     private int _swrEmpty;
+    private bool _swrFailed;
     private readonly System.IO.FileStream? _pcmDump =
         System.Environment.GetEnvironmentVariable("TM_DUMP_AUDIO") != null
             ? System.IO.File.Create(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "pcm-out.raw"))

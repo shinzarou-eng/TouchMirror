@@ -17,6 +17,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
 {
     protected static string L(string key) => LocalizationService.Get(key);
     public AdbDevice Device { get; }
+    public AdbDevice ResolvedDevice => _resolvedDevice;
     public MirrorView View { get; } = new();
 
     public EngineSession? Session { get; private set; }
@@ -38,6 +39,12 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public Visibility CodecBadgeVisibility =>
         string.IsNullOrEmpty(CodecBadge) ? Visibility.Collapsed : Visibility.Visible;
     private bool _codecHwSeen;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TransportBadgeVisibility))]
+    private string? _transportBadge;
+    public Visibility TransportBadgeVisibility =>
+        string.IsNullOrEmpty(TransportBadge) ? Visibility.Collapsed : Visibility.Visible;
 
     public WorkspaceDevice? Prefs { get; set; }
 
@@ -151,10 +158,37 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public int Incidents => _incidents;
     private readonly object _decoderLock = new();
     private long _decoderBornAt;
+    private bool _gpuDisabled;
+    public static Func<bool>? GpuBackoffCheck;
+    public static Action? GpuBackoffHit;
+
+    private bool GpuUsable
+    {
+        get
+        {
+            if (_gpuDisabled)
+                return false;
+            try { return GpuBackoffCheck?.Invoke() != true; }
+            catch { return true; }
+        }
+    }
+
+    private void OnGpuFailed()
+    {
+        if (_gpuDisabled || _disposed || _stopping)
+            return;
+        _gpuDisabled = true;
+        RaiseLog(L("log.gpu_fallback"));
+        try { GpuBackoffHit?.Invoke(); } catch { }
+        _ = Task.Run(ReleaseDecoder);
+    }
+    private int _decoderStallTicks;
     private readonly object _audioLock = new();
     private bool _screenDimmed;
     private bool _audioBroken;
     private AdbDevice _resolvedDevice;
+    private string? _wifiEndpoint;
+    private int _wifiTcpipTried;
     private DispatcherTimer? _watchdog;
     private string? _codecOverride;
 
@@ -163,15 +197,26 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public event Action<string>? Log;
     public event Action<MirrorInstance>? Disconnected;
     public event Action<MirrorInstance>? Connected;
+    public event Action<MirrorInstance>? TransportChanged;
 
     protected void RaiseLog(string message) => Log?.Invoke(message);
     protected void RaiseConnected() => Connected?.Invoke(this);
     protected void RaiseDisconnected() => Disconnected?.Invoke(this);
 
+    private void SetResolvedDevice(AdbDevice device)
+    {
+        var wasWifi = _resolvedDevice.IsWifi;
+        _resolvedDevice = device;
+        TransportBadge = device.IsWifi ? "WiFi" : null;
+        if (device.IsWifi != wasWifi)
+            TransportChanged?.Invoke(this);
+    }
+
     public MirrorInstance(AdbDevice device)
     {
         Device = device;
         _resolvedDevice = device;
+        TransportBadge = device.IsWifi ? "WiFi" : null;
         DeviceName = device.DisplayName;
         View.DataContext = this;
         View.BindKeybinds(Keybinds);
@@ -256,12 +301,14 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             TrackStreamMetrics(packet);
             if (!_videoHidden || !_encoderSuspended)
             {
+                VideoDecoder dec;
                 lock (_decoderLock)
                 {
                     if (Decoder == null)
                     {
                         GpuPresenter? presenter = null;
-                        if (options.VideoDecoder == "gpu")
+                        var gpu = GpuUsable;
+                        if (options.VideoDecoder == "gpu" && gpu)
                         {
                             try
                             {
@@ -277,12 +324,13 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                         }
                         _presenter = presenter;
                         Decoder = new VideoDecoder(session.VideoCodecId ?? "h264",
-                            preferHardware: options.VideoDecoder != "cpu",
+                            preferHardware: options.VideoDecoder != "cpu" && gpu,
                             gpuPresenter: presenter);
                         if (presenter != null)
                         {
                             Decoder.GpuFrame += presenter.Present;
                             Decoder.SwFrame += presenter.PresentSoftware;
+                            presenter.GpuFailed += OnGpuFailed;
                             presenter.FrameReady += () =>
                             {
                                 if (Interlocked.Exchange(ref _gpuNotifyPending, 1) == 0)
@@ -309,12 +357,13 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                         _decoderBornAt = Environment.TickCount64;
                         CodecBadge = (session.VideoCodecId ?? "h264").ToUpperInvariant();
                     }
-                    Decoder.Feed(packet.Data, packet.Length);
-                    if (!_codecHwSeen && Decoder.HardwareDecoding)
-                    {
-                        _codecHwSeen = true;
-                        CodecBadge += " · GPU";
-                    }
+                    dec = Decoder!;
+                }
+                dec.Feed(packet.Data, packet.Length);
+                if (!_codecHwSeen && dec.HardwareDecoding)
+                {
+                    _codecHwSeen = true;
+                    CodecBadge += " · GPU";
                 }
             }
             try
@@ -353,11 +402,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                     if (Audio == null)
                     {
                         Audio = new AudioPlayer(session.AudioCodecId ?? "opus");
-                        Audio.Error += m =>
-                        {
-                            Log?.Invoke($"audio: {m}");
-                            _audioBroken = true;
-                        };
+                        Audio.Error += m => Log?.Invoke($"audio: {m}");
                         Audio.Volume = _audioMuted ? 0f : _audioVolume;
                     }
                     Audio.Feed(packet.Data, packet.IsConfig, packet.Length);
@@ -392,6 +437,17 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             ? $"{Device.CustomName ?? session.DeviceName ?? Device.ShortName} · {AccountName}"
             : Device.CustomName ?? session.DeviceName ?? Device.DisplayName;
         View.Dispatcher.Invoke(() => View.AttachControl(session.Control!));
+        if (options.UhidInput && session.SupportsUhid && options.NewDisplay == null && session.Control != null)
+        {
+            var ctrl = session.Control;
+            ctrl.UhidErrorReceived += OnUhidError;
+            ctrl.UhidCreate(UhidDevices.MouseId, UhidDevices.VendorId, UhidDevices.ProductId,
+                "TouchMirror Mouse", UhidDevices.MouseDescriptor);
+            ctrl.UhidCreate(UhidDevices.KeyboardId, UhidDevices.VendorId, UhidDevices.ProductId,
+                "TouchMirror Keyboard", UhidDevices.KeyboardDescriptor);
+            View.Dispatcher.Invoke(() => View.SetUhid(true));
+            RaiseLog(L("log.uhid_on"));
+        }
         if (_videoHidden)
         {
             session.Control?.SetVideoParams(ThrottleBitRate, suspend: true);
@@ -411,6 +467,116 @@ public partial class MirrorInstance : ObservableObject, IDisposable
 
         if (options.TurnScreenOff)
             AppLogger.Forget(SetScreenDimmedAsync(true));
+        if (options.WifiHandover && !_resolvedDevice.IsWifi)
+            AppLogger.Forget(ArmWifiTransportAsync());
+    }
+
+    private async Task ArmWifiTransportAsync()
+    {
+        try
+        {
+            if (_lifetime.IsCancellationRequested)
+                return;
+            if (_wifiEndpoint != null)
+            {
+                if (await AdbService.GetDeviceStateAsync(_wifiEndpoint, _lifetime.Token) == "device")
+                    return;
+                _wifiEndpoint = null;
+                Volatile.Write(ref _wifiTcpipTried, 0);
+            }
+            if (_resolvedDevice.AltSerial is { } alt && alt.Contains(':'))
+            {
+                _wifiEndpoint = alt;
+                return;
+            }
+            if (Device.HardwareSerial is not { Length: > 0 } hw)
+                return;
+            foreach (var ep in await AdbService.ListWirelessEndpointsAsync(_lifetime.Token))
+                await TryConnectEndpointAsync(ep);
+            var twin = (await AdbService.GetDevicesAsync(_lifetime.Token))
+                .FirstOrDefault(d => d.HardwareSerial == hw);
+            var wifiSerial = twin?.AltSerial is { } a && a.Contains(':') ? a
+                : twin is { IsWifi: true } ? twin.Serial : null;
+            if (wifiSerial != null)
+            {
+                _wifiEndpoint = wifiSerial;
+                RaiseLog($"wifi: relais prêt ({wifiSerial})");
+                return;
+            }
+            if (Interlocked.Exchange(ref _wifiTcpipTried, 1) != 0)
+                return;
+            var ip = await AdbService.EnableWifiAsync(_resolvedDevice.Serial, _lifetime.Token);
+            _wifiEndpoint = $"{ip}:5555";
+            RaiseLog($"wifi: relais prêt ({_wifiEndpoint})");
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            AppLogger.Write($"wifi arm: {ex.Message}");
+        }
+    }
+
+    private async Task TryWifiHandoverAsync()
+    {
+        var endpoints = new List<string>();
+        if (_wifiEndpoint != null)
+            endpoints.Add(_wifiEndpoint);
+        endpoints.AddRange(await AdbService.ListWirelessEndpointsAsync(_lifetime.Token));
+        foreach (var ep in endpoints.Distinct())
+            await TryConnectEndpointAsync(ep);
+    }
+
+    private async Task TryConnectEndpointAsync(string endpoint)
+    {
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+            cts.CancelAfter(TimeSpan.FromSeconds(4));
+            await AdbService.ConnectAsync(endpoint, cts.Token);
+        }
+        catch { }
+    }
+
+    private void OnUhidError(ushort id, byte code)
+    {
+        View.Dispatcher.BeginInvoke(() =>
+        {
+            View.SetUhid(false);
+            RaiseLog(L("log.uhid_off"));
+        });
+    }
+
+    private long _lastSerialHeal;
+    private int _serialHealing;
+
+    private void HealSerialIfNeeded(long now)
+    {
+        if (_wifiEndpoint == null || now - _lastSerialHeal < 12_000)
+            return;
+        _lastSerialHeal = now;
+        if (Interlocked.Exchange(ref _serialHealing, 1) != 0)
+            return;
+        AppLogger.Forget(HealSerialAsync());
+    }
+
+    private async Task HealSerialAsync()
+    {
+        try
+        {
+            if (await AdbService.GetDeviceStateAsync(_resolvedDevice.Serial, _lifetime.Token) != "missing")
+                return;
+            var resolved = await AdbService.ResolveAsync(Device, _lifetime.Token);
+            if (resolved == null || resolved.Serial == _resolvedDevice.Serial)
+                return;
+            RaiseLog($"transport: {_resolvedDevice.Serial} → {resolved.Serial}");
+            SetResolvedDevice(resolved);
+            if (resolved.AltSerial is { } alt && alt.Contains(':'))
+                _wifiEndpoint = alt;
+            else if (resolved.IsWifi)
+                _wifiEndpoint = resolved.Serial;
+        }
+        catch { }
+        finally { _serialHealing = 0; }
     }
 
     private void CheckStream()
@@ -419,6 +585,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         if (s == null || !IsConnected || _videoHidden || _stopping || _disposed)
             return;
         var now = Environment.TickCount64;
+        HealSerialIfNeeded(now);
         if (now - s.ConnectedAt > 10000)
         {
             var vf = View.Dispatcher.Invoke(() => View.CurrentFps);
@@ -434,10 +601,27 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         var idle = now - (last == 0 ? s.ConnectedAt : last);
         long decoded;
         long decoderBorn;
-        lock (_decoderLock)
+        if (Monitor.TryEnter(_decoderLock))
         {
-            decoded = Decoder?.DecodedFrames ?? 0;
-            decoderBorn = _decoderBornAt;
+            try
+            {
+                decoded = Decoder?.DecodedFrames ?? 0;
+                decoderBorn = _decoderBornAt;
+            }
+            finally { Monitor.Exit(_decoderLock); }
+            _decoderStallTicks = 0;
+        }
+        else
+        {
+            decoded = -1;
+            decoderBorn = 0;
+            if (++_decoderStallTicks >= 3 && s.VideoPackets >= 30)
+            {
+                RaiseLog(L("log.stream_stalled"));
+                _incidents++;
+                BreakSession(s);
+                return;
+            }
         }
         if (decoded == 0 && s.VideoPackets >= 30 && now - decoderBorn > 8000)
         {
@@ -453,22 +637,98 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                 RaiseLog(L("log.stream_stalled"));
             }
             _incidents++;
-            s.BreakConnection();
+            BreakSession(s);
             return;
         }
         if (s.VideoPackets == 0 && now - s.ConnectedAt > 15000)
         {
             RaiseLog(L("log.no_frames"));
             _incidents++;
-            s.BreakConnection();
+            BreakSession(s);
             return;
         }
         if (idle > 25000)
         {
             RaiseLog(L("log.stream_stalled"));
             _incidents++;
-            s.BreakConnection();
+            BreakSession(s);
+            return;
         }
+        CheckBlankVideo(s, decoded, decoderBorn, now);
+    }
+
+    private int _gpuStalls;
+
+    private void BreakSession(EngineSession s)
+    {
+        if (_presenter != null && !_gpuDisabled && ++_gpuStalls >= 2)
+            OnGpuFailed();
+        s.BreakConnection();
+        var dead = s;
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(4000);
+            if (ReferenceEquals(Session, dead) && !_stopping && !_disposed)
+                try { _ = View.Dispatcher.BeginInvoke(() => AppLogger.Forget(OnSessionLostAsync(dead))); }
+                catch (InvalidOperationException) { }
+        });
+    }
+
+    private int _vfBusy;
+    private int _vfTicks;
+    private int _vfEsc;
+    private long _vfPrevHash;
+    private long _vfDecoded;
+    private long _vfDecoderBorn = -1;
+
+    private void CheckBlankVideo(EngineSession s, long decoded, long decoderBorn, long now)
+    {
+        if (decoderBorn != _vfDecoderBorn)
+        {
+            _vfDecoderBorn = decoderBorn;
+            _vfDecoded = -1;
+        }
+        if (decoded <= 0 || decoded == _vfDecoded || _videoHidden || _vfEsc >= 4)
+            return;
+        var sinceConnect = now - s.ConnectedAt;
+        if (sinceConnect < 8000 || sinceConnect > 90000)
+            return;
+        if (Interlocked.CompareExchange(ref _vfBusy, 1, 0) != 0)
+            return;
+        _vfDecoded = decoded;
+        var sess = s;
+        Task.Run(() =>
+        {
+            try
+            {
+                var sample = View.SampleFrame();
+                if (sess != Session || _disposed || !sample.HasValue)
+                    return;
+                var (hash, uniform) = sample.Value;
+                if (!uniform && hash != _vfPrevHash)
+                {
+                    _vfPrevHash = hash;
+                    _vfTicks = 0;
+                    return;
+                }
+                _vfPrevHash = hash;
+                if (++_vfTicks < 2)
+                    return;
+                _vfEsc++;
+                if (_vfEsc <= 2)
+                {
+                    RaiseLog(L("log.video_blank"));
+                    try { sess.Control?.SendSimple(ControlMsgType.ResetVideo); } catch { }
+                }
+                else
+                {
+                    RaiseLog(L("log.stream_stalled"));
+                    _incidents++;
+                    BreakSession(sess);
+                }
+            }
+            finally { Interlocked.Exchange(ref _vfBusy, 0); }
+        });
     }
 
     public async Task SetScreenDimmedAsync(bool dimmed)
@@ -542,6 +802,11 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     private double _mLagEma, _mJitterEma;
     private long _videoFrames;
     public long VideoFrames => Interlocked.Read(ref _videoFrames);
+    public long DecodedFrames => Decoder?.DecodedFrames ?? -1;
+    public bool RendererStalled => _presenter?.PendingRebind ?? false;
+    public int FrontOk => _presenter?.FrontOk ?? -1;
+    public long InvCopied => _presenter?.InvCopied ?? -1;
+    public string ViewDiag => View.Dispatcher.Invoke(() => View.VideoDiag);
 
     private int _currentBitRate = 8_000_000;
     private bool _adaptiveBitrate;
@@ -632,15 +897,28 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         _currentBitRate = restore;
         try { Session?.Control?.SetVideoParams(restore, suspend: false); } catch { }
         RaiseLog(L("log.unthrottled"));
+        ReleaseDecoder();
+        try { Session?.Control?.SendSimple(ControlMsgType.ResetVideo); } catch { }
+    }
+
+    private void ReleaseDecoder()
+    {
+        VideoDecoder? d;
+        GpuPresenter? p;
         lock (_decoderLock)
         {
-            Decoder?.Dispose();
+            d = Decoder;
             Decoder = null;
-            _decoderBornAt = Environment.TickCount64;
-            _presenter?.Dispose();
+            p = _presenter;
             _presenter = null;
+            _decoderBornAt = Environment.TickCount64;
         }
-        try { Session?.Control?.SendSimple(ControlMsgType.ResetVideo); } catch { }
+        if (d != null || p != null)
+            _ = Task.Run(() =>
+            {
+                try { d?.Dispose(); } catch { }
+                try { p?.Dispose(); } catch { }
+            });
     }
 
     private void ApplySuspended()
@@ -751,13 +1029,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         View.Dispatcher.Invoke(View.Detach);
         if (session != null)
             await session.DisposeAsync();
-        lock (_decoderLock)
-        {
-            Decoder?.Dispose();
-            Decoder = null;
-            _presenter?.Dispose();
-            _presenter = null;
-        }
+        ReleaseDecoder();
         lock (_audioLock)
         {
             Audio?.Dispose();
@@ -777,13 +1049,19 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             do
             {
                 state = await AdbService.GetDeviceStateAsync(_resolvedDevice.Serial, timeout.Token);
-                if (state == "missing")
+                if (state is "missing" or "offline")
                 {
                     var resolved = await AdbService.ResolveAsync(Device, timeout.Token);
                     if (resolved != null)
                     {
-                        _resolvedDevice = resolved;
+                        if (resolved.Serial != _resolvedDevice.Serial)
+                            RaiseLog($"transport: {_resolvedDevice.Serial} → {resolved.Serial}");
+                        SetResolvedDevice(resolved);
                         state = resolved.State;
+                        if (resolved.AltSerial is { } alt && alt.Contains(':'))
+                            _wifiEndpoint = alt;
+                        else if (resolved.IsWifi)
+                            _wifiEndpoint = resolved.Serial;
                     }
                 }
                 if (state is "device" or "unauthorized")
@@ -808,9 +1086,10 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             if (IsRecording)
                 RaiseLog(L("log.recording_interrupted"));
             await ClearSessionAsync();
-            while (_reconnectAttempts < 3 && !_stopping && !ManualDisconnect)
+            var maxAttempts = _lastOptions.WifiHandover ? 5 : 3;
+            while (_reconnectAttempts < maxAttempts && !_stopping && !ManualDisconnect)
             {
-                ReconnectStatus = string.Format(L("log.session_retry"), ++_reconnectAttempts);
+                ReconnectStatus = string.Format(L("log.session_retry"), ++_reconnectAttempts, maxAttempts);
                 RaiseLog(ReconnectStatus);
                 try
                 {
@@ -820,7 +1099,15 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                     if (LastDeviceState == "unauthorized")
                         break;
                     if (LastDeviceState != "device")
+                    {
+                        if (_lastOptions.WifiHandover)
+                        {
+                            ReconnectStatus = L("st.wifi_switching");
+                            RaiseLog(ReconnectStatus);
+                            await TryWifiHandoverAsync();
+                        }
                         continue;
+                    }
                     await StartSessionAsync(_lastOptions);
                     return;
                 }

@@ -21,6 +21,7 @@ public final class Protocol {
     public static final int CAP_H265 = 1 << 4;
     public static final int CAP_AV1 = 1 << 5;
     public static final int CAP_VDISPLAY = 1 << 6;
+    public static final int CAP_UHID = 1 << 7;
 
     public static final int MAX_DEVICE_NAME_LENGTH = 63;
 
@@ -56,8 +57,14 @@ public final class Protocol {
     public static final int MSG_GET_CLIPBOARD = 0x40;
     public static final int MSG_SET_CLIPBOARD = 0x41;
 
+    public static final int MSG_UHID_CREATE = 0x50;
+    public static final int MSG_UHID_INPUT = 0x51;
+    public static final int MSG_UHID_DESTROY = 0x52;
+
     public static final int DEVMSG_CLIPBOARD = 0x50;
     public static final int DEVMSG_ACK_CLIPBOARD = 0x51;
+    public static final int DEVMSG_UHID_OUTPUT = 0x60;
+    public static final int DEVMSG_UHID_ERROR = 0x61;
 
     public static final int CFG_AUDIO = 0x01;
     public static final int CFG_VIDEO_CODEC = 0x02;

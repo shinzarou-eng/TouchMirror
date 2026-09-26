@@ -32,6 +32,7 @@ public partial class MarketplaceItem : ObservableObject
     [ObservableProperty] private bool _codeError;
     [ObservableProperty] private List<string> _capabilities = new();
 
+    public PluginInstance? Installed { get; private set; }
     public bool CanUninstall => IsPresent;
     public string ToggleLabel => IsActive
         ? LocalizationService.Get("misc.disable")
@@ -40,6 +41,7 @@ public partial class MarketplaceItem : ObservableObject
     public void Refresh(IReadOnlyList<PluginInstance> installed)
     {
         var p = installed.FirstOrDefault(x => x.Id == Id);
+        Installed = p;
         IsPresent = p != null;
         IsActive = p?.Running == true;
         var trusted = p?.IsVerified == true

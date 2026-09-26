@@ -58,6 +58,12 @@ public class ControlMessageReader {
                 return parseScanFile();
             case ControlMessage.TYPE_SET_VIDEO_PARAMS:
                 return parseSetVideoParams();
+            case ControlMessage.TYPE_UHID_CREATE:
+                return parseUhidCreate();
+            case ControlMessage.TYPE_UHID_INPUT:
+                return parseUhidInput();
+            case ControlMessage.TYPE_UHID_DESTROY:
+                return parseUhidDestroy();
             default:
                 throw new ControlProtocolException("Unknown event type: " + type);
         }
@@ -170,6 +176,26 @@ public class ControlMessageReader {
     private ControlMessage parseScanFile() throws IOException {
         String path = parseString();
         return ControlMessage.createScanFile(path);
+    }
+
+    private ControlMessage parseUhidCreate() throws IOException {
+        int id = dis.readUnsignedShort();
+        int vendor = dis.readUnsignedShort();
+        int product = dis.readUnsignedShort();
+        String name = parseString(1);
+        byte[] reportDesc = parseByteArray(2);
+        return ControlMessage.createUhidCreate(id, vendor, product, name, reportDesc);
+    }
+
+    private ControlMessage parseUhidInput() throws IOException {
+        int id = dis.readUnsignedShort();
+        byte[] data = parseByteArray(2);
+        return ControlMessage.createUhidInput(id, data);
+    }
+
+    private ControlMessage parseUhidDestroy() throws IOException {
+        int id = dis.readUnsignedShort();
+        return ControlMessage.createUhidDestroy(id);
     }
 
     private Position parsePosition() throws IOException {

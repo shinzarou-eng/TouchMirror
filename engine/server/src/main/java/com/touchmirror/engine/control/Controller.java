@@ -8,6 +8,7 @@ import com.touchmirror.engine.device.Device;
 import com.touchmirror.engine.model.Point;
 import com.touchmirror.engine.model.Position;
 import com.touchmirror.engine.model.Size;
+import com.touchmirror.engine.uhid.UhidManager;
 import com.touchmirror.engine.util.Ln;
 import com.touchmirror.engine.video.CaptureControl;
 import com.touchmirror.engine.video.NewDisplayCapture;
@@ -75,6 +76,7 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
     private Thread thread;
     private Thread keepActiveThread;
     private ExecutorService startAppExecutor;
+    private UhidManager uhidManager;
 
     private long lastTouchDown;
     private boolean keepDisplayPowerOff;
@@ -169,6 +171,9 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
         if (thread != null) {
             thread.interrupt();
         }
+        if (uhidManager != null) {
+            uhidManager.destroyAll();
+        }
         sender.stop();
     }
 
@@ -182,7 +187,7 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
 
     private void control() throws IOException {
         if (powerOn && displayId == 0 && !Device.isScreenOn(displayId)) {
-            Device.pressReleaseKeycode(KeyEvent.KEYCODE_POWER, displayId, Device.INJECT_MODE_ASYNC);
+            Device.pressReleaseKeycode(KeyEvent.KEYCODE_WAKEUP, displayId, Device.INJECT_MODE_ASYNC);
             SystemClock.sleep(500);
         }
 
@@ -295,8 +300,50 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
             case ControlMessage.TYPE_SET_VIDEO_PARAMS:
                 setVideoParams(msg.getBitRate(), msg.isSuspend());
                 return true;
+            case ControlMessage.TYPE_UHID_CREATE:
+                uhidCreate(msg);
+                return true;
+            case ControlMessage.TYPE_UHID_INPUT:
+                uhidInput(msg);
+                return true;
+            case ControlMessage.TYPE_UHID_DESTROY:
+                if (uhidManager != null) {
+                    uhidManager.destroy(msg.getId());
+                }
+                return true;
             default:
                 throw new AssertionError("Unexpected message type: " + msg.getType());
+        }
+    }
+
+    private UhidManager uhidManager() {
+        if (uhidManager == null) {
+            uhidManager = new UhidManager((id, data) -> sender.send(DeviceMessage.createUhidOutput(id, data)));
+        }
+        return uhidManager;
+    }
+
+    private void uhidCreate(ControlMessage msg) {
+        try {
+            uhidManager().create(msg.getId(), msg.getVendor(), msg.getProduct(), msg.getText(), msg.getData());
+            Ln.i("UHID device created: " + msg.getText() + " (id=" + msg.getId() + ")");
+        } catch (IOException e) {
+            Ln.w("UHID create failed (id=" + msg.getId() + "): " + e.getMessage());
+            sender.send(DeviceMessage.createUhidError(msg.getId(), 1));
+        }
+    }
+
+    private void uhidInput(ControlMessage msg) {
+        UhidManager manager = uhidManager;
+        if (manager == null || !manager.has(msg.getId())) {
+            return;
+        }
+        try {
+            manager.input(msg.getId(), msg.getData());
+        } catch (IOException e) {
+            Ln.w("UHID input failed (id=" + msg.getId() + "): " + e.getMessage());
+            manager.destroy(msg.getId());
+            sender.send(DeviceMessage.createUhidError(msg.getId(), 2));
         }
     }
 
