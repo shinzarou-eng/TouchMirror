@@ -181,6 +181,20 @@ TouchMirror can also create a **secondary Android profile** from the app — the
 3. The clone gets its own virtual display and mirror tile (e.g. `My Phone · Account 2`)
 4. One tile is active at a time: clicks and keys only ever reach the selected mirror — nothing is replicated between accounts
 
+#### Clone or work?
+
+Two profile types, told apart by their badge in the account list:
+
+- **Clone** — the Android "clone" profile, the tech behind Samsung's Dual Messenger: built to duplicate apps, lightweight, but capped in number by the manufacturer. When the quota is full, the app automatically falls back to a work profile
+- **Work** — the Android "managed" profile, the one companies use for their corporate apps: a real separate user with its own apps and storage, into which TouchMirror installs Dofus Touch. The **Work** button in the Accounts panel creates it directly, game included. On the phone it shows up as a "work account" in settings — that's its official name
+
+#### Deleting an account
+
+1. **Accounts** panel → the **✕** cross next to the account → confirm "Delete"
+2. The profile and everything it holds are wiped — then **restart the phone**: Android keeps leftovers (the "work" entry in settings, residual data) until it reboots; after the restart no trace remains
+
+Company profiles managed by a real MDM (with an owner admin) never show up in the list — there's no way to delete them from TouchMirror by mistake.
+
 ## Keyboard shortcuts
 
 | Key | Action |

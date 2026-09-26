@@ -177,6 +177,20 @@ TouchMirror peut aussi créer un **profil Android secondaire** depuis l'app — 
 3. Le clone a son propre écran virtuel et sa propre tuile miroir (ex. `Mon tel · Compte 2`)
 4. Une seule tuile active à la fois : les clics et les touches n'atteignent que le miroir sélectionné — rien n'est jamais répliqué entre les comptes
 
+#### Clone ou travail ?
+
+Deux types de profils, distingués par leur badge dans la liste des comptes :
+
+- **Clone** — le profil Android « clone », la techno derrière le Dual Messenger de Samsung : fait pour dupliquer des applis, léger, mais limité en nombre par le fabricant. Quand le quota est plein, l'app bascule toute seule sur un profil travail
+- **Travail** — le profil Android « géré », celui que les entreprises utilisent pour leurs apps pro : un vrai utilisateur séparé avec ses propres applis et son stockage, dans lequel TouchMirror installe Dofus Touch. Le bouton **Travail** du panneau Comptes le crée directement, jeu inclus. Sur le téléphone il apparaît comme « compte professionnel » dans les paramètres — c'est son nom officiel
+
+#### Supprimer un compte
+
+1. Panneau **Comptes** → croix **✕** à côté du compte → confirme « Supprimer »
+2. Le profil et tout ce qu'il contient sont effacés — puis **redémarre le téléphone** : Android garde des restes (entrée « professionnel » dans les paramètres, données résiduelles) tant qu'il n'a pas rebooté ; après le redémarrage plus aucune trace ne subsiste
+
+Les profils d'entreprise gérés par un vrai MDM (avec un administrateur propriétaire) n'apparaissent jamais dans la liste — impossible de les supprimer depuis TouchMirror par erreur.
+
 ## Raccourcis clavier
 
 | Touche | Action |
