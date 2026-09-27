@@ -2,7 +2,7 @@
 
 **Un espace de travail Windows pour plusieurs téléphones Android, avec des commandes humaines et des intégrations maîtrisées.**
 
-[Accueil](README.md) · [Versions](https://github.com/shinzarou-eng/TouchMirror/releases/latest) · [Proposer une idée](https://github.com/shinzarou-eng/TouchMirror/issues/new) · [Discord](https://discord.gg/DBJ9kNCdX)
+[Accueil](README.md) · [Versions](https://github.com/shinzarou-eng/TouchMirror/releases/latest) · [Proposer une idée](https://github.com/shinzarou-eng/TouchMirror/issues/new) · [Discord](https://discord.gg/qPZSUQeZkW)
 
 ## Cap produit
 
@@ -163,6 +163,6 @@ TouchMirror n'est pas affilié à Ankama. L'absence d'automatisation ne constitu
 
 Pour proposer une amélioration, ouvre une [issue GitHub](https://github.com/shinzarou-eng/TouchMirror/issues/new) en précisant le problème rencontré, le résultat attendu et le contexte USB ou WiFi. Ne joins pas de token, de numéro de série ni de capture contenant des informations personnelles.
 
-Les retours et échanges se font aussi sur [Discord](https://discord.gg/DBJ9kNCdX). Les demandes seront évaluées selon leur utilité, leur fiabilité, leur coût de maintenance et leur respect du périmètre ci-dessus.
+Les retours et échanges se font aussi sur [Discord](https://discord.gg/qPZSUQeZkW). Les demandes seront évaluées selon leur utilité, leur fiabilité, leur coût de maintenance et leur respect du périmètre ci-dessus.
 
 Les cases de cette roadmap seront mises à jour après validation. Les fonctionnalités effectivement livrées seront décrites dans les [notes de version](https://github.com/shinzarou-eng/TouchMirror/releases/latest).

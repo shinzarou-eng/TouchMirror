@@ -25,14 +25,14 @@ Free, open source, no account, no ads.
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Ankama](https://img.shields.io/badge/Ankama-compliant-2ea44f?style=flat-square)](#ankama-compliance)
 [![Dofus Touch](https://img.shields.io/badge/optimized%20for-Dofus%20Touch-D9A94E?style=flat-square)](https://www.dofus-touch.com)
-[![Discord](https://img.shields.io/badge/Discord-join%20us-5865F2?style=flat-square)](https://discord.gg/DBJ9kNCdX)
+[![Discord](https://img.shields.io/badge/Discord-join%20us-5865F2?style=flat-square)](https://discord.gg/qPZSUQeZkW)
 
 <img src="docs/demo.gif" width="780" alt="TouchMirror — real Android mirroring in action, map change streamed live from the phone">
 
 
-**[Download the latest release](https://github.com/shinzarou-eng/TouchMirror/releases/latest)** · **[Site — touchmirror.xyz](https://www.touchmirror.xyz/)** · [Discord](https://discord.gg/DBJ9kNCdX) · [Documentation](docs/wiki/Home.md) · [Roadmap](ROADMAP.md) · [Report a bug](https://github.com/shinzarou-eng/TouchMirror/issues) · [Suggest a feature](https://github.com/shinzarou-eng/TouchMirror/issues/new)
+**[Download the latest release](https://github.com/shinzarou-eng/TouchMirror/releases/latest)** · **[Site — touchmirror.xyz](https://www.touchmirror.xyz/)** · [Discord](https://discord.gg/qPZSUQeZkW) · [Documentation](docs/wiki/Home.md) · [Roadmap](ROADMAP.md) · [Report a bug](https://github.com/shinzarou-eng/TouchMirror/issues) · [Suggest a feature](https://github.com/shinzarou-eng/TouchMirror/issues/new)
 
-🧪 **[Looking for testers — join the Discord](https://discord.gg/DBJ9kNCdX)** — bugs, ideas, multi-phone testing: community feedback shapes the roadmap.
+🧪 **[Looking for testers — join the Discord](https://discord.gg/qPZSUQeZkW)** — bugs, ideas, multi-phone testing: community feedback shapes the roadmap.
 
 </div>
 
@@ -307,7 +307,7 @@ Next steps: Linux support, per-device audio output, and continued polish of the 
 
 | | |
 |---|---|
-| 💬 **[Discord](https://discord.gg/DBJ9kNCdX)** | Questions, feedback, multi-account help — the community lives here |
+| 💬 **[Discord](https://discord.gg/qPZSUQeZkW)** | Questions, feedback, multi-account help — the community lives here |
 | 🐛 **[GitHub issues](https://github.com/shinzarou-eng/TouchMirror/issues)** | Bug reports and feature ideas |
 | ⭐ **[Star the repo](https://github.com/shinzarou-eng/TouchMirror)** | Free, takes one second, and helps the project get noticed |
 | 🧩 **Plugins** | Write your own overlay or tool — see the `tm.*` API above |

@@ -30,14 +30,14 @@ Gratuit, open source, sans compte, sans pub.
 [![Licence](https://img.shields.io/badge/licence-MIT-green?style=flat-square)](LICENSE)
 [![Ankama](https://img.shields.io/badge/Ankama-conforme-2ea44f?style=flat-square)](#conformité-ankama)
 [![Dofus Touch](https://img.shields.io/badge/optimis%C3%A9%20pour-Dofus%20Touch-D9A94E?style=flat-square)](https://www.dofus-touch.com)
-[![Discord](https://img.shields.io/badge/Discord-rejoins--nous-5865F2?style=flat-square)](https://discord.gg/DBJ9kNCdX)
+[![Discord](https://img.shields.io/badge/Discord-rejoins--nous-5865F2?style=flat-square)](https://discord.gg/qPZSUQeZkW)
 
 <img src="docs/demo.gif" width="780" alt="TouchMirror - vrai mirroring Android en action, changement de map en direct depuis le tel">
 
 
-**[Télécharger la dernière version](https://github.com/shinzarou-eng/TouchMirror/releases/latest)** · **[Site — touchmirror.xyz](https://www.touchmirror.xyz/)** · [Discord](https://discord.gg/DBJ9kNCdX) · [Documentation](docs/wiki/Home.md) · [Roadmap](ROADMAP.md) · [Signaler un bug](https://github.com/shinzarou-eng/TouchMirror/issues) · [Proposer une idée](https://github.com/shinzarou-eng/TouchMirror/issues/new)
+**[Télécharger la dernière version](https://github.com/shinzarou-eng/TouchMirror/releases/latest)** · **[Site — touchmirror.xyz](https://www.touchmirror.xyz/)** · [Discord](https://discord.gg/qPZSUQeZkW) · [Documentation](docs/wiki/Home.md) · [Roadmap](ROADMAP.md) · [Signaler un bug](https://github.com/shinzarou-eng/TouchMirror/issues) · [Proposer une idée](https://github.com/shinzarou-eng/TouchMirror/issues/new)
 
-🧪 **[On cherche des testeurs — rejoins le Discord](https://discord.gg/DBJ9kNCdX)** — bugs, idées, tests multi-téléphones : les retours de la communauté façonnent la roadmap.
+🧪 **[On cherche des testeurs — rejoins le Discord](https://discord.gg/qPZSUQeZkW)** — bugs, idées, tests multi-téléphones : les retours de la communauté façonnent la roadmap.
 
 </div>
 
@@ -303,7 +303,7 @@ Prochaines étapes : support Linux, sortie audio par appareil, et polish continu
 
 | | |
 |---|---|
-| 💬 **[Discord](https://discord.gg/DBJ9kNCdX)** | Questions, retours, entraide multicompte — la communauté est là |
+| 💬 **[Discord](https://discord.gg/qPZSUQeZkW)** | Questions, retours, entraide multicompte — la communauté est là |
 | 🐛 **[Issues GitHub](https://github.com/shinzarou-eng/TouchMirror/issues)** | Bugs et idées de fonctionnalités |
 | ⭐ **[Star le repo](https://github.com/shinzarou-eng/TouchMirror)** | Gratuit, une seconde, et ça aide le projet à se faire connaître |
 | 🧩 **Plugins** | Écris ton propre overlay ou outil — voir l'API `tm.*` plus haut |
