@@ -4,5 +4,10 @@
   "version": "1.0",
   "author": "TouchMirror",
   "icon": "🔊",
-  "tags": ["audio", "multi-compte"]
+  "tags": [
+    "audio",
+    "multi-compte"
+  ],
+  "name_en": "Audio Mixer",
+  "description_en": "Per-mirror volume on the overlay: each row shows a tile with its volume bar, click to step down (100 → 60 → 30 → 10 → mute) then back up to 100. The phone's own volume is untouched."
 }

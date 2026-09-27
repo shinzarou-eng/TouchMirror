@@ -7,11 +7,24 @@ public partial class MarketplaceItem : ObservableObject
 {
     public required MarketplaceEntry Entry { get; init; }
 
+    private IReadOnlyList<PluginInstance> _lastInstalled = [];
+
+    public MarketplaceItem()
+    {
+        LocalizationService.Instance.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != "Item[]") return;
+            OnPropertyChanged(nameof(Name));
+            OnPropertyChanged(nameof(Description));
+            Refresh(_lastInstalled);
+        };
+    }
+
     public string Id => Entry.Id;
-    public string Name => Entry.Name;
+    public string Name => LocalizationService.Pick(Entry.Name, Entry.NameEn) ?? Entry.Name;
     public string Icon => string.IsNullOrEmpty(Entry.Icon) ? "🧩" : Entry.Icon;
     public Wpf.Ui.Controls.SymbolRegular Symbol => PluginIcons.For(Id);
-    public string Description => Entry.Description;
+    public string Description => LocalizationService.Pick(Entry.Description, Entry.DescriptionEn) ?? Entry.Description;
     public string Meta => $"v{Entry.Version} · {Entry.Author}";
     public bool Official => Entry.Official;
     public bool Featured => Entry.Featured;
@@ -40,6 +53,7 @@ public partial class MarketplaceItem : ObservableObject
 
     public void Refresh(IReadOnlyList<PluginInstance> installed)
     {
+        _lastInstalled = installed;
         var p = installed.FirstOrDefault(x => x.Id == Id);
         Installed = p;
         IsPresent = p != null;

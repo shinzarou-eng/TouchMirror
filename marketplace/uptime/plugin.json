@@ -5,5 +5,11 @@
   "author": "TouchMirror",
   "icon": "⏱️",
   "featured": false,
-  "tags": ["session", "fiabilité", "overlay"]
+  "tags": [
+    "session",
+    "fiabilité",
+    "overlay"
+  ],
+  "name_en": "Uptime",
+  "description_en": "Session duration and drop counter per mirror — how long the stream has been alive and how many times it cut."
 }

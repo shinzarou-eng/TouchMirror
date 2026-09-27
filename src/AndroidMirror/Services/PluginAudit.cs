@@ -29,7 +29,7 @@ public static class PluginAudit
         {
             switch (method)
             {
-                case "getStatus" or "getMirrors" or "getDevices":
+                case "getStatus" or "getMirrors" or "getDevices" or "lang":
                     Add(LocalizationService.Get("audit.read_state")); break;
                 case "activate": Add(LocalizationService.Get("audit.activate")); break;
                 case "connect": Add(LocalizationService.Get("audit.connect")); break;

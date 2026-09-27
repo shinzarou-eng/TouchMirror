@@ -58,6 +58,7 @@ public sealed class PluginApi
             var r = method switch
             {
                 "log" => Log(arg),
+                "lang" => new LocalApiHost.ApiResult(true, Data: LocalizationService.Instance.Current),
                 "status" => Wait(_host.GetStatusAsync()),
                 "mirrors" => Wait(_host.GetMirrorsAsync()),
                 "devices" => Wait(_host.GetDevicesAsync()),

@@ -1,7 +1,17 @@
 const REFRESH_MS = 15000;
 const S = {};
 
-tm.log('uptime actif — durée de session et coupures par miroir');
+const L = tm.lang && tm.lang() === 'en' ? {
+  active: 'uptime active — session duration and drops per mirror',
+  title: 'session',
+  cut: ' drop',
+} : {
+  active: 'uptime actif — durée de session et coupures par miroir',
+  title: 'session',
+  cut: ' coupure',
+};
+
+tm.log(L.active);
 
 function fmt(ms) {
   const t = Math.max(0, Math.floor(ms / 1000));
@@ -14,11 +24,11 @@ function render(m) {
   const st = S[m.serial];
   if (!st || !st.since) return;
   tm.overlay(m.slot, {
-    id: 'uptime', visible: true, title: 'session',
+    id: 'uptime', visible: true, title: L.title,
     compact: true, pos: 'bl', color: '#5AA9FF',
     lines: [
       '⏱ ' + fmt(Date.now() - st.since),
-      '✂ ' + st.disc + ' coupure' + (st.disc > 1 ? 's' : ''),
+      '✂ ' + st.disc + L.cut + (st.disc > 1 ? 's' : ''),
     ],
   });
 }

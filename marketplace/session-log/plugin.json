@@ -4,5 +4,10 @@
   "version": "1.0",
   "author": "TouchMirror",
   "icon": "📋",
-  "tags": ["journal", "diagnostic"]
+  "tags": [
+    "journal",
+    "diagnostic"
+  ],
+  "name_en": "Session Log",
+  "description_en": "Logs session events — connections, drops, active-mirror changes and recordings — into the app journal."
 }

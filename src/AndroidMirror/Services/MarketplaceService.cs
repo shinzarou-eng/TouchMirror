@@ -15,6 +15,8 @@ public sealed class MarketplaceEntry
     public string Author { get; set; } = "";
     public string Icon { get; set; } = "";
     public string Description { get; set; } = "";
+    [JsonPropertyName("name_en")] public string? NameEn { get; set; }
+    [JsonPropertyName("description_en")] public string? DescriptionEn { get; set; }
     public bool Official { get; set; }
     public bool Featured { get; set; }
     public List<string> Tags { get; set; } = new();

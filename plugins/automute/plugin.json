@@ -5,5 +5,10 @@
   "author": "TouchMirror",
   "icon": "🔇",
   "featured": true,
-  "tags": ["audio", "multi-compte"]
+  "tags": [
+    "audio",
+    "multi-compte"
+  ],
+  "name_en": "Auto-mute",
+  "description_en": "A single audible mirror: the focused one. Re-applies the rule continuously — covers audio that starts after the focus change. The phone volume is untouched."
 }

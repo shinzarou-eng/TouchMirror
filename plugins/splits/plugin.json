@@ -5,5 +5,11 @@
   "author": "TouchMirror",
   "icon": "⏱️",
   "featured": true,
-  "tags": ["chrono", "dofus", "farm"]
+  "tags": [
+    "chrono",
+    "dofus",
+    "farm"
+  ],
+  "name_en": "Splits",
+  "description_en": "Run timer on each mirror: click the clock to drop a split, reset for a new run, personal best saved per phone. Ideal for looping dungeons."
 }

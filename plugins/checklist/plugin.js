@@ -1,12 +1,31 @@
 const FILE      = 'checklist.txt';
 const RELOAD_MS = 4000;
 
-const DEFAUT = [
-  '[ ] Almanax',
-  '[ ] Archimonstres',
-  '[ ] HDV / ventes',
-  '[ ] Quêtes quotidiennes',
-].join('\n') + '\n';
+const L = tm.lang && tm.lang() === 'en' ? {
+  defaut: [
+    '[ ] Almanax',
+    '[ ] Archimonsters',
+    '[ ] Marketplace / sales',
+    '[ ] Daily quests',
+  ].join('\n') + '\n',
+  hint: 'checklist — edit plugins/checklist/checklist.txt for your tasks',
+  uncheck: '↺ uncheck all',
+  reset: 'checklist reset',
+  active: 'checklist active — ',
+  tasks: ' task(s) (click to check)',
+} : {
+  defaut: [
+    '[ ] Almanax',
+    '[ ] Archimonstres',
+    '[ ] HDV / ventes',
+    '[ ] Quêtes quotidiennes',
+  ].join('\n') + '\n',
+  hint: 'checklist — édite plugins/checklist/checklist.txt pour tes tâches',
+  uncheck: '↺ tout décocher',
+  reset: 'checklist remise à zéro',
+  active: 'checklist actif — ',
+  tasks: ' tâches (clic pour cocher)',
+};
 
 let items = [];
 let raw = null;
@@ -33,10 +52,10 @@ function refresh() {
   const r = tm.read(FILE);
   const txt = r && r.ok ? r.data : null;
   if (txt == null) {
-    raw = DEFAUT;
-    tm.write(FILE, DEFAUT);
-    tm.log('checklist — édite plugins/checklist/checklist.txt pour tes tâches');
-    parse(DEFAUT);
+    raw = L.defaut;
+    tm.write(FILE, L.defaut);
+    tm.log(L.hint);
+    parse(L.defaut);
     return;
   }
   if (txt !== raw) { raw = txt; parse(txt); }
@@ -44,7 +63,7 @@ function refresh() {
 
 function lines() {
   const l = items.map(it => (it.done ? '☑ ' : '☐ ') + it.text);
-  l.push('↺ tout décocher');
+  l.push(L.uncheck);
   return l;
 }
 
@@ -66,7 +85,7 @@ tm.on('overlay.line', d => {
   const i = d.index | 0;
   if (i === items.length) {
     for (const it of items) it.done = false;
-    tm.log('checklist remise à zéro');
+    tm.log(L.reset);
   } else if (i >= 0 && i < items.length) {
     items[i].done = !items[i].done;
     tm.log((items[i].done ? '☑ ' : '☐ ') + items[i].text);
@@ -81,5 +100,5 @@ tm.on('mirror.connected', d => { if (d.slot) render(d.slot); });
 tm.setInterval(() => { refresh(); renderAll(); }, RELOAD_MS);
 
 refresh();
-tm.log('checklist actif — ' + items.length + ' tâches (clic pour cocher)');
+tm.log(L.active + items.length + L.tasks);
 renderAll();

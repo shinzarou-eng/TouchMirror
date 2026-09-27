@@ -5,5 +5,10 @@
   "author": "TouchMirror",
   "icon": "📈",
   "featured": true,
-  "tags": ["stats", "overlay"]
+  "tags": [
+    "stats",
+    "overlay"
+  ],
+  "name_en": "HUD",
+  "description_en": "Movable panel on each mirror — FPS curve, resolution, stream lag and bitrate. Merges the former Graphs, Stats and Perf plugins."
 }

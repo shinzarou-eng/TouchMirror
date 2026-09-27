@@ -2834,6 +2834,7 @@ public partial class MainViewModel : ObservableObject
         try
         {
             Status = string.Format(L("st.creating_account"), name);
+            AccountStep = L("acct.step.profile");
             var userId = managed
                 ? await AdbService.CreateManagedProfileAsync(device.Serial, name)
                 : await AdbService.CreateCloneProfileAsync(device.Serial, name);
@@ -2844,7 +2845,9 @@ public partial class MainViewModel : ObservableObject
             AddActivity("person", L("act.account_created"), device.ShortName);
             try
             {
+                AccountStep = L("acct.step.install");
                 await AdbService.InstallAppForUserAsync(device.Serial, userId, "com.ankama.dofustouch");
+                AccountStep = L("acct.step.start");
                 await AdbService.StartUserAsync(device.Serial, userId);
             }
             catch (Exception ex)
@@ -2868,6 +2871,7 @@ public partial class MainViewModel : ObservableObject
         {
             IsBusy = false;
             AccountCreating = false;
+            AccountStep = null;
         }
         _profilesCache.Remove(device.DeviceKey);
         _limitsCache.Remove(device.DeviceKey);
@@ -2933,6 +2937,9 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private bool _accountsBusy;
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AccountsHint))]
+    private string? _accountStep;
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanEditAccount))]
     [NotifyPropertyChangedFor(nameof(AccountsHint))]
     private bool _accountCreating;
@@ -2952,7 +2959,7 @@ public partial class MainViewModel : ObservableObject
     public bool HasAccountNotice => AccountNotice != null;
     public bool AccountsFull => AccountsSlotsLeft == 0;
     public bool CanEditAccount => !AccountCreating && !AccountsFull;
-    public string AccountsHint => AccountCreating ? L("acct.creating.hint")
+    public string AccountsHint => AccountCreating ? (AccountStep ?? L("acct.creating.hint"))
         : AccountsFull ? L("acct.slots.full")
         : AccountsSlotsLeft > 0 ? string.Format(L("acct.slots.left"), AccountsSlotsLeft)
         : L("acct.hint");
@@ -4318,6 +4325,17 @@ public partial class MainViewModel : ObservableObject
             case "devmgmt": DiagOpenDevmgmt(); break;
             case "guide": DiagShowGuide(); break;
         }
+    }
+
+    [RelayCommand]
+    private void OpenSupportLink()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                "https://buymeacoffee.com/playermode") { UseShellExecute = true });
+        }
+        catch { }
     }
 
     [RelayCommand]

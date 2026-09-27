@@ -2,11 +2,31 @@ const FILE      = 'timers.txt';
 const RELOAD_MS = 4000;
 const TICK_MS   = 1000;
 
-const DEFAUT = [
-  'Percepteur = 45m',
-  'Repop boss = 1h',
-  'File koli = 10m',
-].join('\n') + '\n';
+const L = tm.lang && tm.lang() === 'en' ? {
+  defaut: [
+    'Perceptor = 45m',
+    'Boss respawn = 1h',
+    'Kolo queue = 10m',
+  ].join('\n') + '\n',
+  hint: 'timers — edit plugins/timers/timers.txt : "Name = duration" (45m, 1h30, 90s)',
+  done: 'done!',
+  started: ' started — ',
+  rearmed: ' reset',
+  active: 'timers active — ',
+  count: ' timer(s)',
+} : {
+  defaut: [
+    'Percepteur = 45m',
+    'Repop boss = 1h',
+    'File koli = 10m',
+  ].join('\n') + '\n',
+  hint: 'timers — édite plugins/timers/timers.txt : « Nom = durée » (45m, 1h30, 90s)',
+  done: 'terminé !',
+  started: ' lancé — ',
+  rearmed: ' réarmé',
+  active: 'timers actif — ',
+  count: ' minuteur(s)',
+};
 
 let defs = [];
 let running = {};
@@ -66,10 +86,10 @@ function refresh() {
   const r = tm.read(FILE);
   const txt = r && r.ok ? r.data : null;
   if (txt == null) {
-    raw = DEFAUT;
-    tm.write(FILE, DEFAUT);
-    tm.log('timers — édite plugins/timers/timers.txt : « Nom = durée » (45m, 1h30, 90s)');
-    parse(DEFAUT);
+    raw = L.defaut;
+    tm.write(FILE, L.defaut);
+    tm.log(L.hint);
+    parse(L.defaut);
     return;
   }
   if (txt !== raw) { raw = txt; parse(txt); }
@@ -83,7 +103,7 @@ function lines() {
       return '▶ ' + d.name + ' · ' + fmtDur(d.dur);
     const left = t.end - now;
     if (left <= 0)
-      return '⏰ ' + d.name + ' · terminé !';
+      return '⏰ ' + d.name + ' · ' + L.done;
     return '⏳ ' + d.name + ' · ' + fmtLeft(left);
   });
 }
@@ -109,10 +129,10 @@ tm.on('overlay.line', d => {
   const t = running[def.name];
   if (!t) {
     running[def.name] = { end: Date.now() + def.dur * 1000 };
-    tm.log('⏱ ' + def.name + ' lancé — ' + fmtDur(def.dur));
+    tm.log('⏱ ' + def.name + L.started + fmtDur(def.dur));
   } else {
     delete running[def.name];
-    tm.log('⏱ ' + def.name + ' réarmé');
+    tm.log('⏱ ' + def.name + L.rearmed);
   }
   renderAll();
 });
@@ -123,4 +143,4 @@ tm.setInterval(() => { renderAll(); }, TICK_MS);
 
 refresh();
 renderAll();
-tm.log('timers actif — ' + defs.length + ' minuteur(s)');
+tm.log(L.active + defs.length + L.count);

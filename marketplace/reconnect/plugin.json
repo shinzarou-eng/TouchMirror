@@ -5,5 +5,10 @@
   "author": "TouchMirror",
   "icon": "🔗",
   "featured": true,
-  "tags": ["fiabilité", "connexion"]
+  "tags": [
+    "fiabilité",
+    "connexion"
+  ],
+  "name_en": "Reconnect",
+  "description_en": "Restores a mirror whose session dropped (cable, WiFi, crash) or whose stream is frozen (0 fps) — never after a voluntary disconnect, never launches anything on the phone."
 }

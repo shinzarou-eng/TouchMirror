@@ -1,6 +1,20 @@
 const REFRESH_MS = 1000;
 const FILE = 'splits.json';
 
+const L = tm.lang && tm.lang() === 'en' ? {
+  reset: '↺ reset',
+  split: 'split #',
+  pb: '★ new record on ',
+  runReset: 'run reset',
+  active: 'splits active — click the clock = split, reset = new run',
+} : {
+  reset: '↺ reset',
+  split: 'split #',
+  pb: '★ nouveau record sur ',
+  runReset: 'run remis à zéro',
+  active: 'splits actif — clic sur le chrono = split, reset = nouveau run',
+};
+
 const runs = {};
 let pb = {};
 
@@ -28,7 +42,7 @@ function linesFor(slot, serial) {
   if (r) for (let i = 0; i < r.splits.length; i++)
     l.push('#' + (i + 1) + '  ' + fmt(r.splits[i]));
   if (serial && pb[serial]) l.push('★ PB ' + fmt(pb[serial]));
-  l.push('↺ reset');
+  l.push(L.reset);
   return l;
 }
 
@@ -56,15 +70,15 @@ tm.on('overlay.line', d => {
   if (i === 0) {
     const t = Date.now() - r.t0;
     r.splits.push(t);
-    tm.log('split #' + r.splits.length + ' : ' + fmt(t));
+    tm.log(L.split + r.splits.length + ' : ' + fmt(t));
   } else if (i === last) {
     const total = Date.now() - r.t0;
     if (total > 5000 && serial && (!pb[serial] || total < pb[serial])) {
       pb[serial] = total;
       save();
-      tm.log('★ nouveau record sur ' + (m ? m.name : serial) + ' : ' + fmt(total));
+      tm.log(L.pb + (m ? m.name : serial) + ' : ' + fmt(total));
     } else {
-      tm.log('run remis à zéro');
+      tm.log(L.runReset);
     }
     r.t0 = Date.now();
     r.splits = [];
@@ -92,4 +106,4 @@ tm.setInterval(() => {
 
 load();
 renderAll();
-tm.log('splits actif — clic sur le chrono = split, reset = nouveau run');
+tm.log(L.active);

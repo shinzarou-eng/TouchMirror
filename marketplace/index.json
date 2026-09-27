@@ -3,10 +3,12 @@
         {
             "id": "almanax",
             "name": "Almanax",
+            "name_en": "Almanax",
             "version": "1.2",
             "author": "TouchMirror",
             "icon": "\ud83d\udcc5",
             "description": "Badge sur chaque miroir : offrande dans le titre et bonus du jour affich\u00e9 en entier (calendrier complet hors-ligne), badge rouge pendant le rappel de 20h. Heure r\u00e9glable en t\u00eate du script.",
+            "description_en": "Badge on every mirror: offering in the title and today\u0027s bonus shown in full (full offline calendar), red badge during the 8pm reminder. Time adjustable at the top of the script.",
             "official": true,
             "featured": false,
             "tags": [
@@ -14,15 +16,17 @@
                 "dofus",
                 "almanax"
             ],
-            "hash": "ba56990660c38a82bd1d872378bfbd09b6e48969fac27f0aa9d17392bbc7febb"
+            "hash": "f5364e1722acc77edbc4878ecfbec39b6813313a5b0ba2cdadda3eff4b7597bd"
         },
         {
             "id": "archis",
             "name": "Archis",
+            "name_en": "Archis",
             "version": "1.0",
             "author": "TouchMirror",
             "icon": "\ud83c\udfaf",
             "description": "Traque d\u0027archimonstres fa\u00e7on Metamob \u2014 les 15 avis de recherche et 192 archimonstres officiels pr\u00e9-charg\u00e9s par tranche de niveau. Navigue section par section, clic pour cocher une capture, progression en un coup d\u0027\u0153il. Liste \u00e9ditable dans archis.txt.",
+            "description_en": "Archimonster tracker Metamob-style \u2014 the 15 wanted posters and 192 official archimonsters pre-loaded by level bracket. Browse section by section, click to tick a capture, progress at a glance. Editable list in archis.en.txt.",
             "official": true,
             "featured": true,
             "tags": [
@@ -30,30 +34,34 @@
                 "chasse",
                 "collection"
             ],
-            "hash": "011e786cee83e474ad35cd5e6c941997d063f1e3af4aec28b31a8ae31363d85f"
+            "hash": "6a5237221d90783f4fe41ca5e25c906c4af55b27cf83b978690ed93027d928ad"
         },
         {
             "id": "automute",
             "name": "Auto-mute",
+            "name_en": "Auto-mute",
             "version": "1.0",
             "author": "TouchMirror",
             "icon": "\ud83d\udd07",
             "description": "Un seul miroir sonore : l\u0027actif. R\u00e9-applique la r\u00e8gle en continu \u2014 couvre l\u0027audio qui d\u00e9marre apr\u00e8s le changement de focus. Le volume du t\u00e9l\u00e9phone n\u0027est pas touch\u00e9.",
+            "description_en": "A single audible mirror: the focused one. Re-applies the rule continuously \u2014 covers audio that starts after the focus change. The phone volume is untouched.",
             "official": true,
             "featured": true,
             "tags": [
                 "audio",
                 "multi-compte"
             ],
-            "hash": "c548614863aa531086df3d4fc0d77eeffe7ac7c979a3eda67a3a6db490c3912b"
+            "hash": "5854c91c18c1e892886328f1b2877774f9a3a140892e1f27b4cb7d5099dc1a0b"
         },
         {
             "id": "bridge",
             "name": "Bridge",
+            "name_en": "Bridge",
             "version": "1.0",
             "author": "TouchMirror",
             "icon": "\ud83d\udce1",
             "description": "Affiche le contenu de data.txt sur les miroirs \u2014 n\u0027importe quel outil externe peut y \u00e9crire (alertes stream, scripts, donn\u00e9es maison). Un pont simple entre tes scripts et les miroirs.",
+            "description_en": "Shows the contents of data.txt on mirrors \u2014 any external tool can write to it (stream alerts, scripts, custom data). A simple bridge between your scripts and the mirrors.",
             "official": true,
             "featured": false,
             "tags": [
@@ -61,15 +69,17 @@
                 "int\u00e9gration",
                 "stream"
             ],
-            "hash": "6bb87a11593b9b3f6da92a22a973ddad67db5640c9b57e3d3517c6568b625f73"
+            "hash": "5dfdf0bd59ee4eff6e1fa8a1c036858bc7f5a0720cf629067929dd5abaab6f08"
         },
         {
             "id": "checklist",
             "name": "Checklist",
+            "name_en": "Checklist",
             "version": "1.0",
             "author": "TouchMirror",
             "icon": "\u2705",
             "description": "Bloc-note \u00e9ditable sur chaque miroir \u2014 modifie checklist.txt au bloc-notes, clic sur une ligne pour cocher. Parfait pour Almanax, archis, HDV, qu\u00eates.",
+            "description_en": "Editable notepad on each mirror \u2014 edit checklist.txt in notepad, click a line to check it. Perfect for Almanax, archis, marketplace, quests.",
             "official": true,
             "featured": true,
             "tags": [
@@ -77,90 +87,102 @@
                 "dofus",
                 "organisation"
             ],
-            "hash": "9f07f6c4ee753f994f002e75a169c1eb6ed161a63498d0f1630eb4f3463216cb"
+            "hash": "7701f4c020983f9aa207aa4e8103ad30c52155e47ae994786ef4ee678e41cd73"
         },
         {
             "id": "guides",
             "name": "Guides Dofus",
+            "name_en": "Dofus Guides",
             "version": "1.0",
             "author": "TouchMirror",
             "icon": "\ud83d\udcd6",
             "description": "Active la section Guides \u2014 navigateur int\u00e9gr\u00e9 avec encyclop\u00e9die, Atlas, carte interactive, Almanax, Papycha et support Ankama. L\u0027app reste \u00e9pur\u00e9e sans ce module.",
+            "description_en": "Enables the Guides section \u2014 built-in browser with encyclopedia, Atlas, interactive map, Almanax, Papycha and Ankama support. The app stays lean without this module.",
             "official": true,
             "featured": true,
             "tags": [
                 "guides",
                 "dofus"
             ],
-            "hash": "c784fe5066cbb4411631dbe31c598ee8e1838382a1b20660270b1b442098834d"
+            "hash": "b6461bac8c1f708145b11270dd525b736dfae9273f4317bb2b532c342b42f0ba"
         },
         {
             "id": "hud",
             "name": "HUD",
+            "name_en": "HUD",
             "version": "1.0",
             "author": "TouchMirror",
             "icon": "\ud83d\udcc8",
             "description": "Panneau d\u00e9pla\u00e7able sur chaque miroir \u2014 courbe FPS, r\u00e9solution, retard du flux et d\u00e9bit. Fusionne les anciens plugins Graphs, Stats et Perf.",
+            "description_en": "Movable panel on each mirror \u2014 FPS curve, resolution, stream lag and bitrate. Merges the former Graphs, Stats and Perf plugins.",
             "official": true,
             "featured": true,
             "tags": [
                 "stats",
                 "overlay"
             ],
-            "hash": "8a86191ba6a2ccd2b6a525758ca1c9b9ea6dce991b33657058c122ef3329a326"
+            "hash": "ff86be30b27585a41615f87a0071258d4b415d42f2e1ddbdf3208db88d484083"
         },
         {
             "id": "mixer",
             "name": "Mixeur audio",
+            "name_en": "Audio Mixer",
             "version": "1.0",
             "author": "TouchMirror",
             "icon": "\ud83d\udd0a",
             "description": "Volume par miroir sur l\u0027overlay : chaque ligne affiche une tuile avec sa barre de volume, clic pour descendre par paliers (100 \u2192 60 \u2192 30 \u2192 10 \u2192 muet) puis remonter \u00e0 100. Le son du t\u00e9l\u00e9phone n\u0027est pas touch\u00e9.",
+            "description_en": "Per-mirror volume on the overlay: each row shows a tile with its volume bar, click to step down (100 \u2192 60 \u2192 30 \u2192 10 \u2192 mute) then back up to 100. The phone\u0027s own volume is untouched.",
             "official": true,
             "featured": false,
             "tags": [
                 "audio",
                 "multi-compte"
             ],
-            "hash": "4c0cf752aee30790cb243576b2f3c1d151d18556a433c108858124637d19deb6"
+            "hash": "f605c0a857f430a472f98a1079187668b8e5fd4919cc02099d3037e19794adb3"
         },
         {
             "id": "reconnect",
             "name": "Reconnect",
+            "name_en": "Reconnect",
             "version": "2.1",
             "author": "TouchMirror",
             "icon": "\ud83d\udd17",
             "description": "Restaure un miroir dont la session a l\u00e2ch\u00e9 (c\u00e2ble, WiFi, plantage) ou dont le flux est fig\u00e9 (0 fps) \u2014 jamais apr\u00e8s une d\u00e9connexion volontaire, jamais de lancement sur le t\u00e9l\u00e9phone.",
+            "description_en": "Restores a mirror whose session dropped (cable, WiFi, crash) or whose stream is frozen (0 fps) \u2014 never after a voluntary disconnect, never launches anything on the phone.",
             "official": true,
             "featured": true,
             "tags": [
                 "fiabilit\u00e9",
                 "connexion"
             ],
-            "hash": "b6cfccd3e22b58432d7c16c88456d911430bfc0ad95fd45009faf18caad62160"
+            "hash": "86833a383de660f463aaea7d535357115648fee06305164078c23def4774b925"
         },
         {
             "id": "session-log",
             "name": "Session Log",
+            "name_en": "Session Log",
             "version": "1.0",
             "author": "TouchMirror",
             "icon": "\ud83d\udccb",
             "description": "Journalise les \u00e9v\u00e9nements de session \u2014 connexions, coupures, changements de miroir actif et enregistrements \u2014 dans le journal de l\u0027app.",
+            "description_en": "Logs session events \u2014 connections, drops, active-mirror changes and recordings \u2014 into the app journal.",
             "official": true,
             "featured": false,
             "tags": [
                 "journal",
                 "diagnostic"
             ],
-            "hash": "72675b1735bde5fc8094103c83b0748a42a8dd794aedd507d9e06548e21a67e6"
+            "hash": "c118790f5e7c3f5b9771f5a6732fdfc004dd6314202d86e382a51b3f8426b893"
         },
         {
             "id": "splits",
             "name": "Splits",
+            "name_en": "Splits",
             "version": "1.0",
             "author": "TouchMirror",
             "icon": "\u23f1\ufe0f",
             "description": "Chrono de run sur chaque miroir : clic sur le chrono pour poser un split, reset pour un nouveau run, record personnel sauvegard\u00e9 par t\u00e9l\u00e9phone. Id\u00e9al pour les donjons en boucle.",
+            "description_en": "Run timer on each mirror: click the clock to drop a split, reset for a new run, personal best saved per phone. Ideal for looping dungeons.",
             "official": true,
             "featured": true,
             "tags": [
@@ -168,15 +190,17 @@
                 "dofus",
                 "farm"
             ],
-            "hash": "7c249ca3c3cc4424b536f9ce35bb810b8319f803aaeda4e6614e44141057db69"
+            "hash": "b6fe31fe40eb2aace0242b5713131ea1759b834a12df17c71e54d2114c505106"
         },
         {
             "id": "timers",
             "name": "Timers",
+            "name_en": "Timers",
             "version": "1.0",
             "author": "TouchMirror",
             "icon": "\u23f1\ufe0f",
             "description": "Minuteurs nomm\u00e9s sur les miroirs : \u00e9dite timers.txt (\u00ab Percepteur = 45m \u00bb, \u00ab Boss = 1h30 \u00bb), clic sur une ligne pour lancer ou r\u00e9armer. Badge orange quand le temps est \u00e9coul\u00e9. Repop, percepteurs, files koli, potions.",
+            "description_en": "Named timers on mirrors: edit timers.txt (\"Perceptor = 45m\", \"Boss = 1h30\"), click a line to start or reset. Orange badge when time is up. Respawns, perceptors, kolo queues, potions.",
             "official": true,
             "featured": false,
             "tags": [
@@ -184,15 +208,17 @@
                 "dofus",
                 "rappel"
             ],
-            "hash": "de8b7fbea8440a3473c1c3007db861e6a91fc8448565259a1e7a3f2fe336062e"
+            "hash": "1ebd9881c93b25fefbc9fceef09e6230af977c206a37c1b45b0a25b3372192c2"
         },
         {
             "id": "uptime",
             "name": "Uptime",
+            "name_en": "Uptime",
             "version": "1.0",
             "author": "TouchMirror",
             "icon": "\u23f1\ufe0f",
             "description": "Journal de session par miroir : dur\u00e9e de la connexion en cours et nombre de coupures depuis le lancement. Rep\u00e8re d\u0027un coup l\u0027appareil qui l\u00e2che.",
+            "description_en": "Session duration and drop counter per mirror \u2014 how long the stream has been alive and how many times it cut.",
             "official": true,
             "featured": false,
             "tags": [
@@ -200,7 +226,7 @@
                 "fiabilit\u00e9",
                 "overlay"
             ],
-            "hash": "a32aef592ade66100367ab1b6a70bcac823e31046a3bdf717863b91ded8296f2"
+            "hash": "f8defd651085c8ac6895a159161d6f8c90281925ab64ce7202b900141ca8d351"
         }
     ]
 }

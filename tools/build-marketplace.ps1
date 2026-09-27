@@ -11,16 +11,18 @@ Get-ChildItem "$root\marketplace" -Directory | Sort-Object Name | ForEach-Object
     $bytes = [System.IO.File]::ReadAllBytes($js) + [System.IO.File]::ReadAllBytes($mf)
     $hash  = [BitConverter]::ToString($sha.ComputeHash([byte[]]$bytes)).Replace('-', '').ToLowerInvariant()
     $plugins += [ordered]@{
-        id          = $_.Name
-        name        = "$($manifest.name)"
-        version     = "$($manifest.version)"
-        author      = "$($manifest.author)"
-        icon        = "$($manifest.icon)"
-        description = "$($manifest.description)"
-        official    = $true
-        featured    = [bool]$manifest.featured
-        tags        = @($manifest.tags)
-        hash        = $hash
+        id             = $_.Name
+        name           = "$($manifest.name)"
+        name_en        = "$($manifest.name_en)"
+        version        = "$($manifest.version)"
+        author         = "$($manifest.author)"
+        icon           = "$($manifest.icon)"
+        description    = "$($manifest.description)"
+        description_en = "$($manifest.description_en)"
+        official       = $true
+        featured       = [bool]$manifest.featured
+        tags           = @($manifest.tags)
+        hash           = $hash
     }
 }
 
@@ -41,10 +43,12 @@ foreach ($p in $plugins) {
     $lines.Add('        {')
     $lines.Add('            "id": "' + (& $esc $p.id) + '",')
     $lines.Add('            "name": "' + (& $esc $p.name) + '",')
+    if ($p.name_en) { $lines.Add('            "name_en": "' + (& $esc $p.name_en) + '",') }
     $lines.Add('            "version": "' + (& $esc $p.version) + '",')
     $lines.Add('            "author": "' + (& $esc $p.author) + '",')
     $lines.Add('            "icon": "' + (& $esc $p.icon) + '",')
     $lines.Add('            "description": "' + (& $esc $p.description) + '",')
+    if ($p.description_en) { $lines.Add('            "description_en": "' + (& $esc $p.description_en) + '",') }
     $lines.Add('            "official": ' + $p.official.ToString().ToLowerInvariant() + ',')
     $lines.Add('            "featured": ' + $p.featured.ToString().ToLowerInvariant() + ',')
     $lines.Add('            "tags": [')

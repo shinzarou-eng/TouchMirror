@@ -25,6 +25,9 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public static string Get(string key) => Instance[key];
 
+    public static string? Pick(string? def, string? alt)
+        => Instance.Current != "fr" && !string.IsNullOrEmpty(alt) ? alt : def;
+
     private static Dictionary<string, string> _fr = new();
     private static Dictionary<string, string> Fr
     {

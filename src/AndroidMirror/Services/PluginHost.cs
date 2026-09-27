@@ -2,6 +2,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Jint;
@@ -14,6 +15,8 @@ public sealed class PluginManifest
 {
     public string? Name { get; set; }
     public string? Description { get; set; }
+    [JsonPropertyName("name_en")] public string? NameEn { get; set; }
+    [JsonPropertyName("description_en")] public string? DescriptionEn { get; set; }
     public string? Version { get; set; }
     public string? Author { get; set; }
     public string? Icon { get; set; }
@@ -23,8 +26,10 @@ public partial class PluginInstance : ObservableObject
 {
     public string FilePath { get; }
     public string Id { get; }
-    public string Name { get; }
-    public string? Description { get; }
+    private readonly string _name;
+    private readonly string? _nameEn, _desc, _descEn;
+    public string Name => LocalizationService.Pick(_name, _nameEn) ?? _name;
+    public string? Description => LocalizationService.Pick(_desc, _descEn);
     public string? Version { get; }
     public string? Author { get; }
     public string Icon { get; }
@@ -78,12 +83,23 @@ public partial class PluginInstance : ObservableObject
         Id = Path.GetFileName(path).Equals("plugin.js", StringComparison.OrdinalIgnoreCase)
             ? Path.GetFileName(dir)
             : Path.GetFileNameWithoutExtension(path);
-        Name = m?.Name ?? Id;
-        Description = m?.Description;
+        _name = m?.Name ?? Id;
+        _nameEn = m?.NameEn;
+        _desc = m?.Description;
+        _descEn = m?.DescriptionEn;
         Version = m?.Version;
         Author = m?.Author;
         Icon = m?.Icon ?? "🧩";
         IsVerified = ComputeIsVerified();
+        LocalizationService.Instance.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == "Item[]")
+            {
+                OnPropertyChanged(nameof(Name));
+                OnPropertyChanged(nameof(Description));
+                OnPropertyChanged(nameof(GroupLabel));
+            }
+        };
     }
 
     private byte[]? _verifiedCode;
@@ -295,6 +311,7 @@ public partial class PluginInstance : ObservableObject
           mute:      (s, m)  => JSON.parse(__call('mute', JSON.stringify({ slot: s, muted: !!m }))),
           volume:    (s, v)  => JSON.parse(__call('volume', JSON.stringify({ slot: s, volume: +v }))),
           read:      name    => JSON.parse(__call('read', String(name))),
+          lang:        ()    => (JSON.parse(__call('lang')) || {}).data || 'fr',
           write:   (name, d) => JSON.parse(__call('write', JSON.stringify(
                                   { name: String(name), data: String(d) }))),
           overlay:    (s, o) => JSON.parse(__call('overlay', JSON.stringify(Object.assign({ slot: s }, o || {})))),

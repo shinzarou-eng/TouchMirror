@@ -1,6 +1,8 @@
 const armed = {};
 
-tm.log('hud actif — courbe FPS + métriques sur les miroirs');
+tm.log(tm.lang && tm.lang() === 'en'
+  ? 'hud active — FPS curve + metrics on mirrors'
+  : 'hud actif — courbe FPS + métriques sur les miroirs');
 
 tm.setInterval(() => {
   const mirrors = tm.getMirrors().data || [];

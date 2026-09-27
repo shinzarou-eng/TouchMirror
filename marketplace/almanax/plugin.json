@@ -4,5 +4,11 @@
   "version": "1.2",
   "author": "TouchMirror",
   "icon": "📅",
-  "tags": ["rappel", "dofus", "almanax"]
+  "tags": [
+    "rappel",
+    "dofus",
+    "almanax"
+  ],
+  "name_en": "Almanax",
+  "description_en": "Badge on every mirror: offering in the title and today's bonus shown in full (full offline calendar), red badge during the 8pm reminder. Time adjustable at the top of the script."
 }

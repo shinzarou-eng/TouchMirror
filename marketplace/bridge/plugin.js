@@ -2,11 +2,25 @@ const FILE       = 'data.txt';
 const RELOAD_MS  = 1500;
 const MAX_LIGNES = 12;
 
-const DEFAUT = [
-  'Écris dans plugins/bridge/data.txt —',
-  'chaque ligne apparaît ici, sur les miroirs.',
-  'Vide le fichier pour masquer ce panneau.',
-].join('\n') + '\n';
+const L = tm.lang && tm.lang() === 'en' ? {
+  defaut: [
+    'Write into plugins/bridge/data.txt —',
+    'each line appears here, on the mirrors.',
+    'Empty the file to hide this panel.',
+  ].join('\n') + '\n',
+  hint: 'bridge — write into plugins/bridge/data.txt to show content',
+  active: 'bridge active — ',
+  shown: ' line(s) shown',
+} : {
+  defaut: [
+    'Écris dans plugins/bridge/data.txt —',
+    'chaque ligne apparaît ici, sur les miroirs.',
+    'Vide le fichier pour masquer ce panneau.',
+  ].join('\n') + '\n',
+  hint: 'bridge — écris dans plugins/bridge/data.txt pour afficher du contenu',
+  active: 'bridge actif — ',
+  shown: ' ligne(s) affichée(s)',
+};
 
 let raw = null;
 let shown = [];
@@ -15,9 +29,9 @@ function refresh() {
   const r = tm.read(FILE);
   let txt = r && r.ok ? r.data : null;
   if (txt == null) {
-    tm.write(FILE, DEFAUT);
-    txt = DEFAUT;
-    tm.log('bridge — écris dans plugins/bridge/data.txt pour afficher du contenu');
+    tm.write(FILE, L.defaut);
+    txt = L.defaut;
+    tm.log(L.hint);
   }
   if (txt === raw) return;
   raw = txt;
@@ -40,4 +54,4 @@ tm.setInterval(() => { refresh(); renderAll(); }, RELOAD_MS);
 
 refresh();
 renderAll();
-tm.log('bridge actif — ' + shown.length + ' ligne(s) affichée(s)');
+tm.log(L.active + shown.length + L.shown);

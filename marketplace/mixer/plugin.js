@@ -2,10 +2,22 @@ const RELOAD_MS = 1500;
 const STEPS = [1, 0.6, 0.3, 0.1, 0];
 const BAR = 8;
 
+const L = tm.lang && tm.lang() === 'en' ? {
+  muted: 'muted',
+  mirror: 'mirror ',
+  title: 'mixer',
+  active: 'mixer active — click a line to step the volume down',
+} : {
+  muted: 'muet',
+  mirror: 'miroir ',
+  title: 'mixeur',
+  active: 'mixer actif — clic sur une ligne pour baisser le volume par paliers',
+};
+
 let last = {};
 
 function bar(v, muted) {
-  if (muted || v <= 0) return '🔇 ' + '░'.repeat(BAR) + ' muet';
+  if (muted || v <= 0) return '🔇 ' + '░'.repeat(BAR) + ' ' + L.muted;
   const full = Math.round(v * BAR);
   return '🔊 ' + '█'.repeat(full) + '░'.repeat(BAR - full) + ' ' + Math.round(v * 100) + '%';
 }
@@ -16,7 +28,7 @@ function mirrors() {
 
 function linesFor() {
   return mirrors().map(m =>
-    bar(m.volume == null ? 1 : m.volume, m.muted) + '  ' + (m.name || 'miroir ' + m.slot));
+    bar(m.volume == null ? 1 : m.volume, m.muted) + '  ' + (m.name || L.mirror + m.slot));
 }
 
 function renderAll() {
@@ -29,7 +41,7 @@ function renderAll() {
   last = cur;
   for (const m of ms)
     tm.overlay(m.slot, {
-      id: 'mixer', visible: ms.length > 1, title: 'mixeur',
+      id: 'mixer', visible: ms.length > 1, title: L.title,
       compact: true, pos: 'bc', color: '#7BC5E0',
       lines: linesFor(),
     });
@@ -61,4 +73,4 @@ tm.on('mirror.disconnected', () => { last = {}; renderAll(); });
 tm.setInterval(renderAll, RELOAD_MS);
 
 renderAll();
-tm.log('mixer actif — clic sur une ligne pour baisser le volume par paliers');
+tm.log(L.active);

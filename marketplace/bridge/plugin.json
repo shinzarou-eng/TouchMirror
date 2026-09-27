@@ -5,5 +5,11 @@
   "author": "TouchMirror",
   "icon": "📡",
   "featured": false,
-  "tags": ["overlay", "intégration", "stream"]
+  "tags": [
+    "overlay",
+    "intégration",
+    "stream"
+  ],
+  "name_en": "Bridge",
+  "description_en": "Shows the contents of data.txt on mirrors — any external tool can write to it (stream alerts, scripts, custom data). A simple bridge between your scripts and the mirrors."
 }

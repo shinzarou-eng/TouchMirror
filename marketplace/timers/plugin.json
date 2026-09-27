@@ -4,5 +4,11 @@
   "version": "1.0",
   "author": "TouchMirror",
   "icon": "⏱️",
-  "tags": ["chrono", "dofus", "rappel"]
+  "tags": [
+    "chrono",
+    "dofus",
+    "rappel"
+  ],
+  "name_en": "Timers",
+  "description_en": "Named timers on mirrors: edit timers.txt (\"Perceptor = 45m\", \"Boss = 1h30\"), click a line to start or reset. Orange badge when time is up. Respawns, perceptors, kolo queues, potions."
 }

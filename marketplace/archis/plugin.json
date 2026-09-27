@@ -9,5 +9,7 @@
     "dofus",
     "chasse",
     "collection"
-  ]
+  ],
+  "name_en": "Archis",
+  "description_en": "Archimonster tracker Metamob-style — the 15 wanted posters and 192 official archimonsters pre-loaded by level bracket. Browse section by section, click to tick a capture, progress at a glance. Editable list in archis.en.txt."
 }

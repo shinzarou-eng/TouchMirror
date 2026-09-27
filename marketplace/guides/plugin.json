@@ -5,5 +5,10 @@
   "author": "TouchMirror",
   "icon": "📖",
   "featured": true,
-  "tags": ["guides", "dofus"]
+  "tags": [
+    "guides",
+    "dofus"
+  ],
+  "name_en": "Dofus Guides",
+  "description_en": "Enables the Guides section — built-in browser with encyclopedia, Atlas, interactive map, Almanax, Papycha and Ankama support. The app stays lean without this module."
 }

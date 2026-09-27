@@ -23,7 +23,9 @@ function wrap(t, n) {
   return out;
 }
 
-tm.log('almanax actif — calendrier hors-ligne, rappel à ' + HEURE + 'h');
+const en = tm.lang && tm.lang() === 'en';
+tm.log(en ? 'almanax active — offline calendar, reminder at ' + HEURE + 'h'
+          : 'almanax actif — calendrier hors-ligne, rappel à ' + HEURE + 'h');
 
 tm.setInterval(() => {
   const now = new Date();
@@ -47,6 +49,6 @@ tm.setInterval(() => {
     tm.push(m.slot, { label: (dansLaFenetre ? '! ' : '') + j[2] + ' x' + j[3] });
   }
 
-  if (dansLaFenetre && !fired) { fired = true; tm.log('rappel Almanax affiché'); }
+  if (dansLaFenetre && !fired) { fired = true; tm.log(en ? 'Almanax reminder shown' : 'rappel Almanax affiché'); }
   if (!dansLaFenetre) fired = false;
 }, 15000);

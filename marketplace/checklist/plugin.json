@@ -9,5 +9,7 @@
     "overlay",
     "dofus",
     "organisation"
-  ]
+  ],
+  "name_en": "Checklist",
+  "description_en": "Editable notepad on each mirror — edit checklist.txt in notepad, click a line to check it. Perfect for Almanax, archis, marketplace, quests."
 }
