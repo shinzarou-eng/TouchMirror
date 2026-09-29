@@ -345,7 +345,7 @@ public sealed class ControlChannel : IDisposable
         for (var i = 1; i <= steps; i++)
         {
             var t = (float)i / steps;
-            var d = (uint)(d0 + (d1 - d0) * t);
+            var d = (uint)Math.Max(0, (long)(d0 + (d1 - (double)d0) * t));
             InjectTouch(AndroidMotionEvent.ActionMove, id1,
                 cx, (uint)Math.Max(0, (long)cy - d), w, h, 1f, 0, AndroidMotionEvent.ButtonPrimary);
             InjectTouch(AndroidMotionEvent.ActionMove, id2,

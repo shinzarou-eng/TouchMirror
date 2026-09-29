@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -117,6 +118,7 @@ public sealed class PairedClientsStore
 public sealed class Pairing
 {
     private readonly PairingIdentityStore _identity;
+    private readonly string _remoteIp;
     private Srp6a? _srp;
     private byte[]? _verifyPriv;
     private byte[]? _verifyPub;
@@ -125,11 +127,11 @@ public sealed class Pairing
     private AesCtr? _ctr;
     private byte[]? _srpSessionKey;
     private byte[]? _ecdhSecret;
-    public static byte[]? SharedSrpSessionKey { get; private set; }
+    private static readonly ConcurrentDictionary<string, byte[]> SharedSrpKeys = new();
+    private static readonly ConcurrentDictionary<string, DateTime> TransientSetupAt = new();
     private Srp6aHap? _srpHap;
     private byte[]? _verifyShared;
     private static string? _pin;
-    private static DateTime? _lastTransientSetupAt;
     private bool _transient;
     private string? _setupUser;
 
@@ -139,7 +141,14 @@ public sealed class Pairing
     public byte[] PublicKey => _identity.PublicKey;
     public string PairingId => _identity.PairingId;
 
-    public Pairing(PairingIdentityStore identity) => _identity = identity;
+    public Pairing(PairingIdentityStore identity, string remoteIp)
+    {
+        _identity = identity;
+        _remoteIp = remoteIp;
+    }
+
+    public static byte[]? SharedSrpKeyFor(string ip)
+        => SharedSrpKeys.TryGetValue(ip, out var k) ? k : null;
 
     private string CurrentPin()
     {
@@ -208,7 +217,7 @@ public sealed class Pairing
             if (!_srp.VerifyClientProof(clientPk, clientProof, out var m2))
                 return null;
             _srpSessionKey = _srp.SessionKey;
-            SharedSrpSessionKey = _srpSessionKey;
+            SharedSrpKeys[_remoteIp] = _srpSessionKey;
             return PlistCodec.Write(new Dictionary<string, object?>
             {
                 ["proof"] = m2
@@ -267,9 +276,15 @@ public sealed class Pairing
                 if (!_srpHap.VerifyClientProof(pkA, proof, out var m2))
                     return Tlv8.Format((Tlv8.State, new byte[] { 4 }), (Tlv8.Error, new byte[] { 2 }));
                 _srpSessionKey = _srpHap.SessionKey;
-                SharedSrpSessionKey = _srpSessionKey;
+                if (_srpSessionKey != null)
+                    SharedSrpKeys[_remoteIp] = _srpSessionKey;
                 if (_transient)
-                    _lastTransientSetupAt = DateTime.UtcNow;
+                {
+                    TransientSetupAt[_remoteIp] = DateTime.UtcNow;
+                    foreach (var kv in TransientSetupAt)
+                        if (DateTime.UtcNow - kv.Value > TimeSpan.FromMinutes(2))
+                            TransientSetupAt.TryRemove(kv.Key, out _);
+                }
                 return Tlv8.Format((Tlv8.State, new byte[] { 4 }), (Tlv8.Proof, m2!));
 
             case 5:
@@ -361,10 +376,11 @@ public sealed class Pairing
                 var clientSig = inner3.TryGetValue(Tlv8.Signature, out var sgv) ? sgv : null;
                 if (!VerifyClientSignature(clientId, _clientEcdh!, _verifyPub!, clientSig))
                 {
-                    if (_lastTransientSetupAt is { } t && DateTime.UtcNow - t < TimeSpan.FromMinutes(2))
+                    if (TransientSetupAt.TryGetValue(_remoteIp, out var t)
+                        && DateTime.UtcNow - t < TimeSpan.FromMinutes(2))
                     {
                         Log?.Invoke("airplay: pair-verify accepte sans ltpk (pairing transitoire recent)");
-                        _lastTransientSetupAt = null;
+                        TransientSetupAt.TryRemove(_remoteIp, out _);
                         Verified = true;
                         return Tlv8.Format((Tlv8.State, new byte[] { 4 }));
                     }

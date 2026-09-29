@@ -330,6 +330,8 @@
   "le_texte_copie_sur_le_telephone_arrive_dans_le_p": "Text copied on the phone lands in the Windows clipboard",
   "les_appareils_que_tu_connectes_rejoignent_cet_es": "Devices you connect join this workspace automatically.",
   "liaison": "LINK",
+  "log.audio_unavailable": "audio unavailable — mirror muted",
+  "log.audio_fail": "audio cut: {0}",
   "log.bitrate_down": "bitrate lowered → {0} Mbps (stream lag)",
   "log.bitrate_up": "bitrate restored → {0} Mbps",
   "log.brightness_fail": "brightness: {0}",

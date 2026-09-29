@@ -11,13 +11,15 @@ public partial class MarketplaceItem : ObservableObject
 
     public MarketplaceItem()
     {
-        LocalizationService.Instance.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName != "Item[]") return;
-            OnPropertyChanged(nameof(Name));
-            OnPropertyChanged(nameof(Description));
-            Refresh(_lastInstalled);
-        };
+        System.ComponentModel.PropertyChangedEventManager.AddHandler(
+            LocalizationService.Instance, OnLanguageChanged, "Item[]");
+    }
+
+    private void OnLanguageChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(Name));
+        OnPropertyChanged(nameof(Description));
+        Refresh(_lastInstalled);
     }
 
     public string Id => Entry.Id;

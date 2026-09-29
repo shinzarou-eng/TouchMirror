@@ -3650,11 +3650,19 @@ public partial class MainViewModel : ObservableObject
         var twin = Devices.FirstOrDefault(d =>
             !d.IsWifi && d.IsReady && d.SharesIdentity(m.Device));
         if (twin == null)
+        {
+            _usbSwitched.Remove(m.IdentityKey);
             return;
+        }
         AddActivity("usb", L("act.usb_switch"), m.Device.ShortName);
         Status = string.Format(L("st.usb_switch"), m.Device.ShortName);
         m.ManualDisconnect = true;
-        try { await m.DisconnectAsync(); } catch { return; }
+        try { await m.DisconnectAsync(); }
+        catch
+        {
+            _usbSwitched.Remove(m.IdentityKey);
+            return;
+        }
         await ConnectDeviceAsync(twin);
     }
 

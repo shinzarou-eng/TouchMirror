@@ -91,15 +91,15 @@ public partial class PluginInstance : ObservableObject
         Author = m?.Author;
         Icon = m?.Icon ?? "🧩";
         IsVerified = ComputeIsVerified();
-        LocalizationService.Instance.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == "Item[]")
-            {
-                OnPropertyChanged(nameof(Name));
-                OnPropertyChanged(nameof(Description));
-                OnPropertyChanged(nameof(GroupLabel));
-            }
-        };
+        System.ComponentModel.PropertyChangedEventManager.AddHandler(
+            LocalizationService.Instance, OnLanguageChanged, "Item[]");
+    }
+
+    private void OnLanguageChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(Name));
+        OnPropertyChanged(nameof(Description));
+        OnPropertyChanged(nameof(GroupLabel));
     }
 
     private byte[]? _verifiedCode;
@@ -182,7 +182,7 @@ public partial class PluginInstance : ObservableObject
                 return;
             var raw = doc.RootElement.TryGetProperty("data", out var dp)
                 ? dp.GetRawText() : "null";
-            var data = e.Evaluate("(" + raw + ")");
+            var data = new Jint.Native.Json.JsonParser(e).Parse(raw);
             foreach (var fn in fns.ToArray())
                 ((Function)fn).Call(JsValue.Undefined, new[] { data });
         }

@@ -306,7 +306,7 @@ public partial class MainWindow : FluentWindow
         foreach (var m in _vm.Mirrors.ToList())
         {
             m.ManualDisconnect = true;
-            await m.DisconnectAsync();
+            try { await m.DisconnectAsync(); } catch { }
         }
         Application.Current.Shutdown();
     }

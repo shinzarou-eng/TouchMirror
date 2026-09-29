@@ -330,6 +330,8 @@
   "le_texte_copie_sur_le_telephone_arrive_dans_le_p": "Le texte copié sur le téléphone arrive dans le presse-papiers Windows",
   "les_appareils_que_tu_connectes_rejoignent_cet_es": "Les appareils que tu connectes rejoignent cet espace automatiquement.",
   "liaison": "LIAISON",
+  "log.audio_unavailable": "son indisponible — miroir en muet",
+  "log.audio_fail": "son coupé : {0}",
   "log.bitrate_down": "débit réduit → {0} Mbps (retard du flux)",
   "log.bitrate_up": "débit remonté → {0} Mbps",
   "log.brightness_fail": "luminosité: {0}",

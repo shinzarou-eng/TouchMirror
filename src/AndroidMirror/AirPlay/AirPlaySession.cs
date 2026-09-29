@@ -33,6 +33,28 @@ public sealed class AirPlaySession
     private readonly List<byte> _plain = new();
     private int _plainPos;
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> TrustedHosts = new();
+    private static readonly TimeSpan TrustedHostTtl = TimeSpan.FromHours(2);
+
+    private static bool IsTrustedHost(string ip)
+    {
+        if (!TrustedHosts.TryGetValue(ip, out var t))
+            return false;
+        if (DateTime.UtcNow - t > TrustedHostTtl)
+        {
+            TrustedHosts.TryRemove(ip, out _);
+            return false;
+        }
+        return true;
+    }
+
+    private static void TrustHost(string ip)
+    {
+        TrustedHosts[ip] = DateTime.UtcNow;
+        if (TrustedHosts.Count > 64)
+            foreach (var kv in TrustedHosts)
+                if (DateTime.UtcNow - kv.Value > TrustedHostTtl)
+                    TrustedHosts.TryRemove(kv.Key, out _);
+    }
 
     public event Action<string>? Log;
     public event Action<string, string>? DeviceConnected;
@@ -46,10 +68,10 @@ public sealed class AirPlaySession
         _client = client;
         _stream = client.GetStream();
         _receiverName = receiverName;
-        _pairing = new Pairing(PairingIdentity);
+        _pairing = new Pairing(PairingIdentity, RemoteIp());
         _pairing.PinReady += p => PairingCodeReady?.Invoke(p);
         _pairing.Log += s => Log?.Invoke(s);
-        _cipherPending = Pairing.SharedSrpSessionKey != null;
+        _cipherPending = Pairing.SharedSrpKeyFor(RemoteIp()) != null;
     }
 
     public static PairingIdentityStore PairingIdentity { get; } = PairingIdentityStore.Load();
@@ -93,7 +115,7 @@ public sealed class AirPlaySession
             path = path[..qIdx];
 
         if (!(_pairing.Verified || _pairing.SrpSessionKey != null || _cipher != null
-            || TrustedHosts.ContainsKey(RemoteIp()))
+            || IsTrustedHost(RemoteIp()))
             && req.Method is "ANNOUNCE" or "SETUP" or "RECORD"
             or "GET_PARAMETER" or "SET_PARAMETER" or "PAUSE" or "FLUSH" or "TEARDOWN")
         {
@@ -137,7 +159,7 @@ public sealed class AirPlaySession
                     await Respond(req, 200, ctHeaders, body: setupResp, ct: ct);
                     if (_pairing.SrpSessionKey != null)
                     {
-                        TrustedHosts[RemoteIp()] = DateTime.UtcNow;
+                        TrustHost(RemoteIp());
                         if (_cipher == null)
                             _cipherPending = true;
                     }
@@ -160,7 +182,7 @@ public sealed class AirPlaySession
                     }, body: verifyResp.Length > 0 ? verifyResp : null, ct: ct);
                     if (_pairing.Verified)
                     {
-                        TrustedHosts[RemoteIp()] = DateTime.UtcNow;
+                        TrustHost(RemoteIp());
                         if (_cipher == null)
                             _cipherPending = true;
                     }
@@ -653,7 +675,7 @@ public sealed class AirPlaySession
                      {
                          (_pairing.SrpSessionKey, "srp"),
                          (_pairing.EcdhSecret, "ecdh"),
-                         (Pairing.SharedSrpSessionKey, "srp-partagé")
+                         (Pairing.SharedSrpKeyFor(RemoteIp()), "srp-partagé")
                      })
             {
                 if (secret == null)
@@ -692,7 +714,7 @@ public sealed class AirPlaySession
             var len = _cipher!.TryDecryptBlock(CollectionsMarshal.AsSpan(_raw), outBuf.AsSpan(off), out var consumed);
             if (len < 0)
                 throw new IOException("airplay: bloc chiffré illisible — session fermée");
-            if (len == 0)
+            if (consumed == 0)
                 break;
             off += len;
             _raw.RemoveRange(0, consumed);

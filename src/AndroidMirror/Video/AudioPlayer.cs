@@ -68,6 +68,13 @@ public sealed unsafe class AudioPlayer : IDisposable
         if (_pendingConfig != null)
         {
             var cfg = _pendingConfig;
+            if (_ctx->extradata != null)
+            {
+                var extra = _ctx->extradata;
+                ffmpeg.av_freep(&extra);
+                _ctx->extradata = null;
+                _ctx->extradata_size = 0;
+            }
             _ctx->extradata = (byte*)ffmpeg.av_malloc((nuint)(cfg.Length + ffmpeg.AV_INPUT_BUFFER_PADDING_SIZE));
             System.Runtime.InteropServices.Marshal.Copy(cfg, 0, (IntPtr)_ctx->extradata, cfg.Length);
             _ctx->extradata_size = cfg.Length;
@@ -108,6 +115,7 @@ public sealed unsafe class AudioPlayer : IDisposable
             if (isConfig)
             {
                 _pendingConfig = data.AsSpan(0, len).ToArray();
+                _openFailed = false;
                 TryOpen();
                 return;
             }
@@ -231,6 +239,7 @@ public sealed unsafe class AudioPlayer : IDisposable
                 ffmpeg.av_frame_free(f);
             fixed (AVCodecContext** c = &_ctx)
                 ffmpeg.avcodec_free_context(c);
+            try { _pcmDump?.Dispose(); } catch { }
         }
     }
 }

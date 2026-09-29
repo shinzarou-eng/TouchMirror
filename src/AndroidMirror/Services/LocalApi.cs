@@ -249,10 +249,14 @@ public sealed class LocalApiServer : IAsyncDisposable
                 provided = auth["Bearer ".Length..];
             else if (ctx.Request.Query.TryGetValue("token", out var q))
                 provided = q;
-            var authorized = expected is { Length: > 0 } && provided != null
+            var expectedBytes = expected is { Length: > 0 }
+                ? System.Text.Encoding.UTF8.GetBytes(expected) : null;
+            var providedBytes = provided != null
+                ? System.Text.Encoding.UTF8.GetBytes(provided) : null;
+            var authorized = expectedBytes != null && providedBytes != null
+                && providedBytes.Length == expectedBytes.Length
                 && System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
-                    System.Text.Encoding.UTF8.GetBytes(expected),
-                    System.Text.Encoding.UTF8.GetBytes(provided));
+                    expectedBytes, providedBytes);
             if (!authorized)
             {
                 ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;

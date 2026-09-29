@@ -94,7 +94,7 @@ internal sealed class MirrorStreamServer : IDisposable
                 _ = Task.Run(async () =>
                 {
                     try { await Pump(client, ct); }
-                    finally { _active = null; }
+                    finally { if (ReferenceEquals(_active, client)) _active = null; }
                 });
             }
             catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or SocketException)
@@ -183,7 +183,7 @@ internal sealed class MirrorStreamServer : IDisposable
                     while (raw.Count > 0)
                     {
                         var len = dataCipher.TryDecryptBlock(CollectionsMarshal.AsSpan(raw), outBuf.AsSpan(off), out var consumed);
-                        if (len <= 0)
+                        if (len < 0 || consumed == 0)
                             break;
                         off += len;
                         raw.RemoveRange(0, consumed);
