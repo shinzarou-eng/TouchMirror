@@ -2929,6 +2929,7 @@
                                                                 Visibility="{Binding IsConfirming, Converter={StaticResource NotBoolToVis}}">
                                                         <ui:Button Style="{StaticResource BtnAction}" Height="26" Padding="10,0"
                                                                    FontSize="{StaticResource FsCaption}" FontWeight="SemiBold"
+                                                                   IsEnabled="{Binding CanOpen}"
                                                                    Content="{loc:Loc menu.open}" Click="OnAccountOpenClick" />
                                                         <ui:Button Width="24" Height="26" Padding="0" Margin="5,0,0,0"
                                                                    Click="OnAccountDeleteClick"

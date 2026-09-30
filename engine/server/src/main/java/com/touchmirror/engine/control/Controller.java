@@ -63,6 +63,7 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
     private final boolean clipboardAutosync;
     private final boolean powerOn;
     private final boolean keepActive;
+    private final String startAppSpec;
 
     private final KeyCharacterMap charMap = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD);
     private final AtomicBoolean isSettingClipboard = new AtomicBoolean();
@@ -80,6 +81,7 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
 
     private long lastTouchDown;
     private boolean keepDisplayPowerOff;
+    private boolean videoSuspended;
     private SurfaceCapture surfaceCapture;
 
     public Controller(ControlChannel controlChannel, CleanUp cleanUp, Options options) {
@@ -89,6 +91,7 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
         this.clipboardAutosync = options.getClipboardAutosync();
         this.powerOn = options.getPowerOn();
         this.keepActive = options.getKeepActive();
+        this.startAppSpec = options.getStartApp();
 
         initPointers();
         sender = new DeviceMessageSender(controlChannel);
@@ -679,10 +682,20 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
 
     private void setVideoParams(int bitRate, boolean suspend) {
         if (surfaceCapture != null) {
+            boolean resumed = videoSuspended && !suspend;
+            videoSuspended = suspend;
             surfaceCapture.setSuspended(suspend);
             CaptureControl control = surfaceCapture.getCaptureControl();
             if (control != null) {
                 control.setVideoParams(bitRate, suspend);
+            }
+            if (resumed && startAppSpec != null && surfaceCapture instanceof NewDisplayCapture) {
+                EXECUTOR.schedule(() -> {
+                    int id = getStartAppDisplayId();
+                    if (id != Device.DISPLAY_ID_NONE) {
+                        Device.startApp(startAppSpec, id);
+                    }
+                }, 400, TimeUnit.MILLISECONDS);
             }
         }
     }

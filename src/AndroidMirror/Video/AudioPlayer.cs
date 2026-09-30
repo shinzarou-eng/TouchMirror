@@ -52,10 +52,10 @@ public sealed unsafe class AudioPlayer : IDisposable
 
         _provider = new BufferedWaveProvider(new WaveFormat(48000, 16, 2))
         {
-            BufferDuration = TimeSpan.FromMilliseconds(200),
+            BufferDuration = TimeSpan.FromMilliseconds(350),
             DiscardOnBufferOverflow = true
         };
-        _output = new WaveOutEvent { DesiredLatency = 60 };
+        _output = new WaveOutEvent { DesiredLatency = 100, NumberOfBuffers = 3 };
         _output.Init(_provider);
         _output.Play();
     }
@@ -199,6 +199,7 @@ public sealed unsafe class AudioPlayer : IDisposable
             if (converted > 0)
             {
                 _provider.AddSamples(buffer, 0, converted * 4);
+                TrimLatency();
                 if (_pcmDump != null)
                 {
                     _pcmDump.Write(buffer, 0, converted * 4);
@@ -213,6 +214,23 @@ public sealed unsafe class AudioPlayer : IDisposable
 
     private int _swrEmpty;
     private bool _swrFailed;
+
+    private const int MaxBufferedBytes = 240 * 48 * 4;
+
+    private void TrimLatency()
+    {
+        var excess = _provider.BufferedBytes - MaxBufferedBytes;
+        if (excess <= 0 || _resampleBuf == null)
+            return;
+        excess -= excess % 4;
+        while (excess > 0)
+        {
+            var read = _provider.Read(_resampleBuf, 0, Math.Min(excess, _resampleBuf.Length));
+            if (read <= 0)
+                break;
+            excess -= read;
+        }
+    }
     private readonly System.IO.FileStream? _pcmDump =
         System.Environment.GetEnvironmentVariable("TM_DUMP_AUDIO") != null
             ? System.IO.File.Create(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "pcm-out.raw"))

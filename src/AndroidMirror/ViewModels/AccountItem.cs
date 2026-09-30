@@ -149,7 +149,23 @@ public sealed class AccountItem : INotifyPropertyChanged
     public string TagFgHex { get; }
     public string TagBgHex { get; }
     public bool Running => Profile?.Running ?? false;
-    public string StatusText => Running || IsPrimary ? L("acct.running") : L("acct.stopped");
+
+    private bool _isMirrored;
+    public bool IsMirrored
+    {
+        get => _isMirrored;
+        set
+        {
+            if (_isMirrored == value)
+                return;
+            _isMirrored = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsMirrored)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanOpen)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusText)));
+        }
+    }
+    public bool CanOpen => !IsMirrored;
+    public string StatusText => IsMirrored ? L("acct.mirrored") : Running || IsPrimary ? L("acct.running") : L("acct.stopped");
     public string DotHex => Running || IsPrimary ? "#5BD98B" : "#4A5560";
     public string RingHex => Running || IsPrimary ? "#8C5BD98B" : "#55414B57";
     public bool HasStatusDot => Running || IsPrimary;

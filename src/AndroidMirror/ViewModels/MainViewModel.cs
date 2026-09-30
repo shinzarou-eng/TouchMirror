@@ -2740,6 +2740,7 @@ public partial class MainViewModel : ObservableObject
         if (existing != null)
         {
             SetActive(existing);
+            Status = string.Format(L("st.already_open"), existing.DeviceName);
             return;
         }
         if (account != null)
@@ -3218,6 +3219,7 @@ public partial class MainViewModel : ObservableObject
         if (AccountNameFor(device, 0) is { } pn)
             primary.SetDisplayName(pn);
         primary.PlayText = PlayTextFor(device, 0);
+        primary.IsMirrored = Mirrors.Any(m => m.Device.SharesIdentity(device) && m.AccountUserId == null);
         AccountsRunningItems.Add(primary);
         UpdateAccountGroups();
         try
@@ -3232,6 +3234,7 @@ public partial class MainViewModel : ObservableObject
                 if (AccountNameFor(device, p.Id) is { } cn)
                     it.SetDisplayName(cn);
                 it.PlayText = PlayTextFor(device, p.Id);
+                it.IsMirrored = Mirrors.Any(m => m.Device.SharesIdentity(device) && m.AccountUserId == p.Id);
                 (p.Running ? AccountsRunningItems : AccountsStoppedItems).Add(it);
             }
         }

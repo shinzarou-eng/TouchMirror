@@ -331,7 +331,10 @@ public final class Device {
         }
 
         Ln.i("Starting app [" + packageName + "] on display " + displayId + " as user " + userId + "...");
-        exec("am", "start", "--user", String.valueOf(userId), "--display", String.valueOf(displayId), "-n", component);
+        String out = exec("am", "start", "--user", String.valueOf(userId), "--display", String.valueOf(displayId), "-n", component);
+        if (out == null || out.contains("Error") || out.contains("Exception")) {
+            Ln.w("am start failed for [" + packageName + "] user " + userId + ": " + (out == null ? "no output" : out.trim()));
+        }
     }
 
     private static String resolveLauncherComponent(String packageName, int userId) {
