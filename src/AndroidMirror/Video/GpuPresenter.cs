@@ -206,13 +206,14 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         {
             _fxaa = value;
             if (!value)
-            {
-                lock (_sync)
+                _ = Task.Run(() =>
                 {
-                    _preSrv?.Dispose(); _preRtv?.Dispose(); _pre?.Dispose();
-                    _preSrv = null; _preRtv = null; _pre = null;
-                }
-            }
+                    lock (_sync)
+                    {
+                        _preSrv?.Dispose(); _preRtv?.Dispose(); _pre?.Dispose();
+                        _preSrv = null; _preRtv = null; _pre = null;
+                    }
+                });
         }
     }
 
@@ -347,17 +348,20 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
 
     public void Redraw()
     {
-        if (_gpuDead || !Monitor.TryEnter(_sync))
-            return;
-        try
+        _ = Task.Run(() =>
         {
-            if (_disposed || _frameRtv == null || _pendingRebind || _lastY == null)
+            if (_gpuDead || !Monitor.TryEnter(_sync))
                 return;
-            UpdateColor(_lastColorInfo);
-            Draw(_lastY, _lastUV!, _w, _h);
-        }
-        finally { Monitor.Exit(_sync); }
-        Invalidate();
+            try
+            {
+                if (_disposed || _frameRtv == null || _pendingRebind || _lastY == null)
+                    return;
+                UpdateColor(_lastColorInfo);
+                Draw(_lastY, _lastUV!, _w, _h);
+            }
+            finally { Monitor.Exit(_sync); }
+            Invalidate();
+        });
     }
 
     private void EnsurePre()
@@ -519,6 +523,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
     {
         _image = image;
         _hwnd = hwnd;
+        _frontLost = !image.IsFrontBufferAvailable;
         image.IsFrontBufferAvailableChanged += OnFrontBufferChanged;
         if (_w > 0)
             Rebind();
@@ -526,7 +531,8 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
 
     private void OnFrontBufferChanged(object? sender, DependencyPropertyChangedEventArgs e)
     {
-        if (_image is { IsFrontBufferAvailable: true })
+        _frontLost = e.NewValue is not true;
+        if (e.NewValue is true)
         {
             Rebind();
             Redraw();
@@ -537,6 +543,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
     private int _rebindBusy;
     private int _rebindFails;
     private volatile bool _gpuDead;
+    private volatile bool _frontLost;
     private int _frontOk = -1;
     private long _invCopied;
     public int FrontOk => _frontOk;
@@ -658,18 +665,29 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
 
             img.Dispatcher.BeginInvoke(() =>
             {
+                var ok = false;
                 try
                 {
-                    if (!_disposed && _image == img && img.IsFrontBufferAvailable && surface != null)
+                    if (!_disposed && _image == img && img.IsFrontBufferAvailable && surface != null
+                        && img.TryLock(new Duration(TimeSpan.FromMilliseconds(50))))
                     {
-                        img.Lock();
-                        img.SetBackBuffer(D3DResourceType.IDirect3DSurface9, surface.NativePointer);
-                        img.Unlock();
+                        try
+                        {
+                            img.SetBackBuffer(D3DResourceType.IDirect3DSurface9, surface.NativePointer);
+                            ok = true;
+                            _frontLost = false;
+                        }
+                        finally { img.Unlock(); }
                     }
                 }
                 catch { }
                 try { surface?.Dispose(); } catch { }
                 Interlocked.Exchange(ref _rebindBusy, 0);
+                if (!ok && !_disposed && !_gpuDead)
+                {
+                    _pendingRebind = true;
+                    ScheduleRebindRetry();
+                }
             });
             _rebindFails = 0;
             return;
@@ -794,10 +812,11 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
     public void Invalidate()
     {
         var img = _image;
-        _frontOk = img == null ? -1 : img.IsFrontBufferAvailable ? 1 : 0;
-        if (_disposed || _gpuDead || img == null || !img.IsFrontBufferAvailable)
+        _frontOk = img == null ? -1 : _frontLost ? 0 : 1;
+        if (_disposed || _gpuDead || img == null || _frontLost)
             return;
-        img.Lock();
+        if (!img.TryLock(new Duration(TimeSpan.FromMilliseconds(8))))
+            return;
         try
         {
             if (Monitor.TryEnter(_sync))
@@ -821,7 +840,13 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
                 }
                 finally { Monitor.Exit(_sync); }
             }
-            img.AddDirtyRect(new Int32Rect(0, 0, _w, _h));
+            try { img.AddDirtyRect(new Int32Rect(0, 0, _w, _h)); }
+            catch (InvalidOperationException)
+            {
+                _frontLost = true;
+                _pendingRebind = true;
+                ScheduleRebindRetry();
+            }
         }
         finally { img.Unlock(); }
     }

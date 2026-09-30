@@ -4191,6 +4191,52 @@
                                 </Border>
                             </UniformGrid>
 
+                            <Border Style="{StaticResource ValTile}" Margin="0,0,0,7"
+                                    Visibility="{Binding SettingsScopeGlobal, Converter={StaticResource BoolToVis}}">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource ValTileLab}" Text="{loc:Loc tile.nav}" />
+                                    <Grid MinHeight="26">
+                                        <TextBlock Text="{loc:Loc nav.mirror_next}" FontSize="{StaticResource FsMeta}" VerticalAlignment="Center" />
+                                        <TextBox Tag="nav_mn" IsReadOnly="True" Width="120" HorizontalAlignment="Right"
+                                                 FontFamily="Consolas" FontSize="{StaticResource FsCaption}" TextAlignment="Center"
+                                                 VerticalContentAlignment="Center" Cursor="Hand"
+                                                 Text="{Binding ShortcutMirrorNext, Mode=OneWay}"
+                                                 PreviewKeyDown="OnShortcutKeyDown"
+                                                 ToolTip="{loc:Loc nav.hint}" />
+                                    </Grid>
+                                    <Grid MinHeight="26">
+                                        <TextBlock Text="{loc:Loc nav.mirror_prev}" FontSize="{StaticResource FsMeta}" VerticalAlignment="Center" />
+                                        <TextBox Tag="nav_mp" IsReadOnly="True" Width="120" HorizontalAlignment="Right"
+                                                 FontFamily="Consolas" FontSize="{StaticResource FsCaption}" TextAlignment="Center"
+                                                 VerticalContentAlignment="Center" Cursor="Hand"
+                                                 Text="{Binding ShortcutMirrorPrev, Mode=OneWay}"
+                                                 PreviewKeyDown="OnShortcutKeyDown"
+                                                 ToolTip="{loc:Loc nav.hint}" />
+                                    </Grid>
+                                    <Grid MinHeight="26">
+                                        <TextBlock Text="{loc:Loc nav.workspace_next}" FontSize="{StaticResource FsMeta}" VerticalAlignment="Center" />
+                                        <TextBox Tag="nav_wn" IsReadOnly="True" Width="120" HorizontalAlignment="Right"
+                                                 FontFamily="Consolas" FontSize="{StaticResource FsCaption}" TextAlignment="Center"
+                                                 VerticalContentAlignment="Center" Cursor="Hand"
+                                                 Text="{Binding ShortcutWorkspaceNext, Mode=OneWay}"
+                                                 PreviewKeyDown="OnShortcutKeyDown"
+                                                 ToolTip="{loc:Loc nav.hint}" />
+                                    </Grid>
+                                    <Grid MinHeight="26">
+                                        <TextBlock Text="{loc:Loc nav.workspace_prev}" FontSize="{StaticResource FsMeta}" VerticalAlignment="Center" />
+                                        <TextBox Tag="nav_wp" IsReadOnly="True" Width="120" HorizontalAlignment="Right"
+                                                 FontFamily="Consolas" FontSize="{StaticResource FsCaption}" TextAlignment="Center"
+                                                 VerticalContentAlignment="Center" Cursor="Hand"
+                                                 Text="{Binding ShortcutWorkspacePrev, Mode=OneWay}"
+                                                 PreviewKeyDown="OnShortcutKeyDown"
+                                                 ToolTip="{loc:Loc nav.hint}" />
+                                    </Grid>
+                                    <TextBlock FontSize="{StaticResource FsCaption}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                               Text="{loc:Loc nav.help}" />
+                                </StackPanel>
+                            </Border>
+
                             <Border Style="{StaticResource ValTile}" Margin="0,0,0,7">
                                 <StackPanel>
                                     <TextBlock Style="{StaticResource ValTileLab}" Text="{loc:Loc token}" />

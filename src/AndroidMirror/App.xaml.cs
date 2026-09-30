@@ -41,7 +41,7 @@ public partial class App : Application
         Microsoft.Win32.SystemEvents.UserPreferenceChanged += (_, ev) =>
         {
             if (ev.Category == Microsoft.Win32.UserPreferenceCategory.General)
-                Dispatcher.Invoke(() => ApplyTheme(_themeId));
+                Dispatcher.BeginInvoke(() => ApplyTheme(_themeId));
         };
         DispatcherUnhandledException += (_, args) =>
         {
@@ -56,7 +56,42 @@ public partial class App : Application
             args.SetObserved();
         };
         EnsureFfmpegExtracted();
+        StartUiWatchdog();
         base.OnStartup(e);
+    }
+
+    private void StartUiWatchdog()
+    {
+        var disp = Dispatcher;
+        _ = Task.Run(async () =>
+        {
+            var silentSince = 0L;
+            while (true)
+            {
+                await Task.Delay(2000).ConfigureAwait(false);
+                if (disp.HasShutdownStarted || disp.HasShutdownFinished)
+                    return;
+                System.Windows.Threading.DispatcherOperation op;
+                try
+                {
+                    op = disp.InvokeAsync(static () => { },
+                        System.Windows.Threading.DispatcherPriority.Send);
+                }
+                catch { return; }
+                if (await Task.WhenAny(op.Task, Task.Delay(4000)).ConfigureAwait(false) == op.Task)
+                {
+                    silentSince = 0;
+                    continue;
+                }
+                if (silentSince == 0)
+                    silentSince = Environment.TickCount64;
+                else if (Environment.TickCount64 - silentSince > 12_000)
+                {
+                    try { AppLogger.Write("ui: dispatcher bloqué — arrêt forcé"); } catch { }
+                    Environment.Exit(2);
+                }
+            }
+        });
     }
 
     public void ApplyTheme(string? id)

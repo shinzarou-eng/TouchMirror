@@ -151,7 +151,7 @@ public partial class PluginInstance : ObservableObject
         _timers.Clear();
         _api?.Cleanup();
         _api = null;
-        try { Application.Current?.Dispatcher.Invoke(() => Running = false); }
+        try { Application.Current?.Dispatcher.BeginInvoke(() => Running = false); }
         catch { }
     }
 
@@ -262,7 +262,7 @@ public partial class PluginInstance : ObservableObject
             engine.Execute(Prelude, "tm-prelude.js");
             var code = _verifiedCode ?? File.ReadAllBytes(FilePath);
             engine.Execute(System.Text.Encoding.UTF8.GetString(code), Path.GetFileName(FilePath));
-            try { Application.Current?.Dispatcher.Invoke(() => LastError = null); } catch { }
+            try { Application.Current?.Dispatcher.BeginInvoke(() => LastError = null); } catch { }
 
             while (!ct.IsCancellationRequested)
             {
@@ -288,11 +288,11 @@ public partial class PluginInstance : ObservableObject
         catch (Exception ex)
         {
             Output?.Invoke($"moteur arrêté : {ex.Message}");
-            try { Application.Current?.Dispatcher.Invoke(() => LastError = ex.Message); } catch { }
+            try { Application.Current?.Dispatcher.BeginInvoke(() => LastError = ex.Message); } catch { }
         }
         finally
         {
-            try { Application.Current?.Dispatcher.Invoke(() => Running = false); }
+            try { Application.Current?.Dispatcher.BeginInvoke(() => Running = false); }
             catch { }
         }
     }

@@ -155,7 +155,7 @@ public partial class MainWindow : FluentWindow
 
         _vm.MirrorAdded += instance =>
             instance.View.Activated += _ => _vm.SetActive(instance);
-        _vm.PipChanged += () => Dispatcher.Invoke(OnPipChanged);
+        _vm.PipChanged += () => Dispatcher.BeginInvoke(OnPipChanged);
         _vm.ScreenshotRequested += instance =>
             Dispatcher.Invoke(() =>
             {
@@ -168,7 +168,7 @@ public partial class MainWindow : FluentWindow
                 return file;
             });
         _vm.AnyConnected += () =>
-            Dispatcher.Invoke(() =>
+            Dispatcher.BeginInvoke(() =>
             {
                 if (_vm.AutoFullscreen && !_isFullscreen)
                     ToggleFullscreen();
@@ -298,16 +298,36 @@ public partial class MainWindow : FluentWindow
 
     private async Task FinishClosingAsync()
     {
-        _vm.StopTracking();
-        _vm.StopPlugins();
-        _vm.SaveNow();
-        _vm.StopAirPlay();
-        await _vm.ShutdownApiAsync();
-        foreach (var m in _vm.Mirrors.ToList())
+        try
         {
-            m.ManualDisconnect = true;
-            try { await m.DisconnectAsync(); } catch { }
+            _vm.StopTracking();
+            _vm.StopPlugins();
+            _vm.SaveNow();
+            _vm.StopAirPlay();
+            var api = _vm.ShutdownApiAsync();
+            var apiDone = await Task.WhenAny(api, Task.Delay(5000));
+            if (apiDone != api)
+                AppLogger.Write("close: api lente à s'arrêter");
+            else
+                await api;
+            var mirrors = _vm.Mirrors.ToList();
+            var deadline = Environment.TickCount64 + 10_000;
+            foreach (var m in mirrors)
+            {
+                m.ManualDisconnect = true;
+                var left = deadline - Environment.TickCount64;
+                if (left <= 0)
+                    break;
+                try
+                {
+                    var d = m.DisconnectAsync();
+                    if (await Task.WhenAny(d, Task.Delay(TimeSpan.FromMilliseconds(left))) == d)
+                        await d;
+                }
+                catch { }
+            }
         }
+        catch { }
         Application.Current.Shutdown();
     }
 
@@ -1602,9 +1622,32 @@ public partial class MainWindow : FluentWindow
         }
 
         var mods = Keyboard.Modifiers;
-        if (e.Key == Key.Tab && mods is ModifierKeys.Control or (ModifierKeys.Control | ModifierKeys.Shift))
+        var navKey = e.Key == Key.System ? e.SystemKey : e.Key;
+        var navAllowed = (mods != ModifierKeys.None || !IsTextInputTarget(e.OriginalSource))
+            && !(e.OriginalSource is System.Windows.Controls.TextBox { Tag: string t } && t.StartsWith("nav_"));
+        if (navAllowed && MatchNav(_vm.ShortcutMirrorNext, navKey, mods))
         {
-            _vm.ActivateAdjacent(mods.HasFlag(ModifierKeys.Shift) ? -1 : 1);
+            _vm.ActivateAdjacent(1);
+            e.Handled = true;
+            return;
+        }
+        if (navAllowed && MatchNav(_vm.ShortcutMirrorPrev, navKey, mods))
+        {
+            _vm.ActivateAdjacent(-1);
+            e.Handled = true;
+            return;
+        }
+        if (navAllowed && MatchNav(_vm.ShortcutWorkspaceNext, navKey, mods))
+        {
+            if (!e.IsRepeat)
+                _vm.ActivateWorkspaceAdjacent(1);
+            e.Handled = true;
+            return;
+        }
+        if (navAllowed && MatchNav(_vm.ShortcutWorkspacePrev, navKey, mods))
+        {
+            if (!e.IsRepeat)
+                _vm.ActivateWorkspaceAdjacent(-1);
             e.Handled = true;
             return;
         }
@@ -1652,6 +1695,63 @@ public partial class MainWindow : FluentWindow
     }
 
     private readonly Dictionary<Key, Views.MirrorView> _keyTargets = new();
+
+    private static bool MatchNav(string? spec, Key key, ModifierKeys mods)
+    {
+        if (string.IsNullOrEmpty(spec))
+            return false;
+        var parts = spec.Split('+');
+        var want = ModifierKeys.None;
+        for (var i = 0; i < parts.Length - 1; i++)
+            switch (parts[i])
+            {
+                case "Ctrl" or "Control": want |= ModifierKeys.Control; break;
+                case "Alt": want |= ModifierKeys.Alt; break;
+                case "Shift": want |= ModifierKeys.Shift; break;
+                case "Win" or "Windows": want |= ModifierKeys.Windows; break;
+                default: return false;
+            }
+        return Enum.TryParse<Key>(parts[^1], out var k) && k == key && want == mods;
+    }
+
+    private static string FormatGesture(ModifierKeys mods, Key key)
+    {
+        var s = "";
+        if (mods.HasFlag(ModifierKeys.Control)) s += "Ctrl+";
+        if (mods.HasFlag(ModifierKeys.Alt)) s += "Alt+";
+        if (mods.HasFlag(ModifierKeys.Shift)) s += "Shift+";
+        if (mods.HasFlag(ModifierKeys.Windows)) s += "Win+";
+        return s + key;
+    }
+
+    private void OnShortcutKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.TextBox tb || tb.Tag is not string which)
+            return;
+        e.Handled = true;
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift
+            or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin or Key.ImeProcessed)
+            return;
+        var mods = Keyboard.Modifiers;
+        if (key == Key.Escape && mods == ModifierKeys.None)
+        {
+            Keyboard.ClearFocus();
+            return;
+        }
+        var text = key is Key.Back or Key.Delete && mods == ModifierKeys.None
+            ? ""
+            : FormatGesture(mods, key);
+        switch (which)
+        {
+            case "nav_mn": _vm.ShortcutMirrorNext = text; break;
+            case "nav_mp": _vm.ShortcutMirrorPrev = text; break;
+            case "nav_wn": _vm.ShortcutWorkspaceNext = text; break;
+            case "nav_wp": _vm.ShortcutWorkspacePrev = text; break;
+            default: return;
+        }
+        Keyboard.ClearFocus();
+    }
 
     private void ReleaseAllKeys()
     {

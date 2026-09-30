@@ -91,7 +91,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     private bool _suppressKeybindEvents;
 
     private void ApplyKeybindAppearance() =>
-        View.Dispatcher.Invoke(() => View.SetKeybindAppearance(KeybindStyle, KeybindOpacity, KeybindSize));
+        View.Dispatcher.BeginInvoke(() => View.SetKeybindAppearance(KeybindStyle, KeybindOpacity, KeybindSize));
 
     private void RaiseKeybindsChanged()
     {
@@ -113,7 +113,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     }
 
     partial void OnKeybindEditModeChanged(bool value) =>
-        View.Dispatcher.Invoke(() => View.SetKeybindEditMode(value));
+        View.Dispatcher.BeginInvoke(() => View.SetKeybindEditMode(value));
 
     public void LoadKeybinds(IEnumerable<KeybindData> data,
         int style = 0, double opacity = 0.92, double size = 30)
@@ -138,7 +138,6 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public List<KeybindData> SaveKeybinds() =>
         Keybinds.Select(k => new KeybindData { Key = k.Key, Rx = k.Rx, Ry = k.Ry }).ToList();
 
-    private int _gpuNotifyPending;
     private Mp4Recorder? _recorder;
     private readonly object _recorderLock = new();
     private string? _recordPath;
@@ -290,11 +289,11 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         {
             if (ShouldSyncClipboard?.Invoke() == false)
                 return;
-            try { Application.Current.Dispatcher.Invoke(() => Clipboard.SetText(text)); } catch { }
+            try { _ = Application.Current.Dispatcher.BeginInvoke(() => Clipboard.SetText(text)); } catch { }
         };
         session.Disconnected += () =>
         {
-            try { View.Dispatcher.BeginInvoke(() => AppLogger.Forget(OnSessionLostAsync(session))); }
+            try { _ = View.Dispatcher.BeginInvoke(() => AppLogger.Forget(OnSessionLostAsync(session))); }
             catch (InvalidOperationException) { }
         };
 
@@ -362,19 +361,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                             Decoder.GpuFrame += presenter.Present;
                             Decoder.SwFrame += presenter.PresentSoftware;
                             presenter.GpuFailed += OnGpuFailed;
-                            presenter.FrameReady += () =>
-                            {
-                                if (Interlocked.Exchange(ref _gpuNotifyPending, 1) == 0)
-                                    try
-                                    {
-                                        View.Dispatcher.BeginInvoke(() =>
-                                        {
-                                            _gpuNotifyPending = 0;
-                                            View.OnGpuFrame();
-                                        });
-                                    }
-                                    catch { _gpuNotifyPending = 0; }
-                            };
+                            presenter.FrameReady += () => View.OnGpuFrame();
                         }
                         Decoder.Error += m => Log?.Invoke($"decoder: {m}");
                         var p = presenter;
@@ -467,7 +454,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         DeviceName = AccountName != null
             ? $"{Device.CustomName ?? session.DeviceName ?? Device.ShortName} · {AccountName}"
             : Device.CustomName ?? session.DeviceName ?? Device.DisplayName;
-        View.Dispatcher.Invoke(() => View.AttachControl(session.Control!));
+        _ = View.Dispatcher.BeginInvoke(() => View.AttachControl(session.Control!));
         if (options.UhidInput && session.SupportsUhid && options.NewDisplay == null && session.Control != null)
         {
             var ctrl = session.Control;
@@ -476,7 +463,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                 "TouchMirror Mouse", UhidDevices.MouseDescriptor);
             ctrl.UhidCreate(UhidDevices.KeyboardId, UhidDevices.VendorId, UhidDevices.ProductId,
                 "TouchMirror Keyboard", UhidDevices.KeyboardDescriptor);
-            View.Dispatcher.Invoke(() => View.SetUhid(true));
+            _ = View.Dispatcher.BeginInvoke(() => View.SetUhid(true));
             RaiseLog(L("log.uhid_on"));
         }
         if (_videoHidden)
@@ -619,7 +606,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         HealSerialIfNeeded(now);
         if (now - s.ConnectedAt > 10000)
         {
-            var vf = View.Dispatcher.Invoke(() => View.CurrentFps);
+            var vf = View.CurrentFps;
             if (vf > 0)
             {
                 _fpsSum += vf;
@@ -921,7 +908,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             {
                 if (t.IsCanceled)
                     return;
-                try { View.Dispatcher.Invoke(ApplySuspended); } catch { }
+                try { _ = View.Dispatcher.BeginInvoke(ApplySuspended); } catch { }
             }, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
             return;
         }
@@ -1062,7 +1049,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             _rxBytesFinal = session.RxBytes;
         ConnectedSince = null;
         CodecBadge = null;
-        View.Dispatcher.Invoke(View.Detach);
+        _ = View.Dispatcher.BeginInvoke(View.Detach);
         if (session != null)
             await session.DisposeAsync();
         ReleaseDecoder();

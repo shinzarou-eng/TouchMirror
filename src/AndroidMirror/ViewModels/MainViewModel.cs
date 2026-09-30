@@ -397,6 +397,10 @@ public partial class MainViewModel : ObservableObject
         WifiHandover = _settings.WifiHandover;
         Language = _settings.Language;
         Theme = _settings.Theme;
+        ShortcutMirrorNext = _settings.ShortcutMirrorNext;
+        ShortcutMirrorPrev = _settings.ShortcutMirrorPrev;
+        ShortcutWorkspaceNext = _settings.ShortcutWorkspaceNext;
+        ShortcutWorkspacePrev = _settings.ShortcutWorkspacePrev;
         AutoLaunchDofus = _settings.AutoLaunchDofus;
         ShowSettings = _settings.ShowSettings;
         LocalApiPort = _settings.LocalApiPort;
@@ -652,6 +656,10 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _language = "fr";
     [ObservableProperty] private string _theme = "sombre";
     [ObservableProperty] private bool _isHalloweenTheme;
+    [ObservableProperty] private string _shortcutMirrorNext = "Ctrl+Tab";
+    [ObservableProperty] private string _shortcutMirrorPrev = "Ctrl+Shift+Tab";
+    [ObservableProperty] private string _shortcutWorkspaceNext = "Alt+Right";
+    [ObservableProperty] private string _shortcutWorkspacePrev = "Alt+Left";
 
     partial void OnLanguageChanged(string value)
     {
@@ -668,6 +676,44 @@ public partial class MainViewModel : ObservableObject
         _settings.Theme = value;
         ((App)Application.Current).ApplyTheme(value);
         ScheduleSave();
+    }
+
+    partial void OnShortcutMirrorNextChanged(string value)
+    {
+        if (_suppressSave) return;
+        _settings.ShortcutMirrorNext = value;
+        ScheduleSave();
+    }
+
+    partial void OnShortcutMirrorPrevChanged(string value)
+    {
+        if (_suppressSave) return;
+        _settings.ShortcutMirrorPrev = value;
+        ScheduleSave();
+    }
+
+    partial void OnShortcutWorkspaceNextChanged(string value)
+    {
+        if (_suppressSave) return;
+        _settings.ShortcutWorkspaceNext = value;
+        ScheduleSave();
+    }
+
+    partial void OnShortcutWorkspacePrevChanged(string value)
+    {
+        if (_suppressSave) return;
+        _settings.ShortcutWorkspacePrev = value;
+        ScheduleSave();
+    }
+
+    public void ActivateWorkspaceAdjacent(int delta)
+    {
+        if (Workspaces.Count < 2 || ActiveWorkspace == null)
+            return;
+        var i = Workspaces.IndexOf(ActiveWorkspace);
+        if (i < 0)
+            return;
+        AppLogger.Forget(SelectWorkspaceAsync(Workspaces[(i + delta + Workspaces.Count) % Workspaces.Count]));
     }
 
     public MirrorInstance? MirrorAtSlot(int slot)

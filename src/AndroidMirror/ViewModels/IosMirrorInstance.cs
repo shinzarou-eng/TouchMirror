@@ -33,7 +33,7 @@ public sealed partial class IosMirrorInstance : MirrorInstance
     public Task StartAsync(AirPlayService service)
     {
         service.DeviceConnected += (name, id) =>
-            View.Dispatcher.Invoke(() =>
+            View.Dispatcher.BeginInvoke(() =>
             {
                 View.SetWaitingOverlay(false);
                 View.SetWaitingHint(null);
@@ -42,7 +42,7 @@ public sealed partial class IosMirrorInstance : MirrorInstance
                 RaiseConnected();
             });
         service.DeviceDisconnected += (name, id) =>
-            View.Dispatcher.Invoke(() =>
+            View.Dispatcher.BeginInvoke(() =>
             {
                 IsConnected = false;
                 DeviceName = "iPhone (AirPlay)";

@@ -115,6 +115,10 @@ public sealed class AppSettings
     public string Language { get; set; } = "fr";
     public string Theme { get; set; } = "sombre";
     public int? IosMapMode { get; set; }
+    public string ShortcutMirrorNext { get; set; } = "Ctrl+Tab";
+    public string ShortcutMirrorPrev { get; set; } = "Ctrl+Shift+Tab";
+    public string ShortcutWorkspaceNext { get; set; } = "Alt+Right";
+    public string ShortcutWorkspacePrev { get; set; } = "Alt+Left";
 }
 
 public static class SettingsStore
