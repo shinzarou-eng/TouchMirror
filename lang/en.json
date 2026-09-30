@@ -344,6 +344,8 @@
   "log.codec_fallback": "no frame decoded in {0} — retrying with {1}",
   "log.no_frames": "no video packet received — stream abandoned",
   "log.stream_stalled": "video stream stalled — connection reset",
+  "log.stream_resync": "stream lag detected ({0} ms) — resyncing…",
+  "log.stream_resynced": "video stream resynced",
   "log.video_blank": "blank video stream detected — capture reset",
   "log.gpu_fallback": "GPU stuck — falling back to software decoding",
   "log.throttled": "mirror minimized: phone encoder suspended",

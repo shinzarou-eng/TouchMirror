@@ -344,6 +344,8 @@
   "log.codec_fallback": "aucune image décodée en {0} — nouvel essai en {1}",
   "log.no_frames": "aucun paquet vidéo reçu — flux abandonné",
   "log.stream_stalled": "flux vidéo bloqué — connexion réinitialisée",
+  "log.stream_resync": "retard du flux détecté ({0} ms) — resynchronisation…",
+  "log.stream_resynced": "flux vidéo resynchronisé",
   "log.video_blank": "flux vidéo vide détecté — capture réinitialisée",
   "log.gpu_fallback": "GPU bloqué — bascule en décodage logiciel",
   "log.throttled": "miroir en miniature : encodeur du téléphone suspendu",

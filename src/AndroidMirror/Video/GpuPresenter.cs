@@ -59,7 +59,8 @@ public sealed class GpuPresenter : IDisposable
     }
 
     private readonly ID3D11DeviceContext _ctx;
-    private readonly object _sync = new();
+    private static readonly object _sync = new();
+    internal static object DeviceContextGate => _sync;
 
     private ID3D11VertexShader? _vs;
     private ID3D11PixelShader? _ps;

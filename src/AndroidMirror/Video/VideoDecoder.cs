@@ -137,6 +137,9 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
                 {
                     var hwctx = (AVD3D11VADeviceContext*)((AVHWDeviceContext*)dev->data)->hwctx;
                     hwctx->device = (ID3D11Device*)ExternalD3D11Device;
+                    hwctx->lock_ctx = null;
+                    hwctx->@lock = _d3d11Lock;
+                    hwctx->unlock = _d3d11Unlock;
                     if (ffmpeg.av_hwdevice_ctx_init(dev) < 0)
                         ffmpeg.av_buffer_unref(&dev);
                 }
@@ -171,6 +174,8 @@ public sealed unsafe class VideoDecoder : IDisposable, IFrameSource
     }
 
     private static readonly AVCodecContext_get_format _getFormatCallback = SelectHwFormat;
+    private static readonly AVD3D11VADeviceContext_lock _d3d11Lock = _ => Monitor.Enter(GpuPresenter.DeviceContextGate);
+    private static readonly AVD3D11VADeviceContext_unlock _d3d11Unlock = _ => Monitor.Exit(GpuPresenter.DeviceContextGate);
 
     private static AVPixelFormat SelectHwFormat(AVCodecContext* s, AVPixelFormat* fmts)
     {

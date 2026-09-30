@@ -54,4 +54,17 @@ public class CaptureControl {
         } catch (IllegalStateException e) {
         }
     }
+
+    public synchronized void requestSyncFrame() {
+        MediaCodec codec = runningMediaCodec;
+        if (codec == null) {
+            return;
+        }
+        try {
+            Bundle params = new Bundle();
+            params.putInt(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0);
+            codec.setParameters(params);
+        } catch (IllegalStateException e) {
+        }
+    }
 }

@@ -23,6 +23,7 @@ public enum ControlMsgType : byte
     ResetVideo = 0x30,
     ResizeDisplay = 0x31,
     SetVideoParams = 0x32,
+    RequestSyncFrame = 0x33,
     GetClipboard = 0x40,
     SetClipboard = 0x41,
     UhidCreate = 0x50,

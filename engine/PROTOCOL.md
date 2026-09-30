@@ -32,7 +32,8 @@ Channels: `0` session (engine → client) · `1` video · `2` audio · `3` contr
 | 11 | device name (UTF-8) | ≤ 63 |
 
 Capability bits: `0x01` video · `0x02` audio · `0x04` control · `0x08` clipboard ·
-`0x10` h265 · `0x20` av1 · `0x40` virtual display · `0x80` uhid (`/dev/uhid` accessible).
+`0x10` h265 · `0x20` av1 · `0x40` virtual display · `0x80` uhid (`/dev/uhid` accessible) ·
+`0x100` request sync frame (`REQUEST_SYNC_FRAME` accepted — encoders that ignore it harmlessly).
 
 2. The client answers with its **first channel-3 frame**: a `CONFIG` message (type `0x01`)
    carrying the session options as a TLV sequence `[field u8][length u8][value]`.
@@ -91,6 +92,7 @@ then the type-specific body. Unknown types are skipped at frame level.
 | 0x30 | RESET_VIDEO | — |
 | 0x31 | RESIZE_DISPLAY | width u16, height u16 |
 | 0x32 | SET_VIDEO_PARAMS | bit_rate i32, suspend u8 |
+| 0x33 | REQUEST_SYNC_FRAME | — |
 | 0x40 | GET_CLIPBOARD | copy_key u8 |
 | 0x41 | SET_CLIPBOARD | sequence i64, paste u8, length u32, utf8 |
 | 0x50 | UHID_CREATE | id u16, vendor u16, product u16, name_len u8, name utf8, desc_len u16, hid report descriptor |

@@ -75,7 +75,7 @@ public final class Server {
         CleanUp cleanUp = null;
         try {
             int caps = Protocol.CAP_VIDEO | Protocol.CAP_AUDIO | Protocol.CAP_CONTROL | Protocol.CAP_CLIPBOARD
-                    | Protocol.CAP_H265 | Protocol.CAP_AV1 | Protocol.CAP_VDISPLAY;
+                    | Protocol.CAP_H265 | Protocol.CAP_AV1 | Protocol.CAP_VDISPLAY | Protocol.CAP_SYNC_FRAME;
             if (com.touchmirror.engine.uhid.UhidDevice.isSupported()) {
                 caps |= Protocol.CAP_UHID;
             }

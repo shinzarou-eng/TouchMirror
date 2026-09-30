@@ -276,6 +276,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         _currentBitRate = _adapt?.Current ?? options.VideoBitRate;
         _mBasePts = -1;
         _mLagEma = _mJitterEma = 0;
+        _streamDrop = false;
+        _lastStreamResyncAt = Environment.TickCount64;
         _adaptWatch.Restart();
         session.ServerLog += m => Log?.Invoke(m);
         session.VideoSizeChanged += (w, h) =>
@@ -299,7 +301,36 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         session.VideoPacketReceived += packet =>
         {
             TrackStreamMetrics(packet);
-            if (!_videoHidden || !_encoderSuspended)
+            if (_streamDrop)
+            {
+                if (packet.IsKeyFrame)
+                {
+                    _streamDrop = false;
+                    RaiseLog(L("log.stream_resynced"));
+                }
+                else if (Environment.TickCount64 - _lastStreamResyncAt > StreamResyncFallbackMs)
+                {
+                    _lastStreamResyncAt = Environment.TickCount64;
+                    try { session.Control?.SendSimple(ControlMsgType.ResetVideo); } catch { }
+                }
+            }
+            else if (!packet.IsKeyFrame && !packet.IsConfig && _mLagEma > StreamLagDropMs
+                && Environment.TickCount64 - _lastStreamResyncAt > StreamResyncMinMs)
+            {
+                _streamDrop = true;
+                _lastStreamResyncAt = Environment.TickCount64;
+                try
+                {
+                    if (session.SupportsSyncFrame)
+                        session.Control?.SendSimple(ControlMsgType.RequestSyncFrame);
+                    else
+                        session.Control?.SendSimple(ControlMsgType.ResetVideo);
+                }
+                catch { }
+                RaiseLog(string.Format(L("log.stream_resync"), Math.Round(_mLagEma)));
+            }
+            var feed = !_streamDrop || packet.IsKeyFrame || packet.IsConfig;
+            if (feed && (!_videoHidden || !_encoderSuspended))
             {
                 VideoDecoder dec;
                 lock (_decoderLock)
@@ -798,6 +829,11 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public int AdaptPeakBitRate => _adapt?.PeakBitRate ?? 0;
     public int AdaptMoves => _adapt?.Moves ?? 0;
 
+    private const double StreamLagDropMs = 350;
+    private const long StreamResyncMinMs = 2000;
+    private const long StreamResyncFallbackMs = 1500;
+    private bool _streamDrop;
+    private long _lastStreamResyncAt;
     private long _mBasePts = -1, _mBaseArrival, _mLastPts, _mLastArrival;
     private double _mLagEma, _mJitterEma;
     private long _videoFrames;

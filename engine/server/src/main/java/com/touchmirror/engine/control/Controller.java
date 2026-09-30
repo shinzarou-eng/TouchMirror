@@ -300,6 +300,9 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
             case ControlMessage.TYPE_SET_VIDEO_PARAMS:
                 setVideoParams(msg.getBitRate(), msg.isSuspend());
                 return true;
+            case ControlMessage.TYPE_REQUEST_SYNC_FRAME:
+                requestSyncFrame();
+                return true;
             case ControlMessage.TYPE_UHID_CREATE:
                 uhidCreate(msg);
                 return true;
@@ -664,6 +667,13 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
         if (control != null) {
             Ln.i("Video capture reset");
             control.reset(CaptureControl.RESET_REASON_CLIENT_RESET);
+        }
+    }
+
+    private void requestSyncFrame() {
+        CaptureControl control = surfaceCapture != null ? surfaceCapture.getCaptureControl() : null;
+        if (control != null) {
+            control.requestSyncFrame();
         }
     }
 

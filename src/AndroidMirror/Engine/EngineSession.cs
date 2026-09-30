@@ -78,6 +78,7 @@ public sealed class EngineSession : IAsyncDisposable
     public string? DeviceName { get; private set; }
     public uint EngineCaps { get; private set; }
     public bool SupportsUhid => (EngineCaps & 0x80) != 0;
+    public bool SupportsSyncFrame => (EngineCaps & 0x100) != 0;
     public string? VideoCodecId { get; private set; }
     public string? AudioCodecId { get; private set; }
     public int VideoWidth { get; private set; }

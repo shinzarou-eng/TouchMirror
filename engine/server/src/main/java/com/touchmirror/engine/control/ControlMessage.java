@@ -24,6 +24,7 @@ public final class ControlMessage {
     public static final int TYPE_RESIZE_DISPLAY = Protocol.MSG_RESIZE_DISPLAY;
     public static final int TYPE_SCAN_FILE = Protocol.MSG_SCAN_FILE;
     public static final int TYPE_SET_VIDEO_PARAMS = Protocol.MSG_SET_VIDEO_PARAMS;
+    public static final int TYPE_REQUEST_SYNC_FRAME = Protocol.MSG_REQUEST_SYNC_FRAME;
     public static final int TYPE_UHID_CREATE = Protocol.MSG_UHID_CREATE;
     public static final int TYPE_UHID_INPUT = Protocol.MSG_UHID_INPUT;
     public static final int TYPE_UHID_DESTROY = Protocol.MSG_UHID_DESTROY;

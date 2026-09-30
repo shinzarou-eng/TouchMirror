@@ -22,6 +22,7 @@ public final class Protocol {
     public static final int CAP_AV1 = 1 << 5;
     public static final int CAP_VDISPLAY = 1 << 6;
     public static final int CAP_UHID = 1 << 7;
+    public static final int CAP_SYNC_FRAME = 1 << 8;
 
     public static final int MAX_DEVICE_NAME_LENGTH = 63;
 
@@ -53,6 +54,7 @@ public final class Protocol {
     public static final int MSG_RESET_VIDEO = 0x30;
     public static final int MSG_RESIZE_DISPLAY = 0x31;
     public static final int MSG_SET_VIDEO_PARAMS = 0x32;
+    public static final int MSG_REQUEST_SYNC_FRAME = 0x33;
 
     public static final int MSG_GET_CLIPBOARD = 0x40;
     public static final int MSG_SET_CLIPBOARD = 0x41;
