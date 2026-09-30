@@ -607,6 +607,8 @@
   "nav.workspace_prev": "Espace précédent",
   "nav.hint": "Clique puis appuie sur la combinaison — Échap annule, Retour efface",
   "nav.help": "Clique sur un champ puis appuie sur la combinaison voulue. Échap annule, Retour arrière efface le raccourci.",
+  "nav.reserved": "{0} est déjà utilisé par l'application",
+  "nav.conflict": "{0} est déjà assigné à un autre raccourci",
   "token": "Token",
   "touchmirror": "TouchMirror",
   "tourner_l_image_affichee": "Tourner l'image affichée",

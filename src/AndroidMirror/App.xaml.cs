@@ -7,6 +7,7 @@ namespace TouchMirror;
 
 public partial class App : Application
 {
+    public static Action? EmergencyCleanup;
     private static Mutex? _singleInstance;
     private string _themeId = "sombre";
 
@@ -88,6 +89,8 @@ public partial class App : Application
                 else if (Environment.TickCount64 - silentSince > 12_000)
                 {
                     try { AppLogger.Write("ui: dispatcher bloqué — arrêt forcé"); } catch { }
+                    try { EmergencyCleanup?.Invoke(); } catch { }
+                    await Task.Delay(1500).ConfigureAwait(false);
                     Environment.Exit(2);
                 }
             }

@@ -138,6 +138,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public List<KeybindData> SaveKeybinds() =>
         Keybinds.Select(k => new KeybindData { Key = k.Key, Rx = k.Rx, Ry = k.Ry }).ToList();
 
+    private int _gpuNotifyPending;
     private Mp4Recorder? _recorder;
     private readonly object _recorderLock = new();
     private string? _recordPath;
@@ -361,7 +362,23 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                             Decoder.GpuFrame += presenter.Present;
                             Decoder.SwFrame += presenter.PresentSoftware;
                             presenter.GpuFailed += OnGpuFailed;
-                            presenter.FrameReady += () => View.OnGpuFrame();
+                            var pr = presenter;
+                            pr.FrameReady += () =>
+                            {
+                                if (!ReferenceEquals(_presenter, pr))
+                                    return;
+                                if (Interlocked.Exchange(ref _gpuNotifyPending, 1) == 0)
+                                    try
+                                    {
+                                        _ = View.Dispatcher.BeginInvoke(() =>
+                                        {
+                                            _gpuNotifyPending = 0;
+                                            if (ReferenceEquals(_presenter, pr))
+                                                View.OnGpuFrame();
+                                        });
+                                    }
+                                    catch { _gpuNotifyPending = 0; }
+                            };
                         }
                         Decoder.Error += m => Log?.Invoke($"decoder: {m}");
                         var p = presenter;
@@ -454,7 +471,11 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         DeviceName = AccountName != null
             ? $"{Device.CustomName ?? session.DeviceName ?? Device.ShortName} · {AccountName}"
             : Device.CustomName ?? session.DeviceName ?? Device.DisplayName;
-        _ = View.Dispatcher.BeginInvoke(() => View.AttachControl(session.Control!));
+        _ = View.Dispatcher.BeginInvoke(() =>
+        {
+            if (ReferenceEquals(Session, session))
+                View.AttachControl(session.Control!);
+        });
         if (options.UhidInput && session.SupportsUhid && options.NewDisplay == null && session.Control != null)
         {
             var ctrl = session.Control;
@@ -463,7 +484,11 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                 "TouchMirror Mouse", UhidDevices.MouseDescriptor);
             ctrl.UhidCreate(UhidDevices.KeyboardId, UhidDevices.VendorId, UhidDevices.ProductId,
                 "TouchMirror Keyboard", UhidDevices.KeyboardDescriptor);
-            _ = View.Dispatcher.BeginInvoke(() => View.SetUhid(true));
+            _ = View.Dispatcher.BeginInvoke(() =>
+            {
+                if (ReferenceEquals(Session, session))
+                    View.SetUhid(true);
+            });
             RaiseLog(L("log.uhid_on"));
         }
         if (_videoHidden)

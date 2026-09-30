@@ -676,6 +676,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
                             img.SetBackBuffer(D3DResourceType.IDirect3DSurface9, surface.NativePointer);
                             ok = true;
                             _frontLost = false;
+                            _rebindFails = 0;
                         }
                         finally { img.Unlock(); }
                     }
@@ -684,12 +685,8 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
                 try { surface?.Dispose(); } catch { }
                 Interlocked.Exchange(ref _rebindBusy, 0);
                 if (!ok && !_disposed && !_gpuDead)
-                {
-                    _pendingRebind = true;
-                    ScheduleRebindRetry();
-                }
+                    FailRebind();
             });
-            _rebindFails = 0;
             return;
         }
         catch
@@ -812,8 +809,18 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
     public void Invalidate()
     {
         var img = _image;
-        _frontOk = img == null ? -1 : _frontLost ? 0 : 1;
-        if (_disposed || _gpuDead || img == null || _frontLost)
+        if (img == null)
+        {
+            _frontOk = -1;
+            return;
+        }
+        if (!img.Dispatcher.CheckAccess())
+        {
+            try { _ = img.Dispatcher.BeginInvoke(Invalidate); } catch { }
+            return;
+        }
+        _frontOk = _frontLost ? 0 : 1;
+        if (_disposed || _gpuDead || _frontLost)
             return;
         if (!img.TryLock(new Duration(TimeSpan.FromMilliseconds(8))))
             return;
@@ -877,11 +884,15 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         if (_disposed)
             return;
         _disposed = true;
-        if (_image != null)
-        {
-            _image.IsFrontBufferAvailableChanged -= OnFrontBufferChanged;
-            _image = null;
-        }
+        var img = _image;
+        _image = null;
+        if (img != null)
+            try
+            {
+                _ = img.Dispatcher.BeginInvoke(
+                    () => img.IsFrontBufferAvailableChanged -= OnFrontBufferChanged);
+            }
+            catch { }
         if (_gpuDead)
         {
             Drop(ref _tex9);

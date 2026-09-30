@@ -998,21 +998,27 @@ public partial class MainViewModel : ObservableObject
         AppLogger.Forget(SelectWorkspaceAsync(item));
     }
 
+    private int _wsSwitchBusy;
+
     public async Task SelectWorkspaceAsync(WorkspaceItem? item)
     {
         if (item == null || ReferenceEquals(item, ActiveWorkspace))
             return;
-        if (IsBusy)
+        if (IsBusy || Interlocked.Exchange(ref _wsSwitchBusy, 1) != 0)
         {
             Status = L("st.connecting_wait");
             return;
         }
-        SaveNow();
-        if (ActiveWorkspace != null)
-            ActiveWorkspace.IsActive = false;
-        ActiveWorkspace = item;
-        item.IsActive = true;
-        await RestoreWorkspaceAsync(item);
+        try
+        {
+            SaveNow();
+            if (ActiveWorkspace != null)
+                ActiveWorkspace.IsActive = false;
+            ActiveWorkspace = item;
+            item.IsActive = true;
+            await RestoreWorkspaceAsync(item);
+        }
+        finally { _wsSwitchBusy = 0; }
     }
 
     private async Task RestoreWorkspaceAsync(WorkspaceItem item)

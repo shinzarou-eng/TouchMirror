@@ -136,6 +136,24 @@ public static class SettingsStore
             if (File.Exists(_path))
             {
                 var s = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_path)) ?? new();
+                s.SetupDismissed ??= new();
+                s.EnabledPlugins ??= new();
+                s.ApprovedPlugins ??= new();
+                s.MirrorOrder ??= new();
+                s.Devices ??= new();
+                s.Workspaces ??= new();
+                foreach (var w in s.Workspaces)
+                    w.Devices ??= new();
+                foreach (var dp in s.Devices.Values)
+                {
+                    dp.Keybinds ??= new();
+                    dp.KeybindProfiles ??= new();
+                    dp.OwnedUserIds ??= new();
+                    dp.AccountAvatars ??= new();
+                    dp.AccountNames ??= new();
+                    dp.AccountWeekSeconds ??= new();
+                    dp.OverlayPositions ??= new();
+                }
                 if (s.EnabledPlugins.Remove("watchdog"))
                     s.EnabledPlugins.Add("reconnect");
                 if (s.ApprovedPlugins.Remove("watchdog", out var h))

@@ -607,6 +607,8 @@
   "nav.workspace_prev": "Previous workspace",
   "nav.hint": "Click then press the combo — Esc cancels, Backspace clears",
   "nav.help": "Click a field then press the combo you want. Esc cancels, Backspace clears the shortcut.",
+  "nav.reserved": "{0} is already used by the app",
+  "nav.conflict": "{0} is already assigned to another shortcut",
   "token": "Token",
   "touchmirror": "TouchMirror",
   "tourner_l_image_affichee": "Rotate the displayed image",

@@ -111,6 +111,8 @@ public partial class MirrorView : UserControl
         ApplyZoom();
         presenter.SizeChanged += (w, h) => Dispatcher.BeginInvoke(() =>
         {
+            if (!ReferenceEquals(_presenter, presenter))
+                return;
             presenter.Rebind();
             _videoW = w;
             _videoH = h;
@@ -1229,7 +1231,20 @@ public partial class MirrorView : UserControl
     {
         if (_presenter != null)
         {
-            var px = _presenter.CaptureBgra(out var gw, out var gh);
+            var p = _presenter;
+            byte[]? px = null;
+            int gw = 0, gh = 0;
+            try
+            {
+                var cap = Task.Run(() =>
+                {
+                    var b = p.CaptureBgra(out var cw, out var ch);
+                    return (b, cw, ch);
+                });
+                if (cap.Wait(TimeSpan.FromMilliseconds(2500)))
+                    (px, gw, gh) = cap.Result;
+            }
+            catch { }
             if (px != null)
             {
                 var gpuBmp = new WriteableBitmap(gw, gh, 96, 96, PixelFormats.Bgra32, null);

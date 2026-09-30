@@ -151,6 +151,7 @@ public partial class MainWindow : FluentWindow
     {
         InitializeComponent();
         DataContext = _vm;
+        App.EmergencyCleanup = KillSessionsBestEffort;
         SetRailState(RailHub, RailHubIndicator, RailHubTile, RailHubIcon, true);
 
         _vm.MirrorAdded += instance =>
@@ -288,6 +289,21 @@ public partial class MainWindow : FluentWindow
 
     private bool _closing;
 
+    internal void KillSessionsBestEffort()
+    {
+        try
+        {
+            foreach (var m in _vm.Mirrors.ToList())
+                try
+                {
+                    m.ManualDisconnect = true;
+                    _ = m.DisconnectAsync();
+                }
+                catch { }
+        }
+        catch { }
+    }
+
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         if (_closing) return;
@@ -298,34 +314,30 @@ public partial class MainWindow : FluentWindow
 
     private async Task FinishClosingAsync()
     {
+        try { _vm.StopTracking(); } catch { }
+        try { _vm.StopPlugins(); } catch { }
+        try { _vm.SaveNow(); } catch { }
+        try { _vm.StopAirPlay(); } catch { }
         try
         {
-            _vm.StopTracking();
-            _vm.StopPlugins();
-            _vm.SaveNow();
-            _vm.StopAirPlay();
             var api = _vm.ShutdownApiAsync();
-            var apiDone = await Task.WhenAny(api, Task.Delay(5000));
-            if (apiDone != api)
-                AppLogger.Write("close: api lente à s'arrêter");
-            else
+            if (await Task.WhenAny(api, Task.Delay(5000)) == api)
                 await api;
+            else
+                AppLogger.Write("close: api lente à s'arrêter");
+        }
+        catch { }
+        try
+        {
             var mirrors = _vm.Mirrors.ToList();
-            var deadline = Environment.TickCount64 + 10_000;
+            var pending = new List<Task>(mirrors.Count);
             foreach (var m in mirrors)
             {
                 m.ManualDisconnect = true;
-                var left = deadline - Environment.TickCount64;
-                if (left <= 0)
-                    break;
-                try
-                {
-                    var d = m.DisconnectAsync();
-                    if (await Task.WhenAny(d, Task.Delay(TimeSpan.FromMilliseconds(left))) == d)
-                        await d;
-                }
+                try { pending.Add(m.DisconnectAsync()); }
                 catch { }
             }
+            await Task.WhenAny(Task.WhenAll(pending), Task.Delay(10_000));
         }
         catch { }
         Application.Current.Shutdown();
@@ -1587,6 +1599,9 @@ public partial class MainWindow : FluentWindow
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.OriginalSource is System.Windows.Controls.TextBox { Tag: string cap }
+            && cap.StartsWith("nav_"))
+            return;
         if (e.Key == Key.F11)
         {
             ToggleFullscreen();
@@ -1623,17 +1638,19 @@ public partial class MainWindow : FluentWindow
 
         var mods = Keyboard.Modifiers;
         var navKey = e.Key == Key.System ? e.SystemKey : e.Key;
-        var navAllowed = (mods != ModifierKeys.None || !IsTextInputTarget(e.OriginalSource))
-            && !(e.OriginalSource is System.Windows.Controls.TextBox { Tag: string t } && t.StartsWith("nav_"));
+        var navAllowed = _confirmTcs == null
+            && (mods != ModifierKeys.None || !IsTextInputTarget(e.OriginalSource));
         if (navAllowed && MatchNav(_vm.ShortcutMirrorNext, navKey, mods))
         {
             _vm.ActivateAdjacent(1);
+            _navHeld.Add(navKey);
             e.Handled = true;
             return;
         }
         if (navAllowed && MatchNav(_vm.ShortcutMirrorPrev, navKey, mods))
         {
             _vm.ActivateAdjacent(-1);
+            _navHeld.Add(navKey);
             e.Handled = true;
             return;
         }
@@ -1641,6 +1658,7 @@ public partial class MainWindow : FluentWindow
         {
             if (!e.IsRepeat)
                 _vm.ActivateWorkspaceAdjacent(1);
+            _navHeld.Add(navKey);
             e.Handled = true;
             return;
         }
@@ -1648,6 +1666,7 @@ public partial class MainWindow : FluentWindow
         {
             if (!e.IsRepeat)
                 _vm.ActivateWorkspaceAdjacent(-1);
+            _navHeld.Add(navKey);
             e.Handled = true;
             return;
         }
@@ -1695,6 +1714,7 @@ public partial class MainWindow : FluentWindow
     }
 
     private readonly Dictionary<Key, Views.MirrorView> _keyTargets = new();
+    private readonly HashSet<Key> _navHeld = new();
 
     private static bool MatchNav(string? spec, Key key, ModifierKeys mods)
     {
@@ -1712,6 +1732,17 @@ public partial class MainWindow : FluentWindow
                 default: return false;
             }
         return Enum.TryParse<Key>(parts[^1], out var k) && k == key && want == mods;
+    }
+
+    private static bool IsReservedNav(string gesture)
+    {
+        if (!gesture.StartsWith("Ctrl"))
+            return gesture is "F11" or "Escape" or "Tab";
+        if (gesture is "Ctrl+G" or "Ctrl+V" or "Ctrl+Shift+V")
+            return true;
+        var key = gesture[(gesture.LastIndexOf('+') + 1)..];
+        return (key.Length == 2 && key[0] == 'D' && char.IsDigit(key[1]))
+            || (key.StartsWith("NumPad") && char.IsDigit(key[^1]));
     }
 
     private static string FormatGesture(ModifierKeys mods, Key key)
@@ -1742,6 +1773,28 @@ public partial class MainWindow : FluentWindow
         var text = key is Key.Back or Key.Delete && mods == ModifierKeys.None
             ? ""
             : FormatGesture(mods, key);
+        if (text.Length > 0)
+        {
+            if (IsReservedNav(text))
+            {
+                _vm.Status = string.Format(L("nav.reserved"), text);
+                Keyboard.ClearFocus();
+                return;
+            }
+            var bound = which switch
+            {
+                "nav_mn" => new[] { _vm.ShortcutMirrorPrev, _vm.ShortcutWorkspaceNext, _vm.ShortcutWorkspacePrev },
+                "nav_mp" => new[] { _vm.ShortcutMirrorNext, _vm.ShortcutWorkspaceNext, _vm.ShortcutWorkspacePrev },
+                "nav_wn" => new[] { _vm.ShortcutMirrorNext, _vm.ShortcutMirrorPrev, _vm.ShortcutWorkspacePrev },
+                _ => new[] { _vm.ShortcutMirrorNext, _vm.ShortcutMirrorPrev, _vm.ShortcutWorkspaceNext },
+            };
+            if (bound.Any(b => b == text))
+            {
+                _vm.Status = string.Format(L("nav.conflict"), text);
+                Keyboard.ClearFocus();
+                return;
+            }
+        }
         switch (which)
         {
             case "nav_mn": _vm.ShortcutMirrorNext = text; break;
@@ -1763,6 +1816,11 @@ public partial class MainWindow : FluentWindow
     private void OnPreviewKeyUp(object sender, KeyEventArgs e)
     {
         var upKey = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (_navHeld.Remove(upKey))
+        {
+            e.Handled = true;
+            return;
+        }
         if (_keyTargets.Remove(upKey, out var target))
         {
             if (target.HandleKey(upKey, false, e.IsRepeat))
