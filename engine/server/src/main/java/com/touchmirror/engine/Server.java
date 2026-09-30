@@ -103,7 +103,7 @@ public final class Server {
             }
 
             String startApp = options.getStartApp();
-            if (startApp != null) {
+            if (startApp != null && options.getNewDisplay() == null) {
                 int startAppDisplayId = options.getDisplayId() != Device.DISPLAY_ID_NONE
                         ? options.getDisplayId() : 0;
                 new Thread(() -> Device.startApp(startApp, startAppDisplayId), "start-app").start();

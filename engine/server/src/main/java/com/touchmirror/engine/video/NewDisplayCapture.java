@@ -271,15 +271,19 @@ public class NewDisplayCapture extends SurfaceCapture {
 
     @Override
     public synchronized void setSuspended(boolean suspended) {
+        boolean was = captureSuspended;
         captureSuspended = suspended;
+        if (suspended || !was) {
+            return;
+        }
         VirtualDisplay vd = virtualDisplay;
-        if (vd == null || (boundSurface == null && !suspended)) {
+        if (vd == null || boundSurface == null) {
             return;
         }
         try {
-            vd.setSurface(suspended ? null : boundSurface);
+            vd.setSurface(boundSurface);
         } catch (Exception e) {
-            Ln.w("Could not " + (suspended ? "suspend" : "resume") + " capture: " + e.getMessage());
+            Ln.w("Could not resume capture: " + e.getMessage());
         }
     }
 

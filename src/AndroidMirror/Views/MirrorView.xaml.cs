@@ -1330,6 +1330,8 @@ public partial class MirrorView : UserControl
             SendUhidKeyboard();
             return true;
         }
+        if (IsTextProducingKey(key))
+            return false;
         var code = MapKey(key);
         if (code < 0)
             return false;
@@ -1371,6 +1373,11 @@ public partial class MirrorView : UserControl
         if (e.Data.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } paths)
             AppLogger.Forget(mi.HandleFileDropAsync(paths));
     }
+
+    private static bool IsTextProducingKey(Key key)
+        => key is >= Key.A and <= Key.Z or >= Key.D0 and <= Key.D9
+           || key.ToString().StartsWith("Oem", StringComparison.Ordinal)
+           || key == Key.DeadCharProcessed;
 
     private static int MapKey(Key key) => key switch
     {
