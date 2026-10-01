@@ -67,6 +67,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(HasSessionElapsed))]
     private string? _sessionElapsed;
     public bool HasSessionElapsed => SessionElapsed != null;
+    public string? NewDisplaySpec => _lastOptions?.NewDisplay;
+    public string? AutoLaunchPackage => _lastOptions?.AutoLaunchPackage;
     private EngineOptions? _lastOptions;
     private int _reconnectAttempts;
     private int _incidents;
@@ -300,10 +302,10 @@ public partial class MirrorInstance : ObservableObject, IDisposable
 
         session.VideoPacketReceived += packet =>
         {
-            TrackStreamMetrics(packet);
+            var pktLag = TrackStreamMetrics(packet);
             if (_streamDrop)
             {
-                if (packet.IsKeyFrame)
+                if (packet.IsKeyFrame && pktLag < StreamLagDropMs)
                 {
                     _streamDrop = false;
                     RaiseLog(L("log.stream_resynced"));
@@ -329,7 +331,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                 catch { }
                 RaiseLog(string.Format(L("log.stream_resync"), Math.Round(_mLagEma)));
             }
-            var feed = !_streamDrop || packet.IsKeyFrame || packet.IsConfig;
+            var feed = !_streamDrop || packet.IsConfig;
             if (feed && (!_videoHidden || !_encoderSuspended))
             {
                 VideoDecoder dec;
@@ -395,6 +397,11 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                     dec = Decoder!;
                 }
                 dec.Feed(packet.Data, packet.Length);
+                if (_awaitResumeFrame && dec.DecodedFrames > 0)
+                {
+                    _awaitResumeFrame = false;
+                    RaiseLog(string.Format(L("log.resume_frame"), Environment.TickCount64 - _resumeFrameAt));
+                }
                 if (!_codecHwSeen && dec.HardwareDecoding)
                 {
                     _codecHwSeen = true;
@@ -861,10 +868,10 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     private AdaptEvaluator? _adapt;
     private readonly Stopwatch _adaptWatch = new();
 
-    private void TrackStreamMetrics(VideoPacket p)
+    private double TrackStreamMetrics(VideoPacket p)
     {
         if (p.IsConfig || p.Pts <= 0)
-            return;
+            return -1;
         Interlocked.Increment(ref _videoFrames);
         var now = Environment.TickCount64;
         var ptsMs = p.Pts / 1000;
@@ -874,7 +881,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             _mBaseArrival = _mLastArrival = now;
             _mLagEma = _mJitterEma = 0;
             _adapt?.Reset();
-            return;
+            return 0;
         }
         var lag = (double)(now - _mBaseArrival) - (ptsMs - _mBasePts);
         if (Math.Abs(lag) > 30_000)
@@ -883,7 +890,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             _mBaseArrival = _mLastArrival = now;
             _mLagEma = _mJitterEma = 0;
             _adapt?.Reset();
-            return;
+            return 0;
         }
         _mLagEma = _mLagEma == 0 ? lag : _mLagEma * 0.92 + lag * 0.08;
         var dt = (now - _mLastArrival) - (double)(ptsMs - _mLastPts);
@@ -891,6 +898,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         _mLastPts = ptsMs;
         _mLastArrival = now;
         AdaptTick();
+        return lag;
     }
 
     private int AdaptStart(EngineOptions options)
@@ -919,6 +927,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     private const int ThrottleBitRate = 500_000;
     private CancellationTokenSource? _suspendCts;
     private bool _encoderSuspended;
+    private bool _awaitResumeFrame;
+    private long _resumeFrameAt;
 
     public virtual void SetVideoHidden(bool hidden)
     {
@@ -947,6 +957,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         RaiseLog(L("log.unthrottled"));
         ReleaseDecoder();
         try { Session?.Control?.SendSimple(ControlMsgType.ResetVideo); } catch { }
+        _resumeFrameAt = Environment.TickCount64;
+        _awaitResumeFrame = true;
     }
 
     private void ReleaseDecoder()
@@ -1007,6 +1019,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             _encoderSuspended = false;
         }
         try { Session?.Control?.SendSimple(ControlMsgType.ResetVideo); } catch { }
+        _resumeFrameAt = Environment.TickCount64;
+        _awaitResumeFrame = true;
         return string.Format(L("rec.started"), _recordPath);
     }
 

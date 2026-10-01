@@ -356,6 +356,7 @@
   "tile.uhid.c": "Hardware keyboard & mouse (uhid)",
   "tile.uhid.tip": "Emulates a real USB keyboard and mouse — native cursor, works with apps that filter injected input (Android 12+, ROM-dependent)",
   "log.unthrottled": "mirror active: encoder restored",
+  "log.resume_frame": "resume: first frame in {0} ms",
   "luminosite": "Brightness",
   "luminosite_du_telephone_au_minimum_pendant_le_mi": "Phone brightness at minimum during mirroring",
   "luminosite_du_telephone_au_minimum_pendant_le_mi_2": "Phone brightness at minimum during mirroring — saves battery and preserves AMOLED",

@@ -948,43 +948,50 @@ public partial class MainViewModel : ObservableObject
         if (item == null)
             return;
         var ws = item.Model;
-        var stale = ws.Devices.ToDictionary(d => d.DeviceKey);
+        var stale = new Dictionary<string, WorkspaceDevice>();
+        var keyless = new List<WorkspaceDevice>();
+        foreach (var d in ws.Devices)
+        {
+            if (d.DeviceKey is { Length: > 0 } k)
+                stale.TryAdd(k, d);
+            else
+                keyless.Add(d);
+        }
         var next = new List<WorkspaceDevice>();
+        var byKey = new Dictionary<string, WorkspaceDevice>();
         foreach (var m in Mirrors)
         {
-            if (stale.Remove(m.IdentityKey, out var e))
+            if (!byKey.TryGetValue(m.IdentityKey, out var e))
             {
-                e.Model = m.Device.Model;
-                e.LastSerial = m.Device.Serial;
-                e.AccountUserId = m.AccountUserId;
-                e.AccountName = m.AccountName;
-                next.Add(e);
-            }
-            else
-            {
-                var prev = m.Prefs;
-                next.Add(new WorkspaceDevice
+                if (!stale.Remove(m.IdentityKey, out e))
                 {
-                    DeviceKey = m.IdentityKey,
-                    Model = m.Device.Model,
-                    LastSerial = m.Device.Serial,
-                    AccountUserId = m.AccountUserId,
-                    AccountName = m.AccountName,
-                    MaxSize = prev?.MaxSize,
-                    MaxFps = prev?.MaxFps,
-                    VideoBitRate = prev?.VideoBitRate,
-                    VideoCodec = prev?.VideoCodec,
-                    VideoDecoder = prev?.VideoDecoder,
-                    EnableAudio = prev?.EnableAudio,
-                    TurnScreenOff = prev?.TurnScreenOff,
-                    NewDisplay = prev?.NewDisplay,
-                    AdaptiveBitrate = prev?.AdaptiveBitrate,
-                    UhidInput = prev?.UhidInput
-                });
+                    var prev = m.Prefs;
+                    e = new WorkspaceDevice
+                    {
+                        DeviceKey = m.IdentityKey,
+                        MaxSize = prev?.MaxSize,
+                        MaxFps = prev?.MaxFps,
+                        VideoBitRate = prev?.VideoBitRate,
+                        VideoCodec = prev?.VideoCodec,
+                        VideoDecoder = prev?.VideoDecoder,
+                        EnableAudio = prev?.EnableAudio,
+                        TurnScreenOff = prev?.TurnScreenOff,
+                        NewDisplay = prev?.NewDisplay,
+                        AdaptiveBitrate = prev?.AdaptiveBitrate,
+                        UhidInput = prev?.UhidInput
+                    };
+                }
+                next.Add(e);
+                byKey[m.IdentityKey] = e;
             }
-            m.Prefs = next[^1];
+            e.Model = m.Device.Model;
+            e.LastSerial = m.Device.Serial;
+            e.AccountUserId = m.AccountUserId;
+            e.AccountName = m.AccountName;
+            m.Prefs = e;
         }
         next.AddRange(stale.Values);
+        next.AddRange(keyless);
         ws.Devices = next;
         ws.ActiveDeviceKey = ActiveMirror?.IdentityKey;
         item.Refresh();
@@ -1843,11 +1850,19 @@ public partial class MainViewModel : ObservableObject
     {
         if (!string.IsNullOrEmpty(prefs?.NewDisplay))
             return prefs.NewDisplay;
-        var (w, h) = await AdbService.GetScreenSizeAsync(device.Serial);
-        if (w <= 0 || h <= 0)
-            return null;
-        var dpi = await AdbService.GetScreenDensityAsync(device.Serial);
-        return $"{Math.Max(w, h)}x{Math.Min(w, h)}/{(dpi > 0 ? dpi : 420)}";
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var (w, h) = await AdbService.GetScreenSizeAsync(device.Serial);
+            if (w > 0 && h > 0)
+            {
+                var dpi = await AdbService.GetScreenDensityAsync(device.Serial);
+                return $"{Math.Max(w, h)}x{Math.Min(w, h)}/{(dpi > 0 ? dpi : 420)}";
+            }
+            if (attempt == 0)
+                await Task.Delay(400);
+        }
+        AppLogger.Write($"display resolve failed for {device.Serial} — falling back to 1920x1200/400");
+        return null;
     }
 
     private EngineOptions BuildOptions(WorkspaceDevice? o = null, MirrorAccount? account = null,
@@ -1870,7 +1885,7 @@ public partial class MainViewModel : ObservableObject
         Audio = o?.EnableAudio ?? _settings.EnableAudio,
         TurnScreenOff = o?.TurnScreenOff ?? _settings.TurnScreenOff,
         NewDisplay = account != null
-            ? (string.IsNullOrEmpty(o?.NewDisplay) ? (accountDisplay ?? "1920x1200/280") : o.NewDisplay)
+            ? (string.IsNullOrEmpty(o?.NewDisplay) ? (accountDisplay ?? "1920x1200/400") : o.NewDisplay)
             : (o?.NewDisplay ?? _settings.NewDisplay),
         AutoLaunchPackage = account != null
             ? $"com.ankama.dofustouch@{account.UserId}"
@@ -3587,7 +3602,7 @@ public partial class MainViewModel : ObservableObject
 
     private void WireMirror(MirrorInstance instance, Action? onDisconnected = null)
     {
-        instance.Log += Log;
+        instance.Log += msg => Log($"[{instance.DeviceName}] {msg}");
         instance.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MirrorInstance.ReconnectStatus) && instance.ReconnectStatus is { } message)
@@ -4813,6 +4828,8 @@ public partial class MainViewModel : ObservableObject
                         .Append(m.IsReconnecting ? $" [reconnexion: {m.ReconnectStatus}]" : "")
                         .Append(m.UnexpectedDeath ? " [mort inattendue]" : "")
                         .Append(" état=").Append(m.LastDeviceState)
+                        .Append(m.NewDisplaySpec != null ? $" vd={m.NewDisplaySpec}" : "")
+                        .Append(m.AutoLaunchPackage != null ? $" app={m.AutoLaunchPackage}" : "")
                         .Append(m.AdaptiveBitrate && m.IsConnected
                             ? $" adaptatif={Math.Round(m.CurrentBitRate / 1e6, 1)} Mbps (pic {Math.Round(m.AdaptPeakBitRate / 1e6, 1)}, {m.AdaptMoves} paliers)"
                             : "")
@@ -4863,7 +4880,8 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand] private void SendBack() => ActiveMirror?.Session?.Control?.InjectKeyPress(AndroidKeyCode.Back);
     [RelayCommand] private void SendHome() => ActiveMirror?.Session?.Control?.InjectKeyPress(AndroidKeyCode.Home);
     [RelayCommand] private void SendRecents() => ActiveMirror?.Session?.Control?.InjectKeyPress(AndroidKeyCode.AppSwitch);
-    [RelayCommand] private void LaunchDofus() => ActiveMirror?.Session?.Control?.StartApp("com.ankama.dofustouch");
+    [RelayCommand] private void LaunchDofus() => ActiveMirror?.Session?.Control?.StartApp(
+        ActiveMirror?.AccountUserId is { } uid ? $"com.ankama.dofustouch@{uid}" : "com.ankama.dofustouch");
     [RelayCommand] private void SendPower() => ActiveMirror?.Session?.Control?.InjectKeyPress(AndroidKeyCode.Power);
     [RelayCommand] private void RotateDevice() => ActiveMirror?.Session?.Control?.SendSimple(ControlMsgType.RotateDevice);
     [RelayCommand] private void Screenshot()

@@ -50,6 +50,17 @@ public static class AppLogger
 
     public static void Write(Exception ex) => Write(ex.ToString());
 
+    public static void WriteFatal(string message)
+    {
+        Write($"FATAL: {message}");
+        try
+        {
+            var crashPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(_path)!, "crash.log");
+            File.AppendAllText(crashPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}\n---\n");
+        }
+        catch { }
+    }
+
     public static void Forget(Task task)
         => task.ContinueWith(t => Write($"async en arrière-plan : {t.Exception?.GetBaseException()}"),
             TaskContinuationOptions.OnlyOnFaulted);

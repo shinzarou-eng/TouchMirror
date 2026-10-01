@@ -69,7 +69,7 @@ Le test décisif : un iPhone physique sur le même Wi-Fi, logs `airplay rtsp` ou
 
 ## Voie câble — protocole QuickTime (USB)
 
-En parallèle du Wi-Fi, le protocole de recopie d'écran par câble (celui utilisé par QuickTime Player sur macOS) est en cours de portage dans `src/AndroidMirror/QuickTime/`. Intérêt : il esquive entièrement FairPlay et le timing PTP — le flux H.264 arrive en clair dans des `CMSampleBuffer`.
+En parallèle du Wi-Fi, le protocole de recopie d'écran par câble (celui utilisé par QuickTime Player sur macOS) est en cours de portage dans `tools/QuickTimeCodec`. Intérêt : il esquive entièrement FairPlay et le timing PTP — le flux H.264 arrive en clair dans des `CMSampleBuffer`.
 
 Couches portées depuis l'implémentation de référence MIT [quicktime_video_hack](https://github.com/danielpaulus/quicktime_video_hack) :
 

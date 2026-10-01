@@ -5668,7 +5668,7 @@
                                    HorizontalAlignment="Right"
                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                     </Grid>
-                    <ProgressBar Maximum="30" Value="{Binding BenchSeconds}" Height="3" Margin="0,10,0,0"
+                    <ProgressBar Maximum="30" Value="{Binding BenchSeconds, Mode=OneWay}" Height="3" Margin="0,10,0,0"
                                  Visibility="{Binding DiagBenchBusy, Converter={StaticResource BoolToVis}}" />
 
                     <Border BorderThickness="0,1,0,0" BorderBrush="{DynamicResource AppBorderSubtleBrush}"

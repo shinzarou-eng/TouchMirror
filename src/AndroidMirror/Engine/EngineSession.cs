@@ -122,16 +122,18 @@ public sealed class EngineSession : IAsyncDisposable
         var scidHex = Random.Shared.Next(0, 0x7fffffff).ToString("x8");
         _remoteJarPath = $"/data/local/tmp/touchmirror-{scidHex}.jar";
         var cached = await AdbService.PrepareServerAsync(_device.Serial, jarPath, scidHex, _cts.Token);
-        Services.AppLogger.Write(cached ? "session: verified cache reused" : "session: server transferred");
+        Services.AppLogger.Write(cached
+            ? $"session[{_device.ShortName}]: verified cache reused"
+            : $"session[{_device.ShortName}]: server transferred");
         _socketName = $"touchmirror_{scidHex}";
 
         _listener = new TcpListener(IPAddress.Loopback, 0);
         _listener.Start();
         var port = ((IPEndPoint)_listener.LocalEndpoint).Port;
 
-        Services.AppLogger.Write("session: reverse begin");
+        Services.AppLogger.Write($"session[{_device.ShortName}]: reverse begin");
         await AdbService.ReverseAsync(_device.Serial, _socketName, port, _cts.Token);
-        Services.AppLogger.Write("session: reverse done");
+        Services.AppLogger.Write($"session[{_device.ShortName}]: reverse done");
 
         var args = BuildServerArgs(scidHex);
         ServerLog?.Invoke($"server args: {args}");
@@ -156,7 +158,7 @@ public sealed class EngineSession : IAsyncDisposable
 
         _socket = await AcceptWithTimeout(acceptCts.Token);
         _listener.Stop();
-        Services.AppLogger.Write("session: socket accepted");
+        Services.AppLogger.Write($"session[{_device.ShortName}]: socket accepted");
 
         var headerBuf = new byte[5];
         if (!await ReadExactAsync(_socket, headerBuf, acceptCts.Token))
@@ -178,7 +180,7 @@ public sealed class EngineSession : IAsyncDisposable
             throw new InvalidDataException($"protocole moteur v{proto} non supporté (attendu v{ProtocolVersion})");
         EngineCaps = BinaryPrimitives.ReadUInt32BigEndian(helloBuf.AsSpan(6));
         DeviceName = Encoding.UTF8.GetString(helloBuf, 11, helloBuf[10]);
-        Services.AppLogger.Write($"session: hello TM/{proto} caps=0x{EngineCaps:x2}");
+        Services.AppLogger.Write($"session[{_device.ShortName}]: hello TM/{proto} caps=0x{EngineCaps:x2}");
 
         _control = new ControlChannel(_socket);
         _control.ClipboardReceived += t => DeviceClipboard?.Invoke(t);

@@ -50,7 +50,7 @@ public partial class App : Application
             args.Handled = true;
         };
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
-            AppLogger.Write($"FATAL: {args.ExceptionObject}");
+            AppLogger.WriteFatal($"{args.ExceptionObject}");
         TaskScheduler.UnobservedTaskException += (_, args) =>
         {
             AppLogger.Write($"Unobserved: {args.Exception}");

@@ -356,6 +356,7 @@
   "tile.uhid.c": "Clavier & souris matériels (uhid)",
   "tile.uhid.tip": "Simule un vrai clavier et une vraie souris USB — curseur natif, compatible avec les apps qui filtrent l'injection (Android 12+, selon ROM)",
   "log.unthrottled": "miroir actif : encodeur restauré",
+  "log.resume_frame": "reprise : première image en {0} ms",
   "luminosite": "Luminosité",
   "luminosite_du_telephone_au_minimum_pendant_le_mi": "Luminosité du téléphone au minimum pendant le mirroring",
   "luminosite_du_telephone_au_minimum_pendant_le_mi_2": "Luminosité du téléphone au minimum pendant le mirroring — économise la batterie et préserve l'AMOLED",
