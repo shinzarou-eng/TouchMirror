@@ -35,18 +35,26 @@ public static class ScreenDimmer
         {
             if (hold.Refs++ > 0)
                 return false;
-            var pending = DimmedScreenStore.Pending().FirstOrDefault(s =>
-                s.DeviceKey == device.DeviceKey || s.Serial == serial);
-            hold.Brightness = pending?.Brightness ?? await AdbService.GetBrightnessAsync(serial);
-            hold.StayOn = pending?.StayOn ?? await AdbService.GetStayOnWhilePluggedInAsync(serial);
-            hold.BrightnessMode = pending?.BrightnessMode ?? await AdbService.GetBrightnessModeAsync(serial);
-            hold.Serial = serial;
-            DimmedScreenStore.Mark(serial, device.DeviceKey,
-                hold.Brightness, hold.StayOn, hold.BrightnessMode);
-            await AdbService.SetStayOnWhilePluggedInAsync(serial, 7);
-            await AdbService.WakeScreenAsync(serial);
-            await AdbService.SetBrightnessAsync(serial, 0);
-            return true;
+            try
+            {
+                var pending = DimmedScreenStore.Pending().FirstOrDefault(s =>
+                    s.DeviceKey == device.DeviceKey || s.Serial == serial);
+                hold.Brightness = pending?.Brightness ?? await AdbService.GetBrightnessAsync(serial);
+                hold.StayOn = pending?.StayOn ?? await AdbService.GetStayOnWhilePluggedInAsync(serial);
+                hold.BrightnessMode = pending?.BrightnessMode ?? await AdbService.GetBrightnessModeAsync(serial);
+                hold.Serial = serial;
+                DimmedScreenStore.Mark(serial, device.DeviceKey,
+                    hold.Brightness, hold.StayOn, hold.BrightnessMode);
+                await AdbService.SetStayOnWhilePluggedInAsync(serial, 7);
+                await AdbService.WakeScreenAsync(serial);
+                await AdbService.SetBrightnessAsync(serial, 0);
+                return true;
+            }
+            catch
+            {
+                hold.Refs--;
+                throw;
+            }
         }
         finally
         {

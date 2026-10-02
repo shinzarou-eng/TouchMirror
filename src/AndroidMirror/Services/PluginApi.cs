@@ -85,7 +85,13 @@ public sealed class PluginApi
         }
     }
 
-    private static T Wait<T>(Task<T> t) => t.GetAwaiter().GetResult();
+    private T Wait<T>(Task<T> t)
+    {
+        while (!t.Wait(50))
+            if (_stopped)
+                throw new OperationCanceledException();
+        return t.GetAwaiter().GetResult();
+    }
 
     private static int Int(string? s) => int.TryParse(s, out var v) ? v : 0;
 

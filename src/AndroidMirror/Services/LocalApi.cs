@@ -158,8 +158,9 @@ public sealed class LocalApiHost
         var m = _vm.MirrorAtSlot(slot);
         if (m == null)
             return new ApiResult(false, $"slot {slot} inconnu");
-        m.SetAudioVolume((float)Math.Clamp(double.IsFinite(volume) ? volume : 0, 0, 1));
-        return new ApiResult(true, $"miroir {slot} volume {(int)Math.Round(volume * 100)}%",
+        var v = Math.Clamp(double.IsFinite(volume) ? volume : 0, 0, 1);
+        m.SetAudioVolume((float)v);
+        return new ApiResult(true, $"miroir {slot} volume {(int)Math.Round(v * 100)}%",
             new { volume = m.AudioVolume });
     });
 

@@ -66,6 +66,7 @@ public class SurfaceEncoder implements AsyncProcessor {
     private void streamCapture() throws IOException, ConfigurationException {
         Codec codec = streamer.getCodec();
         MediaCodec mediaCodec = createMediaCodec(codec);
+        Ln.i("video encoder: " + mediaCodec.getName() + ", codec " + codec.getName());
         MediaFormat format = createFormat(codec.getMimeType());
 
         MediaCodecInfo.VideoCapabilities caps;
@@ -278,7 +279,7 @@ public class SurfaceEncoder implements AsyncProcessor {
         MediaFormat format = new MediaFormat();
         format.setString(MediaFormat.KEY_MIME, mimeType);
         format.setInteger(MediaFormat.KEY_BIT_RATE, videoBitRate);
-        format.setInteger(MediaFormat.KEY_FRAME_RATE, 60);
+        format.setInteger(MediaFormat.KEY_FRAME_RATE, maxFps > 0 ? (int) Math.ceil(maxFps) : 60);
         format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
         if (Build.VERSION.SDK_INT >= AndroidVersions.API_24_ANDROID_7_0) {
             format.setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED);

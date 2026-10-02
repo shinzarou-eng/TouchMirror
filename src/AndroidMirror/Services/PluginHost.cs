@@ -143,13 +143,13 @@ public partial class PluginInstance : ObservableObject
     public void Stop()
     {
         _cts?.Cancel();
+        _api?.Cleanup();
         lock (_queueLock) { _queue.Clear(); Monitor.PulseAll(_queueLock); }
         _thread?.Join(1500);
         _thread = null;
         _engine = null;
         _handlers.Clear();
         _timers.Clear();
-        _api?.Cleanup();
         _api = null;
         try { Application.Current?.Dispatcher.BeginInvoke(() => Running = false); }
         catch { }

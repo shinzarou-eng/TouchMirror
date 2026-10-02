@@ -1030,6 +1030,7 @@ public partial class MainViewModel : ObservableObject
 
     private async Task RestoreWorkspaceAsync(WorkspaceItem item)
     {
+        App.SuppressWatchdog();
         var ws = item.Model;
         var keys = ws.Devices.Select(d => d.DeviceKey).ToHashSet();
         foreach (var m in Mirrors.ToList())
@@ -4830,12 +4831,17 @@ public partial class MainViewModel : ObservableObject
                         .Append(" état=").Append(m.LastDeviceState)
                         .Append(m.NewDisplaySpec != null ? $" vd={m.NewDisplaySpec}" : "")
                         .Append(m.AutoLaunchPackage != null ? $" app={m.AutoLaunchPackage}" : "")
+                        .Append(m.EncoderInfo != null ? $" enc={m.EncoderInfo}" : "")
                         .Append(m.AdaptiveBitrate && m.IsConnected
                             ? $" adaptatif={Math.Round(m.CurrentBitRate / 1e6, 1)} Mbps (pic {Math.Round(m.AdaptPeakBitRate / 1e6, 1)}, {m.AdaptMoves} paliers)"
                             : "")
                         .Append(nl);
             sb.Append(nl).Append("== journal ==").Append(nl);
             sb.Append(TailLog(250));
+            if (TailLogFile("crash.log", 100) is { } crash)
+                sb.Append(nl).Append("== crash.log ==").Append(nl).Append(crash);
+            if (TailLogFile("app.prev.log", 150) is { } prev)
+                sb.Append(nl).Append("== journal précédent ==").Append(nl).Append(prev);
             DebugReport = sb.ToString();
             DiagFixAdbVisible = adbPath != null && !adbResponds;
             DiagFixReauthVisible = detected.Any(d => d.NeedsAuthorization);
@@ -4866,15 +4872,21 @@ public partial class MainViewModel : ObservableObject
     }
 
     private static string TailLog(int maxLines)
+        => TailLogFile("app.log", maxLines) ?? "(journal illisible)";
+
+    private static string? TailLogFile(string name, int maxLines)
     {
         try
         {
-            using var fs = new FileStream(AppLogger.LogFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            var path = Path.Combine(Path.GetDirectoryName(AppLogger.LogFilePath)!, name);
+            if (!File.Exists(path))
+                return null;
+            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             using var sr = new StreamReader(fs);
             var lines = sr.ReadToEnd().Split('\n');
             return string.Join(Environment.NewLine, lines.TakeLast(maxLines));
         }
-        catch (Exception ex) { return ex.Message; }
+        catch { return null; }
     }
 
     [RelayCommand] private void SendBack() => ActiveMirror?.Session?.Control?.InjectKeyPress(AndroidKeyCode.Back);

@@ -1089,6 +1089,7 @@ public partial class MainWindow : FluentWindow
         ConfirmOverlay.Visibility = Visibility.Visible;
         ConfirmOverlay.BeginAnimation(OpacityProperty,
             new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(150)));
+        _confirmTcs?.TrySetResult(false);
         _confirmTcs = new TaskCompletionSource<bool>();
         return _confirmTcs.Task;
     }
@@ -1608,14 +1609,14 @@ public partial class MainWindow : FluentWindow
             e.Handled = true;
             return;
         }
+        if (e.Key == Key.Escape && _confirmTcs != null)
+        {
+            ResolveConfirm(false);
+            e.Handled = true;
+            return;
+        }
         if (e.Key == Key.Escape && !IsTextInputTarget(e.OriginalSource))
         {
-            if (_confirmTcs != null)
-            {
-                ResolveConfirm(false);
-                e.Handled = true;
-                return;
-            }
             if (_activeDock != null)
             {
                 ShowDock(null);

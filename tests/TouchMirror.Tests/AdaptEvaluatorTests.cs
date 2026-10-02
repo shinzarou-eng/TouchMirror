@@ -150,6 +150,52 @@ public sealed class AdaptEvaluatorTests
     }
 
     [Fact]
+    public void FloorForSize_Scales_With_Resolution()
+    {
+        Assert.Equal(0, AdaptEvaluator.FloorForSize(0));
+        Assert.Equal(0, AdaptEvaluator.FloorForSize(1080));
+        Assert.Equal(5_000_000, AdaptEvaluator.FloorForSize(1440));
+        Assert.Equal(8_000_000, AdaptEvaluator.FloorForSize(2560));
+        Assert.Equal(8_000_000, AdaptEvaluator.FloorForSize(3840));
+    }
+
+    [Fact]
+    public void Resolution_Floor_Blocks_Drop_Below()
+    {
+        var e = new AdaptEvaluator(16_000_000, AdaptEvaluator.MaxBitRate, 5_000_000);
+        Assert.Equal(12_000_000, e.Evaluate(500, false));
+        Assert.Equal(8_000_000, e.Evaluate(500, false));
+        Assert.Equal(5_000_000, e.Evaluate(500, false));
+        Assert.Null(e.Evaluate(500, false));
+        Assert.Equal(5_000_000, e.Current);
+    }
+
+    [Fact]
+    public void SetFloor_Raises_Current_Tier()
+    {
+        var e = new AdaptEvaluator(1_500_000, AdaptEvaluator.MaxBitRate);
+        Assert.Equal(5_000_000, e.SetFloor(5_000_000));
+        Assert.Equal(5_000_000, e.Current);
+        Assert.Null(e.SetFloor(5_000_000));
+    }
+
+    [Fact]
+    public void SetFloor_Below_Current_Is_Noop()
+    {
+        var e = Eval();
+        Assert.Null(e.SetFloor(5_000_000));
+        Assert.Equal(16_000_000, e.Current);
+    }
+
+    [Fact]
+    public void SetFloor_Capped_By_Ceiling()
+    {
+        var e = new AdaptEvaluator(1_500_000, 3_000_000);
+        Assert.Equal(3_000_000, e.SetFloor(8_000_000));
+        Assert.Equal(3_000_000, e.Current);
+    }
+
+    [Fact]
     public void Peak_And_StableTicks_Tracked()
     {
         var e = Eval();

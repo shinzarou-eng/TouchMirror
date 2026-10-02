@@ -79,6 +79,12 @@ public sealed class GpuPresenter : IDisposable
     private int _w, _h;
     private bool _pendingRebind;
     private bool _disposed;
+    private volatile bool _upscale;
+    internal const bool PostUpscaleEnabled = false;
+    private int _outW, _outH;
+    private ID3D11PixelShader? _psScale;
+    private int RenderW => _upscale ? _outW : _w;
+    private int RenderH => _upscale ? _outH : _h;
 
     private readonly Dictionary<(IntPtr tex, int slice), (ID3D11Texture2D tex, ID3D11ShaderResourceView? y,
         ID3D11ShaderResourceView? uv)> _srcCache = new();
@@ -187,6 +193,30 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
     return float4((lb < lmin || lb > lmax) ? a : b, 1.0);
 }";
 
+    private const string PsScaleSrc = @"
+cbuffer ScaleCB : register(b0) { float4 rcp; float4 cfg; };
+Texture2D<float4> tex : register(t0);
+SamplerState samp : register(s0);
+static const float3 LUMA = float3(0.299, 0.587, 0.114);
+float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
+    float3 c = tex.Sample(samp, uv).rgb;
+    if (cfg.x <= 0.0)
+        return float4(c, 1.0);
+    float2 o = rcp.zw;
+    float3 n = tex.Sample(samp, uv - float2(0, o.y)).rgb;
+    float3 w = tex.Sample(samp, uv - float2(o.x, 0)).rgb;
+    float3 e = tex.Sample(samp, uv + float2(o.x, 0)).rgb;
+    float3 s = tex.Sample(samp, uv + float2(0, o.y)).rgb;
+    float lc = dot(c, LUMA), ln = dot(n, LUMA), ls = dot(s, LUMA),
+          le = dot(e, LUMA), lw = dot(w, LUMA);
+    float mn = min(lc, min(min(ln, ls), min(le, lw)));
+    float mx = max(lc, max(max(ln, ls), max(le, lw)));
+    float amp = saturate(min(mn, 1.0 - mx) / max(mx, 1e-4));
+    float wgt = -sqrt(amp) * cfg.x * 0.5;
+    float l2 = (lc + (ln + ls + le + lw) * wgt) / (1.0 + 4.0 * wgt);
+    return float4(saturate(c + (l2 - lc)), 1.0);
+}";
+
     private ID3D11Buffer? _cb;
     private int _lastColorInfo = -1;
     private float _sharpness;
@@ -205,7 +235,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         set
         {
             _fxaa = value;
-            if (!value)
+            if (!value && !_upscale)
                 _ = Task.Run(() =>
                 {
                     lock (_sync)
@@ -224,7 +254,38 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         {
             _sharpness = Math.Clamp(value, 0f, 1f);
             _cbDirty = true;
+            UpdateUpscale();
         }
+    }
+
+    public void SetOutputSize(int w, int h)
+    {
+        if (!PostUpscaleEnabled)
+            return;
+        _outW = Math.Clamp(w, 0, 8192);
+        _outH = Math.Clamp(h, 0, 8192);
+        UpdateUpscale();
+    }
+
+    private void UpdateUpscale()
+    {
+        var u = _sharpness > 0f && _w > 0
+            && _outW > _w * 1.1 && _outH > _h * 1.1;
+        if (u == _upscale)
+            return;
+        _upscale = u;
+        _cbDirty = true;
+        _pendingRebind = true;
+        ScheduleRebindRetry();
+        if (!u && !_fxaa)
+            _ = Task.Run(() =>
+            {
+                lock (_sync)
+                {
+                    _preSrv?.Dispose(); _preRtv?.Dispose(); _pre?.Dispose();
+                    _preSrv = null; _preRtv = null; _pre = null;
+                }
+            });
     }
 
     private static readonly float[][] ColorTable =
@@ -251,9 +312,12 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         var fxaaBytes = Compiler.Compile(PsFxaaSrc, "main", "ps", "ps_4_0",
             ShaderFlags.None, EffectFlags.None);
         _psFxaa = dev.CreatePixelShader(fxaaBytes.Span, null);
+        var scaleBytes = Compiler.Compile(PsScaleSrc, "main", "ps", "ps_4_0",
+            ShaderFlags.None, EffectFlags.None);
+        _psScale = dev.CreatePixelShader(scaleBytes.Span, null);
         _cbFxaa = dev.CreateBuffer(new BufferDescription
         {
-            ByteWidth = 16,
+            ByteWidth = 32,
             Usage = ResourceUsage.Default,
             BindFlags = BindFlags.ConstantBuffer,
         });
@@ -304,6 +368,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         _srvUV = dev.CreateShaderResourceView(_nv12, new ShaderResourceViewDescription(
             _nv12, ShaderResourceViewDimension.Texture2D, Format.R8G8_UNorm, 0, 1, 0, 1));
 
+        UpdateUpscale();
         SizeChanged?.Invoke(w, h);
     }
 
@@ -313,7 +378,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         {
             var coefs = ColorTable[colorInfo];
             Array.Copy(coefs, _cbData, 16);
-            _cbData[13] = _sharpness;
+            _cbData[13] = _upscale ? 0f : _sharpness;
             _cbData[16] = _viewX; _cbData[17] = _viewY;
             _cbData[18] = _viewS; _cbData[19] = _viewS;
             _cbData[20] = _adjB; _cbData[21] = _adjC; _cbData[22] = _adjS;
@@ -387,9 +452,10 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
     private void Draw(ID3D11ShaderResourceView srvY, ID3D11ShaderResourceView srvUV, int w, int h)
     {
         _lastY = srvY; _lastUV = srvUV;
-        if (_fxaa)
+        var post = _fxaa || _upscale;
+        if (post)
             EnsurePre();
-        _ctx.OMSetRenderTargets(_fxaa ? _preRtv! : _frameRtv!);
+        _ctx.OMSetRenderTargets(post ? _preRtv! : _frameRtv!);
         _ctx.RSSetViewport(0, 0, w, h);
         _ctx.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         _ctx.VSSetShader(_vs!);
@@ -399,13 +465,28 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         _ctx.PSSetSampler(0, _sampler!);
         _ctx.Draw(3, 0);
 
-        if (_fxaa)
+        if (post)
         {
+            var cbd = new float[8]
+            {
+                1f / w, 1f / h,
+                1f / Math.Max(1, RenderW), 1f / Math.Max(1, RenderH),
+                _sharpness, 0, 0, 0
+            };
+            _ctx.UpdateSubresource(cbd, _cbFxaa!);
             _ctx.PSSetShaderResources(0, new ID3D11ShaderResourceView[2]);
             _ctx.OMSetRenderTargets(_frameRtv!);
-            _ctx.PSSetShader(_psFxaa!);
             _ctx.PSSetShaderResources(0, new[] { _preSrv! });
             _ctx.PSSetConstantBuffer(0, _cbFxaa!);
+            if (_upscale)
+            {
+                _ctx.RSSetViewport(0, 0, RenderW, RenderH);
+                _ctx.PSSetShader(_psScale!);
+            }
+            else
+            {
+                _ctx.PSSetShader(_psFxaa!);
+            }
             _ctx.Draw(3, 0);
             _ctx.PSSetShaderResources(0, new ID3D11ShaderResourceView[1]);
         }
@@ -571,7 +652,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
             return;
         if (Interlocked.Exchange(ref _rebindBusy, 1) == 1)
             return;
-        var w = _w; var h = _h; var hwnd = _hwnd;
+        var w = RenderW; var h = RenderH; var hwnd = _hwnd;
         Task.Run(() => RebindWorker(img, w, h, hwnd));
         _ = Task.Run(async () =>
         {
@@ -644,7 +725,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
             }
             try
             {
-                if (_disposed || _gpuDead || w != _w || h != _h)
+                if (_disposed || _gpuDead || w != RenderW || h != RenderH)
                 {
                     rtvNew.Dispose(); frameNew.Dispose(); bgraNew.Dispose();
                     tex9?.Dispose(); surface?.Dispose();
@@ -722,11 +803,14 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         }
         try
         {
-            w = _w; h = _h;
             var src2 = _bgra ?? _frame;
             if (src2 == null || _w <= 0)
+            {
+                w = 0; h = 0;
                 return null;
+            }
             var desc = src2.Description;
+            w = (int)desc.Width; h = (int)desc.Height;
             desc.Usage = ResourceUsage.Staging;
             desc.BindFlags = BindFlags.None;
             desc.CPUAccessFlags = CpuAccessFlags.Read;
@@ -767,6 +851,8 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
             if (_frame == null || _w <= 0 || _h <= 0)
                 return null;
             var desc = _frame.Description;
+            var fh = (int)desc.Height;
+            var fw = (int)desc.Width;
             desc.Usage = ResourceUsage.Staging;
             desc.BindFlags = BindFlags.None;
             desc.CPUAccessFlags = CpuAccessFlags.Read;
@@ -778,16 +864,16 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
             {
                 var src = (byte*)map.DataPointer;
                 var pitch = (int)map.RowPitch;
-                var rowStep = Math.Max(1, _h / 64);
-                var colStep = Math.Max(4, _w * 4 / 256) & ~3;
+                var rowStep = Math.Max(1, fh / 64);
+                var colStep = Math.Max(4, fw * 4 / 256) & ~3;
                 int minB = 255, maxB = 0, minG = 255, maxG = 0, minR = 255, maxR = 0;
                 unchecked
                 {
                     long hash = -3750763034362895579L;
-                    for (var row = 0; row < _h; row += rowStep)
+                    for (var row = 0; row < fh; row += rowStep)
                     {
                         var r = src + (long)row * pitch;
-                        for (var col = 0; col + 3 < _w * 4; col += colStep)
+                        for (var col = 0; col + 3 < fw * 4; col += colStep)
                         {
                             var v = *(uint*)(r + col);
                             hash = (hash ^ v) * 1099511628211L;
@@ -824,6 +910,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
             return;
         if (!img.TryLock(new Duration(TimeSpan.FromMilliseconds(8))))
             return;
+        var dw = RenderW; var dh = RenderH;
         try
         {
             if (Monitor.TryEnter(_sync))
@@ -843,17 +930,20 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
                             _pendingRebind = true;
                             _ = Task.Run(() => GpuFailed?.Invoke());
                         }
+                        var sd = _bgra.Description;
+                        dw = (int)sd.Width; dh = (int)sd.Height;
                     }
                 }
                 finally { Monitor.Exit(_sync); }
             }
-            try { img.AddDirtyRect(new Int32Rect(0, 0, _w, _h)); }
+            try { img.AddDirtyRect(new Int32Rect(0, 0, dw, dh)); }
             catch (InvalidOperationException)
             {
                 _frontLost = true;
                 _pendingRebind = true;
                 ScheduleRebindRetry();
             }
+            catch (ArgumentException) { }
         }
         finally { img.Unlock(); }
     }
@@ -910,7 +1000,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
             Drop(ref _srvY); Drop(ref _srvUV); Drop(ref _nv12);
             Drop(ref _frameRtv); Drop(ref _frame); Drop(ref _bgra);
             Drop(ref _preSrv); Drop(ref _preRtv); Drop(ref _pre);
-            Drop(ref _vs); Drop(ref _ps); Drop(ref _psFxaa); Drop(ref _sampler);
+            Drop(ref _vs); Drop(ref _ps); Drop(ref _psFxaa); Drop(ref _psScale); Drop(ref _sampler);
             Drop(ref _cb); Drop(ref _cbFxaa);
         }
         Drop(ref _tex9);

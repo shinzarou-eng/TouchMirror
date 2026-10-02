@@ -11,13 +11,31 @@ public sealed class AdaptEvaluator
     private double _lastLag = double.NaN;
     private int _goodStreak;
     private int _tier;
+    private int _floorTier;
     private readonly int _ceilingTier;
 
-    public AdaptEvaluator(int startBitRate, int ceilingBitRate)
+    public AdaptEvaluator(int startBitRate, int ceilingBitRate, int minBitRate = 0)
     {
         _ceilingTier = CeilingIndex(ceilingBitRate);
+        _floorTier = Math.Min(CeilingIndex(minBitRate), _ceilingTier);
         _tier = Math.Min(StartIndex(startBitRate), _ceilingTier);
         PeakBitRate = Current;
+    }
+
+    public static int FloorForSize(int maxDim) => maxDim switch
+    {
+        >= 2560 => 8_000_000,
+        >= 1440 => 5_000_000,
+        _ => 0,
+    };
+
+    public int? SetFloor(int minBitRate)
+    {
+        _floorTier = Math.Min(CeilingIndex(minBitRate), _ceilingTier);
+        if (_tier >= _floorTier)
+            return null;
+        _tier = _floorTier;
+        return Current;
     }
 
     public int Current => Tiers[_tier];
@@ -57,7 +75,7 @@ public sealed class AdaptEvaluator
         if (growth > 60 || lagEmaMs > 400)
         {
             _goodStreak = 0;
-            if (_tier > 0)
+            if (_tier > _floorTier)
             {
                 _tier--;
                 moved = true;

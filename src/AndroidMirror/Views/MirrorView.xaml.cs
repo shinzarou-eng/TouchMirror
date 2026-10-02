@@ -54,12 +54,46 @@ public partial class MirrorView : UserControl
 
     private bool _renderingHooked;
 
+    private readonly System.Windows.Threading.DispatcherTimer _outSizeTimer =
+        new() { Interval = TimeSpan.FromMilliseconds(160) };
+
     public MirrorView()
     {
         InitializeComponent();
         Focusable = true;
-        SizeChanged += (_, _) => LayoutKeybinds();
+        SizeChanged += (_, _) => { LayoutKeybinds(); ScheduleOutputSize(); };
+        VideoImage.SizeChanged += (_, _) => ScheduleOutputSize();
+        Loaded += (_, _) =>
+        {
+            var w = Window.GetWindow(this);
+            if (w != null)
+                w.DpiChanged += (_, _) => ScheduleOutputSize();
+        };
+        _outSizeTimer.Tick += (_, _) => PushOutputSize();
         _moveFlush.Tick += (_, _) => FlushPendingMove();
+    }
+
+    private void ScheduleOutputSize()
+    {
+        _outSizeTimer.Stop();
+        _outSizeTimer.Start();
+    }
+
+    private void PushOutputSize()
+    {
+        _outSizeTimer.Stop();
+        var p = _presenter;
+        if (p == null || _videoW <= 0 || _videoH <= 0)
+            return;
+        var ew = VideoImage.ActualWidth;
+        var eh = VideoImage.ActualHeight;
+        if (ew < 4 || eh < 4)
+            return;
+        var fit = Math.Min(ew / _videoW, eh / _videoH);
+        var dpi = VisualTreeHelper.GetDpi(this);
+        p.SetOutputSize(
+            (int)(_videoW * fit * dpi.DpiScaleX + 0.5),
+            (int)(_videoH * fit * dpi.DpiScaleY + 0.5));
     }
 
     private void HookRendering()
@@ -109,6 +143,7 @@ public partial class MirrorView : UserControl
             ?? Application.Current.MainWindow).Handle;
         presenter.Attach(_gpuImage, hwnd);
         ApplyZoom();
+        ScheduleOutputSize();
         presenter.SizeChanged += (w, h) => Dispatcher.BeginInvoke(() =>
         {
             if (!ReferenceEquals(_presenter, presenter))
@@ -116,6 +151,7 @@ public partial class MirrorView : UserControl
             presenter.Rebind();
             _videoW = w;
             _videoH = h;
+            ScheduleOutputSize();
             UpdateCalBadge();
             SetWaitingOverlay(false);
             VideoSizeChanged?.Invoke(w, h);
@@ -256,6 +292,8 @@ public partial class MirrorView : UserControl
 
     public void BindKeybinds(ObservableCollection<KeybindItem> keybinds)
     {
+        if (_keybinds != null)
+            _keybinds.CollectionChanged -= OnKeybindsChanged;
         _keybinds = keybinds;
         _keybinds.CollectionChanged += OnKeybindsChanged;
         RebuildKeybindVisuals();
@@ -1425,6 +1463,7 @@ public partial class MirrorView : UserControl
         _lastSentMoveX = _lastSentMoveY = -1;
         InputSurface.ReleaseMouseCapture();
         _presenter = null;
+        _outSizeTimer.Stop();
         _gpuImage = null;
         _bitmap = null;
         VideoImage.Source = null;
@@ -1437,6 +1476,12 @@ public partial class MirrorView : UserControl
         {
             CompositionTarget.Rendering -= OnRendering;
             _renderingHooked = false;
+        }
+        if (_keybinds != null)
+        {
+            _keybinds.CollectionChanged -= OnKeybindsChanged;
+            foreach (var kb in _keybinds)
+                kb.PropertyChanged -= OnKeybindItemChanged;
         }
         foreach (var w in _overlays.Values)
         {

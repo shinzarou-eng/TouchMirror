@@ -69,6 +69,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public bool HasSessionElapsed => SessionElapsed != null;
     public string? NewDisplaySpec => _lastOptions?.NewDisplay;
     public string? AutoLaunchPackage => _lastOptions?.AutoLaunchPackage;
+    public string? EncoderInfo { get; private set; }
     private EngineOptions? _lastOptions;
     private int _reconnectAttempts;
     private int _incidents;
@@ -272,8 +273,10 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         Session = session;
         _videoBitRate = options.VideoBitRate;
         _adaptiveBitrate = options.AdaptiveBitrate;
+        EncoderInfo = null;
         _adapt = options.AdaptiveBitrate
-            ? new AdaptEvaluator(AdaptStart(options), AdaptEvaluator.MaxBitRate)
+            ? new AdaptEvaluator(AdaptStart(options), AdaptEvaluator.MaxBitRate,
+                AdaptEvaluator.FloorForSize(options.MaxSize))
             : null;
         _currentBitRate = _adapt?.Current ?? options.VideoBitRate;
         _mBasePts = -1;
@@ -281,13 +284,21 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         _streamDrop = false;
         _lastStreamResyncAt = Environment.TickCount64;
         _adaptWatch.Restart();
-        session.ServerLog += m => Log?.Invoke(m);
+        session.ServerLog += m =>
+        {
+            Log?.Invoke(m);
+            EncoderInfo ??= ParseEncoderInfo(m);
+        };
         session.VideoSizeChanged += (w, h) =>
+        {
+            if (ReferenceEquals(Session, session))
+                ApplyAdaptFloor(w, h);
             View.Dispatcher.BeginInvoke(() =>
             {
                 if (ReferenceEquals(Session, session))
                     View.OnVideoSize(w, h);
             });
+        };
         session.DeviceClipboard += text =>
         {
             if (ShouldSyncClipboard?.Invoke() == false)
@@ -839,7 +850,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         {
             _adaptiveBitrate = value;
             if (value && _adapt == null && Session != null)
-                _adapt = new AdaptEvaluator(_videoBitRate, AdaptEvaluator.MaxBitRate);
+                _adapt = new AdaptEvaluator(_videoBitRate, AdaptEvaluator.MaxBitRate,
+                    AdaptEvaluator.FloorForSize(Math.Max(View.VideoWidth, View.VideoHeight)));
             else if (!value)
                 _adapt = null;
         }
@@ -909,6 +921,26 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         return remembered is { } r && r >= AdaptEvaluator.MinBitRate && r <= AdaptEvaluator.MaxBitRate
             ? r
             : options.VideoBitRate;
+    }
+
+    private void ApplyAdaptFloor(int w, int h)
+    {
+        if (_adapt?.SetFloor(AdaptEvaluator.FloorForSize(Math.Max(w, h))) is not { } nb
+            || nb == _currentBitRate)
+            return;
+        _currentBitRate = nb;
+        try { Session?.Control?.SetVideoParams(nb, suspend: false); } catch { }
+    }
+
+    private static string? ParseEncoderInfo(string line)
+    {
+        const string marker = "video encoder: ";
+        var i = line.IndexOf(marker, StringComparison.Ordinal);
+        if (i < 0)
+            return null;
+        var s = line[(i + marker.Length)..];
+        var comma = s.IndexOf(", codec ", StringComparison.Ordinal);
+        return comma > 0 ? $"{s[..comma]} ({s[(comma + 8)..].Trim()})" : s.Trim();
     }
 
     private void AdaptTick()

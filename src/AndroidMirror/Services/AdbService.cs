@@ -193,6 +193,7 @@ public static class AdbService
         using var p = Process.Start(psi)!;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(8));
+        var stderr = p.StandardError.ReadToEndAsync(timeout.Token);
         try
         {
             var ms = new MemoryStream();
@@ -205,6 +206,10 @@ public static class AdbService
         {
             try { p.Kill(); } catch { }
             return null;
+        }
+        finally
+        {
+            try { await stderr; } catch { }
         }
     }
 
@@ -223,6 +228,7 @@ public static class AdbService
         using var p = Process.Start(psi)!;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(20));
+        var stderr = p.StandardError.ReadToEndAsync(timeout.Token);
         try
         {
             var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -240,6 +246,10 @@ public static class AdbService
         {
             try { p.Kill(); } catch { }
             return -1;
+        }
+        finally
+        {
+            try { await stderr; } catch { }
         }
     }
 
@@ -402,8 +412,8 @@ public static class AdbService
             await Task.Delay(1000, ct);
             try
             {
-                var ipOutput = await RunAsync($"-s {S(serial)} shell ip -f inet addr show wlan0", ct);
-                var match = Regex.Match(ipOutput, @"inet (\d+\.\d+\.\d+\.\d+)");
+                var ipOutput = await RunAsync($"-s {S(serial)} shell ip -o -f inet addr show", ct);
+                var match = Regex.Match(ipOutput, @"wlan\d+\s+inet\s+(\d+\.\d+\.\d+\.\d+)");
                 if (match.Success)
                     ip = match.Groups[1].Value;
             }

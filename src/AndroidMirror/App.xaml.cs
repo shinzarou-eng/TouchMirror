@@ -61,6 +61,12 @@ public partial class App : Application
         base.OnStartup(e);
     }
 
+    private static long _watchdogSuppressUntil;
+
+    public static void SuppressWatchdog(int seconds = 60)
+        => System.Threading.Interlocked.Exchange(ref _watchdogSuppressUntil,
+            Environment.TickCount64 + seconds * 1000L);
+
     private void StartUiWatchdog()
     {
         var disp = Dispatcher;
@@ -72,6 +78,12 @@ public partial class App : Application
                 await Task.Delay(2000).ConfigureAwait(false);
                 if (disp.HasShutdownStarted || disp.HasShutdownFinished)
                     return;
+                if (WatchdogGate.IsSuppressed(Environment.TickCount64,
+                        System.Threading.Interlocked.Read(ref _watchdogSuppressUntil)))
+                {
+                    silentSince = 0;
+                    continue;
+                }
                 System.Windows.Threading.DispatcherOperation op;
                 try
                 {
@@ -86,7 +98,7 @@ public partial class App : Application
                 }
                 if (silentSince == 0)
                     silentSince = Environment.TickCount64;
-                else if (Environment.TickCount64 - silentSince > 12_000)
+                else if (WatchdogGate.SilenceExceeded(silentSince, Environment.TickCount64))
                 {
                     try { AppLogger.Write("ui: dispatcher bloqué — arrêt forcé"); } catch { }
                     try { EmergencyCleanup?.Invoke(); } catch { }

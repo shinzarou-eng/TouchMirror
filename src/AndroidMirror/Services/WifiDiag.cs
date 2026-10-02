@@ -119,8 +119,8 @@ public static class WifiDiag
             return m.Groups[1].Value;
         try
         {
-            var o = await AdbService.ProbeAsync($"-s {S(dev.Serial)} shell ip -f inet addr show wlan0", ct);
-            var mm = Regex.Match(o, @"inet\s+(\d+\.\d+\.\d+\.\d+)");
+            var o = await AdbService.ProbeAsync($"-s {S(dev.Serial)} shell ip -o -f inet addr show", ct);
+            var mm = Regex.Match(o, @"wlan\d+\s+inet\s+(\d+\.\d+\.\d+\.\d+)");
             if (mm.Success)
                 return mm.Groups[1].Value;
         }
