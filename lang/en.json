@@ -737,5 +737,9 @@
   "plugins.circuit_breaker": "suspended: too many API calls",
   "wifi.down": "lost",
   "appareil.detacher": "Detach to screen 2",
-  "popout.nocontrol": "view only — no control"
+  "popout.nocontrol": "view only — no control",
+  "replay.save": "Save replay (30 s)",
+  "replay.saving": "Saving replay…",
+  "replay.saved": "Replay saved: {0}",
+  "replay.empty": "Replay buffer empty"
 }

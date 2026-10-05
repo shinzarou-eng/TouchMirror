@@ -299,6 +299,15 @@ public partial class MainWindow : FluentWindow
             DetachMirror(m);
     }
 
+    private void OnSaveReplayClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.MenuItem { DataContext: AdbDevice d })
+            return;
+        var m = _vm.Mirrors.FirstOrDefault(x => x.Device.SharesIdentity(d));
+        if (m != null)
+            _vm.SaveReplayFor(m);
+    }
+
     internal void DetachMirror(MirrorInstance m)
     {
         if (_popouts.TryGetValue(m, out var existing) && existing.IsLoaded)
@@ -1756,6 +1765,12 @@ public partial class MainWindow : FluentWindow
         if (e.Key == Key.G && mods == ModifierKeys.Control)
         {
             _vm.GridMode = !_vm.GridMode;
+            e.Handled = true;
+            return;
+        }
+        if (e.Key == Key.R && mods == ModifierKeys.Control && !e.IsRepeat)
+        {
+            _vm.SaveReplayFor(_vm.ActiveMirror);
             e.Handled = true;
             return;
         }

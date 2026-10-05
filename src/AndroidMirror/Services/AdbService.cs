@@ -535,6 +535,28 @@ public static class AdbService
         catch { }
     }
 
+    public static async Task PurgeReverseOrphansAsync(string serial, string keepSocket)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        try
+        {
+            var output = await RunAsync($"-s {S(serial)} reverse --list", timeout.Token);
+            var stale = 0;
+            foreach (var line in output.Split('\n'))
+            {
+                var m = Regex.Match(line, @"localabstract:(touchmirror_\w+)");
+                if (m.Success && m.Groups[1].Value != keepSocket)
+                {
+                    await ReverseRemoveAsync(serial, m.Groups[1].Value);
+                    stale++;
+                }
+            }
+            if (stale > 0)
+                AppLogger.Write($"reverse: {stale} tunnel(s) orphelin(s) purgé(s) sur {serial}");
+        }
+        catch { }
+    }
+
     public static async Task<List<AndroidProfile>> ListProfilesAsync(string serial, CancellationToken ct = default)
     {
         var output = await RunAsync($"-s {S(serial)} shell pm list users", ct);

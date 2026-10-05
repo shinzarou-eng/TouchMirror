@@ -676,6 +676,13 @@
                     <Path Style="{StaticResource Ic}" Data="{StaticResource IcSquareMultiple24}" Width="14" Height="14" />
                 </MenuItem.Icon>
             </MenuItem>
+            <MenuItem Header="{loc:Loc replay.save}"
+                      Click="OnSaveReplayClick"
+                      IsEnabled="{Binding IsMirrored}">
+                <MenuItem.Icon>
+                    <Path Style="{StaticResource Ic}" Data="{StaticResource IcRecord24}" Width="14" Height="14" />
+                </MenuItem.Icon>
+            </MenuItem>
             <Separator />
             <MenuItem Header="{loc:Loc couleur_de_l_appareil}">
                 <MenuItem.Icon>

@@ -121,10 +121,11 @@ public sealed class ControlChannel : IDisposable
     {
         if (_disposed)
             return;
-        var frame = new byte[5 + msg.Length];
-        frame[0] = ChanControl;
-        BinaryPrimitives.WriteUInt32BigEndian(frame.AsSpan(1), (uint)msg.Length);
-        msg.CopyTo(frame.AsSpan(5));
+        var frame = new byte[9 + msg.Length];
+        "TMIR"u8.CopyTo(frame);
+        frame[4] = ChanControl;
+        BinaryPrimitives.WriteUInt32BigEndian(frame.AsSpan(5), (uint)msg.Length);
+        msg.CopyTo(frame.AsSpan(9));
         if (!_sendQueue.Writer.TryWrite(frame)
             && Interlocked.Exchange(ref _faulted, 1) == 0)
             SendQueueFaulted?.Invoke();

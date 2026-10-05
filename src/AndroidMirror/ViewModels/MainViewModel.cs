@@ -761,6 +761,23 @@ public partial class MainViewModel : ObservableObject
         return Status;
     }
 
+    public string? SaveReplayFor(MirrorInstance? m)
+    {
+        if (m == null)
+            return null;
+        Status = L("replay.saving");
+        AppLogger.Forget(Task.Run(() =>
+        {
+            var path = m.SaveReplay();
+            Status = path != null
+                ? string.Format(L("replay.saved"), path)
+                : L("replay.empty");
+            if (path != null)
+                _apiHost.Publish("mirror.replay", new { slot = m.Slot, name = m.DeviceName });
+        }));
+        return Status;
+    }
+
     public string? RequestScreenshot(MirrorInstance m) => ScreenshotRequested?.Invoke(m);
 
     public async Task<AdbDevice?> FindDeviceBySerialAsync(string serial)

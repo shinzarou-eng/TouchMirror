@@ -161,6 +161,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     private int _gpuNotifyPending;
     private Mp4Recorder? _recorder;
     private readonly object _recorderLock = new();
+    private readonly ReplayBuffer _replay = new();
     private string? _recordPath;
     public DateTime? RecordingSince { get; private set; }
     public DateTime? ConnectedSince { get; private set; }
@@ -455,6 +456,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                     }
                 }
             }
+            catch { }
+            try { _replay.Push(packet.Data, packet.Length, packet.Pts, packet.IsConfig, packet.IsKeyFrame); }
             catch { }
         };
         session.AudioEnded += _ =>
@@ -1140,6 +1143,17 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         _resumeFrameAt = Environment.TickCount64;
         _awaitResumeFrame = true;
         return string.Format(L("rec.started"), _recordPath);
+    }
+
+    public virtual string? SaveReplay()
+    {
+        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "TouchMirror");
+        Directory.CreateDirectory(dir);
+        var model = SafeFileName(Device.Model ?? "device");
+        var stamp = $"replay_{(model.Length == 0 ? "device" : model)}_{DateTime.Now:yyyyMMdd_HHmmss}_{Math.Abs(IdentityKey.GetHashCode()) % 1000:D3}";
+        var path = Path.Combine(dir, stamp + ".mp4");
+        return _replay.Dump(path, Session?.VideoWidth ?? 0, Session?.VideoHeight ?? 0,
+            Session?.VideoCodecId ?? "h264");
     }
 
     internal static string SafeFileName(string name)

@@ -82,16 +82,17 @@ public sealed class UhidTests
 
     private static byte[] ReadPayload(Socket s)
     {
-        var head = new byte[5];
+        var head = new byte[9];
         var got = 0;
-        while (got < 5)
-            got += s.Receive(head, got, 5 - got, SocketFlags.None);
-        var len = BinaryPrimitives.ReadInt32BigEndian(head.AsSpan(1));
+        while (got < 9)
+            got += s.Receive(head, got, 9 - got, SocketFlags.None);
+        var len = BinaryPrimitives.ReadInt32BigEndian(head.AsSpan(5));
         var body = new byte[len];
         got = 0;
         while (got < len)
             got += s.Receive(body, got, len - got, SocketFlags.None);
-        Assert.Equal(3, head[0]);
+        Assert.Equal("TMIR", System.Text.Encoding.ASCII.GetString(head.AsSpan(0, 4)));
+        Assert.Equal(3, head[4]);
         return body;
     }
 

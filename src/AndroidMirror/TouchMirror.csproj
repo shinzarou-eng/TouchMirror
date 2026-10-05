@@ -10,6 +10,7 @@
     <PublishReadyToRun>true</PublishReadyToRun>
     <Version>0.9.8</Version>
     <ApplicationIcon>..\..\assets\app.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup>

@@ -3,7 +3,7 @@ package com.touchmirror.engine;
 public final class Protocol {
 
     public static final byte[] MAGIC = {'T', 'M', 'I', 'R'};
-    public static final short VERSION = 3;
+    public static final short VERSION = 4;
 
     public static final int CHAN_SESSION = 0;
     public static final int CHAN_VIDEO = 1;
@@ -11,7 +11,7 @@ public final class Protocol {
     public static final int CHAN_CONTROL = 3;
     public static final int CHAN_DEVICE = 4;
 
-    public static final int FRAME_HEADER_LENGTH = 5;
+    public static final int FRAME_HEADER_LENGTH = 9;
     public static final int FRAME_MAX_PAYLOAD = 1 << 26;
 
     public static final int CAP_VIDEO = 1;

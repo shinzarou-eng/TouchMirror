@@ -737,5 +737,9 @@
   "plugins.circuit_breaker": "suspendu : trop d’appels API",
   "wifi.down": "perdu",
   "appareil.detacher": "Détacher sur l'écran 2",
-  "popout.nocontrol": "affichage seul — pas de contrôle"
+  "popout.nocontrol": "affichage seul — pas de contrôle",
+  "replay.save": "Sauvegarder le replay (30 s)",
+  "replay.saving": "Sauvegarde du replay…",
+  "replay.saved": "Replay sauvegardé : {0}",
+  "replay.empty": "Buffer replay vide"
 }

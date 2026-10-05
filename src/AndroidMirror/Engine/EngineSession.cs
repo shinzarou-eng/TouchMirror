@@ -45,8 +45,8 @@ public sealed class VideoPacket
 
 public sealed class EngineSession : IAsyncDisposable
 {
-    private const string ServerVersion = "3.0";
-    private const ushort ProtocolVersion = 3;
+    private const string ServerVersion = "4.0";
+    private const ushort ProtocolVersion = 4;
     private const uint HelloMagic = 0x544D4952;
     private string _remoteJarPath = "";
 
@@ -71,6 +71,7 @@ public sealed class EngineSession : IAsyncDisposable
     private TcpListener? _listener;
     private Process? _serverProcess;
     private Socket? _socket;
+    private MuxFramer? _framer;
     private ControlChannel? _control;
     private string _socketName = "";
     private Task? _muxTask;
@@ -134,6 +135,7 @@ public sealed class EngineSession : IAsyncDisposable
         Services.AppLogger.Write($"session[{_device.ShortName}]: reverse begin");
         await AdbService.ReverseAsync(_device.Serial, _socketName, port, _cts.Token);
         Services.AppLogger.Write($"session[{_device.ShortName}]: reverse done");
+        _ = Task.Run(() => AdbService.PurgeReverseOrphansAsync(_device.Serial, _socketName));
 
         var args = BuildServerArgs(scidHex);
         ServerLog?.Invoke($"server args: {args}");
@@ -159,17 +161,18 @@ public sealed class EngineSession : IAsyncDisposable
         _socket = await AcceptWithTimeout(acceptCts.Token);
         _listener.Stop();
         Services.AppLogger.Write($"session[{_device.ShortName}]: socket accepted");
+        _framer = new MuxFramer(new NetworkStream(_socket, ownsSocket: false));
 
-        var headerBuf = new byte[5];
-        if (!await ReadExactAsync(_socket, headerBuf, acceptCts.Token))
+        var headerBuf = new byte[MuxFramer.HeaderLength];
+        if (!await _framer.FillExactAsync(headerBuf, acceptCts.Token))
             throw new EndOfStreamException("Connection closed before server handshake");
-        if (headerBuf[0] != ChanSession)
+        if (!MuxFramer.HasMagic(headerBuf) || headerBuf[4] != ChanSession)
             throw new InvalidDataException("moteur incompatible : hello attendu en première frame");
-        var helloLen = (int)BinaryPrimitives.ReadUInt32BigEndian(headerBuf.AsSpan(1));
+        var helloLen = BinaryPrimitives.ReadInt32BigEndian(headerBuf.AsSpan(5));
         if (helloLen is < 11 or > 1024)
             throw new InvalidDataException($"hello invalide ({helloLen} octets)");
         var helloBuf = new byte[helloLen];
-        if (!await ReadExactAsync(_socket, helloBuf, acceptCts.Token))
+        if (!await _framer.FillExactAsync(helloBuf, acceptCts.Token))
             throw new EndOfStreamException("Truncated server handshake");
         if (helloBuf[10] > helloLen - 11)
             throw new InvalidDataException("Invalid server name length");
@@ -211,36 +214,21 @@ public sealed class EngineSession : IAsyncDisposable
         return socket;
     }
 
-    private static async Task<bool> ReadExactAsync(Socket socket, Memory<byte> buffer, CancellationToken ct = default)
-    {
-        var total = 0;
-        while (total < buffer.Length)
-        {
-            var n = await socket.ReceiveAsync(buffer.Slice(total), SocketFlags.None, ct);
-            if (n == 0) return false;
-            total += n;
-        }
-        return true;
-    }
-
     private async Task DemuxLoopAsync()
     {
-        var header = new byte[5];
         try
         {
             while (!_cts.IsCancellationRequested)
             {
-                if (!await ReadExactAsync(_socket!, header, _cts.Token))
+                var h = await _framer!.ReadHeaderAsync(_cts.Token);
+                if (h is null)
                     break;
-                var channel = header[0];
-                var size = (int)BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(1));
-                if (size is <= 0 or > 64 << 20)
-                    throw new InvalidDataException($"Invalid stream frame size: {size}");
-                Interlocked.Add(ref _rxBytes, size + 5);
+                var (channel, size) = h.Value;
+                Interlocked.Add(ref _rxBytes, size + MuxFramer.HeaderLength);
                 var payload = System.Buffers.ArrayPool<byte>.Shared.Rent(size);
                 try
                 {
-                    if (!await ReadExactAsync(_socket!, payload.AsMemory(0, size), _cts.Token))
+                    if (!await _framer.FillExactAsync(payload.AsMemory(0, size), _cts.Token))
                         break;
                     Dispatch(channel, payload, size);
                 }
@@ -254,6 +242,8 @@ public sealed class EngineSession : IAsyncDisposable
         }
         finally
         {
+            if (_framer is { Resyncs: > 0 } f)
+                ServerLog?.Invoke($"mux: {f.Resyncs} resync(s), {f.ResyncBytes} octets ignorés");
             Interlocked.Exchange(ref _ended, 1);
             _control?.Dispose();
             if (!_cts.IsCancellationRequested)
