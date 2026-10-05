@@ -473,6 +473,15 @@
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
 
+        <Style x:Key="SecHead" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="{StaticResource FsCaption}" />
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+            <Setter Property="Margin" Value="2,13,0,6" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
         <Style x:Key="SegBtn" TargetType="ui:Button" BasedOn="{StaticResource PillBtn}">
             <Setter Property="Height" Value="26" />
             <Setter Property="Padding" Value="6,0" />
@@ -658,6 +667,64 @@
                 </Grid>
             </Border>
         </DataTemplate>
+
+        <ContextMenu x:Key="DeviceCtxMenu">
+            <MenuItem Header="{loc:Loc appareil.detacher}"
+                      Click="OnDetachDeviceClick"
+                      IsEnabled="{Binding IsMirrored}">
+                <MenuItem.Icon>
+                    <Path Style="{StaticResource Ic}" Data="{StaticResource IcSquareMultiple24}" Width="14" Height="14" />
+                </MenuItem.Icon>
+            </MenuItem>
+            <Separator />
+            <MenuItem Header="{loc:Loc couleur_de_l_appareil}">
+                <MenuItem.Icon>
+                    <Path Style="{StaticResource Ic}" Data="{StaticResource IcColor24}" Width="14" Height="14" />
+                </MenuItem.Icon>
+                <MenuItem Header="{loc:Loc par_defaut}" Tag="" Click="OnDeviceColorClick" />
+                <MenuItem Header="{loc:Loc vert}" Tag="#4EC98E" Click="OnDeviceColorClick">
+                    <MenuItem.Icon><Border Width="12" Height="12" CornerRadius="{StaticResource RadiusBadge}" Background="#4EC98E" /></MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="{loc:Loc bleu}" Tag="#0078D4" Click="OnDeviceColorClick">
+                    <MenuItem.Icon><Border Width="12" Height="12" CornerRadius="{StaticResource RadiusBadge}" Background="#0078D4" /></MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="{loc:Loc violet}" Tag="#9B7BD4" Click="OnDeviceColorClick">
+                    <MenuItem.Icon><Border Width="12" Height="12" CornerRadius="{StaticResource RadiusBadge}" Background="#9B7BD4" /></MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="{loc:Loc orange}" Tag="#E8A33D" Click="OnDeviceColorClick">
+                    <MenuItem.Icon><Border Width="12" Height="12" CornerRadius="{StaticResource RadiusBadge}" Background="#E8A33D" /></MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="{loc:Loc rose}" Tag="#E06B9B" Click="OnDeviceColorClick">
+                    <MenuItem.Icon><Border Width="12" Height="12" CornerRadius="{StaticResource RadiusBadge}" Background="#E06B9B" /></MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="{loc:Loc rouge}" Tag="#E05B4C" Click="OnDeviceColorClick">
+                    <MenuItem.Icon><Border Width="12" Height="12" CornerRadius="{StaticResource RadiusBadge}" Background="#E05B4C" /></MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="{loc:Loc cyan}" Tag="#4EC9C0" Click="OnDeviceColorClick">
+                    <MenuItem.Icon><Border Width="12" Height="12" CornerRadius="{StaticResource RadiusBadge}" Background="#4EC9C0" /></MenuItem.Icon>
+                </MenuItem>
+            </MenuItem>
+            <MenuItem Header="{loc:Loc comptes_secondaires}"
+                      Click="OnAccountsFlyoutClick"
+                      Visibility="{Binding IsRememberedOnly, Converter={StaticResource NotBoolToVis}}"
+                      ToolTip="{loc:Loc un_profil_android_separe_un_2e_dofus_touch_avec_}">
+                <MenuItem.Icon>
+                    <Path Style="{StaticResource Ic}" Data="{StaticResource IcPeople24}" Width="14" Height="14" />
+                </MenuItem.Icon>
+            </MenuItem>
+            <Separator />
+            <MenuItem Header="{Binding PinMenuText}" Click="OnDevicePinClick">
+                <MenuItem.Icon>
+                    <Path Style="{StaticResource Ic}" Data="{StaticResource IcPin24}" Width="14" Height="14" />
+                </MenuItem.Icon>
+            </MenuItem>
+            <Separator />
+            <MenuItem Header="{loc:Loc oublier_cet_appareil}" Click="OnDeviceForgetClick">
+                <MenuItem.Icon>
+                    <Path Style="{StaticResource Ic}" Data="{StaticResource IcDismiss24}" Width="14" Height="14" />
+                </MenuItem.Icon>
+            </MenuItem>
+        </ContextMenu>
     </ui:FluentWindow.Resources>
 
     <Grid Background="{DynamicResource AppWindowBrush}">
@@ -1856,28 +1923,18 @@
                                         Background="{DynamicResource AppBorderSubtleBrush}" />
                             </Grid>
 
-                            <Border x:Name="HubWsBanner" Grid.Row="1" Margin="2,0,2,14" Padding="14,12" CornerRadius="3"
-                                    Background="{DynamicResource AccentSubtleBrush}"
-                                    BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1"
+                            <Border x:Name="HubWsBanner" Grid.Row="1" Margin="2,0,2,14" Padding="14,10" CornerRadius="3"
+                                    Background="{DynamicResource AppSurfaceBrush}"
+                                    BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="1"
                                     Visibility="{Binding HasActiveWorkspace, Converter={StaticResource BoolToVis}}">
-                                <StackPanel Orientation="Horizontal">
-                                    <Border Width="34" Height="34" CornerRadius="3"
-                                            Margin="0,0,12,0" VerticalAlignment="Center"
-                                            Background="{DynamicResource AccentSubtleBrush}"
-                                            BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1">
-                                        <Path Style="{StaticResource Ic}" Data="{StaticResource IcLayer24}" Width="16" Height="16"
-                                                       Fill="{DynamicResource DofusAccentBrush}"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    </Border>
-                                    <StackPanel VerticalAlignment="Center">
-                                        <TextBlock FontSize="{StaticResource FsBody}" FontWeight="SemiBold"
-                                                   Foreground="{DynamicResource DofusAccentBrush}">
-                                            <Run Text="{loc:Loc espace}" /><Run Text="{Binding ActiveWorkspace.Name, Mode=OneWay}" /><Run Text="{loc:Loc actif_2}" />
-                                        </TextBlock>
-                                        <TextBlock Text="{loc:Loc les_appareils_que_tu_connectes_rejoignent_cet_es}"
-                                                   FontSize="{StaticResource FsMeta}" Margin="0,2,0,0"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                    </StackPanel>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock FontSize="{StaticResource FsBody}" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                                        <Run Text="{loc:Loc espace}" /><Run Text="{Binding ActiveWorkspace.Name, Mode=OneWay}" /><Run Text="{loc:Loc actif_2}" />
+                                    </TextBlock>
+                                    <TextBlock Text="{loc:Loc les_appareils_que_tu_connectes_rejoignent_cet_es}"
+                                               FontSize="{StaticResource FsMeta}" Margin="0,2,0,0"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
                             </Border>
 
@@ -1896,7 +1953,15 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition x:Name="RailColR" Width="236" />
                                 </Grid.ColumnDefinitions>
-                            <ItemsControl x:Name="HubCarousel" Grid.Column="1" ItemsSource="{Binding Devices}" AlternationCount="999" VerticalAlignment="Stretch">
+                            <ItemsControl x:Name="HubCarousel" Grid.Column="0" Grid.ColumnSpan="3" ItemsSource="{Binding Devices}" AlternationCount="999" VerticalAlignment="Stretch">
+                                <ItemsControl.OpacityMask>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                        <GradientStop Color="Transparent" Offset="0" />
+                                        <GradientStop Color="White" Offset="0.035" />
+                                        <GradientStop Color="White" Offset="0.965" />
+                                        <GradientStop Color="Transparent" Offset="1" />
+                                    </LinearGradientBrush>
+                                </ItemsControl.OpacityMask>
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <Grid />
@@ -1930,55 +1995,7 @@
                                                     </Style>
                                                 </Border.Style>
                                                 <Border.ContextMenu>
-                                                    <ContextMenu>
-                                                        <MenuItem Header="{loc:Loc couleur_de_l_appareil}">
-                                                            <MenuItem.Icon>
-                                                                <Path Style="{StaticResource Ic}" Data="{StaticResource IcColor24}" Width="14" Height="14" />
-                                                            </MenuItem.Icon>
-                                                            <MenuItem Header="{loc:Loc par_defaut}" Tag="" Click="OnDeviceColorClick" />
-                                                            <MenuItem Header="{loc:Loc vert}" Tag="#4EC98E" Click="OnDeviceColorClick">
-                                                                <MenuItem.Icon><Border Width="12" Height="12" CornerRadius="{StaticResource RadiusBadge}" Background="#4EC98E" /></MenuItem.Icon>
-                                                            </MenuItem>
-                                                            <MenuItem Header="{loc:Loc bleu}" Tag="#0078D4" Click="OnDeviceColorClick">
-                                                                <MenuItem.Icon><Border Width="12" Height="12" CornerRadius="{StaticResource RadiusBadge}" Background="#0078D4" /></MenuItem.Icon>
-                                                            </MenuItem>
-                                                            <MenuItem Header="{loc:Loc violet}" Tag="#9B7BD4" Click="OnDeviceColorClick">
-                                                                <MenuItem.Icon><Border Width="12" Height="12" CornerRadius="{StaticResource RadiusBadge}" Background="#9B7BD4" /></MenuItem.Icon>
-                                                            </MenuItem>
-                                                            <MenuItem Header="{loc:Loc orange}" Tag="#E8A33D" Click="OnDeviceColorClick">
-                                                                <MenuItem.Icon><Border Width="12" Height="12" CornerRadius="{StaticResource RadiusBadge}" Background="#E8A33D" /></MenuItem.Icon>
-                                                            </MenuItem>
-                                                            <MenuItem Header="{loc:Loc rose}" Tag="#E06B9B" Click="OnDeviceColorClick">
-                                                                <MenuItem.Icon><Border Width="12" Height="12" CornerRadius="{StaticResource RadiusBadge}" Background="#E06B9B" /></MenuItem.Icon>
-                                                            </MenuItem>
-                                                            <MenuItem Header="{loc:Loc rouge}" Tag="#E05B4C" Click="OnDeviceColorClick">
-                                                                <MenuItem.Icon><Border Width="12" Height="12" CornerRadius="{StaticResource RadiusBadge}" Background="#E05B4C" /></MenuItem.Icon>
-                                                            </MenuItem>
-                                                            <MenuItem Header="{loc:Loc cyan}" Tag="#4EC9C0" Click="OnDeviceColorClick">
-                                                                <MenuItem.Icon><Border Width="12" Height="12" CornerRadius="{StaticResource RadiusBadge}" Background="#4EC9C0" /></MenuItem.Icon>
-                                                            </MenuItem>
-                                                        </MenuItem>
-                                                        <MenuItem Header="{loc:Loc comptes_secondaires}"
-                                                                  Click="OnAccountsFlyoutClick"
-                                                                  Visibility="{Binding IsRememberedOnly, Converter={StaticResource NotBoolToVis}}"
-                                                                  ToolTip="{loc:Loc un_profil_android_separe_un_2e_dofus_touch_avec_}">
-                                                            <MenuItem.Icon>
-                                                                <Path Style="{StaticResource Ic}" Data="{StaticResource IcPeople24}" Width="14" Height="14" />
-                                                            </MenuItem.Icon>
-                                                        </MenuItem>
-                                                        <Separator />
-                                                        <MenuItem Header="{Binding PinMenuText}" Click="OnDevicePinClick">
-                                                            <MenuItem.Icon>
-                                                                <Path Style="{StaticResource Ic}" Data="{StaticResource IcPin24}" Width="14" Height="14" />
-                                                            </MenuItem.Icon>
-                                                        </MenuItem>
-                                                        <Separator />
-                                                        <MenuItem Header="{loc:Loc oublier_cet_appareil}" Click="OnDeviceForgetClick">
-                                                            <MenuItem.Icon>
-                                                                <Path Style="{StaticResource Ic}" Data="{StaticResource IcDismiss24}" Width="14" Height="14" />
-                                                            </MenuItem.Icon>
-                                                        </MenuItem>
-                                                    </ContextMenu>
+                                                    <StaticResource ResourceKey="DeviceCtxMenu" />
                                                 </Border.ContextMenu>
                                                 <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Center">
                                                     <TextBlock Margin="0,0,0,10" HorizontalAlignment="Center"
@@ -2611,7 +2628,7 @@
                                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                             <TextBlock x:Name="RailBattery" FontSize="{StaticResource FsMeta}" HorizontalAlignment="Right"
                                                        VerticalAlignment="Center" MaxWidth="150" TextTrimming="CharacterEllipsis"
-                                                       Foreground="{DynamicResource SageBrush}" />
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                         </Grid>
                                         <Grid Height="31">
                                             <Rectangle Height="1" Fill="{DynamicResource AppBorderSubtleBrush}" VerticalAlignment="Top" />
@@ -2619,7 +2636,7 @@
                                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                             <TextBlock x:Name="RailTransport" FontSize="{StaticResource FsMeta}" HorizontalAlignment="Right"
                                                        VerticalAlignment="Center" MaxWidth="150" TextTrimming="CharacterEllipsis"
-                                                       Foreground="{DynamicResource SageBrush}" />
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                         </Grid>
                                         <Grid Height="31">
                                             <Rectangle Height="1" Fill="{DynamicResource AppBorderSubtleBrush}" VerticalAlignment="Top" />
@@ -2650,7 +2667,7 @@
                                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                             <TextBlock x:Name="RailCodec" FontSize="{StaticResource FsMeta}" HorizontalAlignment="Right"
                                                        VerticalAlignment="Center" MaxWidth="150" TextTrimming="CharacterEllipsis"
-                                                       Foreground="{DynamicResource SageBrush}" />
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                         </Grid>
                                         <Grid Height="31">
                                             <Rectangle Height="1" Fill="{DynamicResource AppBorderSubtleBrush}" VerticalAlignment="Top" />
@@ -2658,7 +2675,7 @@
                                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                             <TextBlock x:Name="RailQuality" FontSize="{StaticResource FsMeta}" HorizontalAlignment="Right"
                                                        VerticalAlignment="Center" MaxWidth="150" TextTrimming="CharacterEllipsis"
-                                                       Foreground="{DynamicResource SageBrush}" />
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                         </Grid>
                                         <Grid Height="31">
                                             <Rectangle Height="1" Fill="{DynamicResource AppBorderSubtleBrush}" VerticalAlignment="Top" />
@@ -2666,7 +2683,7 @@
                                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                             <TextBlock x:Name="RailBitrate" FontSize="{StaticResource FsMeta}" HorizontalAlignment="Right"
                                                        VerticalAlignment="Center" MaxWidth="150" TextTrimming="CharacterEllipsis"
-                                                       Foreground="{DynamicResource SageBrush}" />
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                         </Grid>
                                     </StackPanel>
 
@@ -3573,16 +3590,13 @@
                                 </Border>
 
                                 <Border Grid.Row="3" CornerRadius="3" Padding="12,8" Margin="0,0,0,6"
-                                        Background="{DynamicResource AccentSubtleBrush}"
-                                        BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1"
+                                        Background="{DynamicResource AppSurfaceBrush}"
+                                        BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="1"
                                         Visibility="{Binding WizardSuggested, Converter={StaticResource BoolToVis}}">
                                     <Grid>
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Path Style="{StaticResource Ic}" Data="{StaticResource IcBookOpenGlobe24}" Width="13" Height="13"
-                                                  Fill="{DynamicResource DofusAccentBrush}" Margin="0,0,8,0" />
-                                            <TextBlock Text="{loc:Loc wiz.teaser}" FontSize="{StaticResource FsMeta}"
-                                                       FontWeight="SemiBold" VerticalAlignment="Center" />
-                                        </StackPanel>
+                                        <TextBlock Text="{loc:Loc wiz.teaser}" FontSize="{StaticResource FsMeta}"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                         <ui:Button Style="{StaticResource BtnPrimary}" Padding="12,0" Height="26"
                                                    FontSize="{StaticResource FsCaption}" FontWeight="SemiBold"
                                                    HorizontalAlignment="Right" Command="{Binding OpenWizardCommand}">
@@ -3822,6 +3836,7 @@
                     </Border>
                     <ScrollViewer Grid.Row="2" x:Name="SettingsScroll" VerticalScrollBarVisibility="Hidden">
                         <StackPanel Margin="14,10,14,14">
+                            <TextBlock Style="{StaticResource SecHead}" Margin="2,0,0,6" Text="{loc:Loc st.sec.mirror}" />
                             <UniformGrid Columns="2" Margin="0,0,0,7">
                                 <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding EnableAudio}"
                                               Margin="0,0,4,0" ToolTip="{loc:Loc audio_du_jeu_sur_le_pc}">
@@ -3830,36 +3845,20 @@
                                         <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.audio.c}" />
                                     </StackPanel>
                                 </ToggleButton>
-                                <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding TurnScreenOff}"
-                                              Margin="4,0,0,0" ToolTip="{loc:Loc luminosite_du_telephone_au_minimum_pendant_le_mi_2}">
-                                    <StackPanel>
-                                        <TextBlock Style="{StaticResource TileTitle}" Text="{loc:Loc tile.dim}" />
-                                        <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.dim.c}" />
-                                    </StackPanel>
-                                </ToggleButton>
-                            </UniformGrid>
-                            <UniformGrid Columns="2" Margin="0,0,0,7">
                                 <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding StayAwake}"
-                                              Margin="0,0,4,0" ToolTip="{loc:Loc garder_l_ecran_allume}">
+                                              Margin="4,0,0,0" ToolTip="{loc:Loc garder_l_ecran_allume}">
                                     <StackPanel>
                                         <TextBlock Style="{StaticResource TileTitle}" Text="{loc:Loc tile.awake}" />
                                         <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.awake.c}" />
                                     </StackPanel>
                                 </ToggleButton>
-                                <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding AutoLaunchDofus}"
-                                              Margin="4,0,0,0" ToolTip="{loc:Loc lance_dofus_touch_automatiquement_quand_le_mirro}">
-                                    <StackPanel>
-                                        <TextBlock Style="{StaticResource TileTitle}" Text="{loc:Loc tile.dofus}" />
-                                        <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.dofus.c}" />
-                                    </StackPanel>
-                                </ToggleButton>
                             </UniformGrid>
                             <UniformGrid Columns="2" Margin="0,0,0,7">
-                                <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding AdaptiveBitrate}"
-                                              Margin="0,0,4,0" ToolTip="{loc:Loc baisse_le_debit_automatiquement_si_le_flux_prend}">
+                                <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding TurnScreenOff}"
+                                              Margin="0,0,4,0" ToolTip="{loc:Loc luminosite_du_telephone_au_minimum_pendant_le_mi_2}">
                                     <StackPanel>
-                                        <TextBlock Style="{StaticResource TileTitle}" Text="{loc:Loc tile.abr}" />
-                                        <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.abr.c}" />
+                                        <TextBlock Style="{StaticResource TileTitle}" Text="{loc:Loc tile.dim}" />
+                                        <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.dim.c}" />
                                     </StackPanel>
                                 </ToggleButton>
                                 <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding AutoFullscreen}"
@@ -3870,6 +3869,8 @@
                                     </StackPanel>
                                 </ToggleButton>
                             </UniformGrid>
+
+                            <TextBlock Style="{StaticResource SecHead}" Text="{loc:Loc st.sec.image}" />
                             <UniformGrid Columns="2" Margin="0,0,0,7">
                                 <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding VideoSharpen}"
                                               Margin="0,0,4,0" ToolTip="{loc:Loc accentue_la_netette_gpu}">
@@ -3887,27 +3888,117 @@
                                 </ToggleButton>
                             </UniformGrid>
                             <UniformGrid Columns="2" Margin="0,0,0,7">
-                                <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding SyncDeviceClipboard}"
-                                              Margin="0,0,4,0" ToolTip="{loc:Loc le_texte_copie_sur_le_telephone_arrive_dans_le_p}">
+                                <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding AdaptiveBitrate}"
+                                              Margin="0,0,4,0" ToolTip="{loc:Loc baisse_le_debit_automatiquement_si_le_flux_prend}">
                                     <StackPanel>
-                                        <TextBlock Style="{StaticResource TileTitle}" Text="{loc:Loc tile.clip}" />
-                                        <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.clip.c}" />
-                                    </StackPanel>
-                                </ToggleButton>
-                                <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding LocalApiEnabled}"
-                                              Margin="4,0,0,0" ToolTip="{loc:Loc pilote_l_app_depuis_stream_deck_obs_scripts_aucu}">
-                                    <StackPanel>
-                                        <TextBlock Style="{StaticResource TileTitle}" Text="{loc:Loc tile.api}" />
-                                        <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.api.c}" />
+                                        <TextBlock Style="{StaticResource TileTitle}" Text="{loc:Loc tile.abr}" />
+                                        <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.abr.c}" />
                                     </StackPanel>
                                 </ToggleButton>
                             </UniformGrid>
+                            <Border Style="{StaticResource ValTile}" Margin="0,0,0,7">
+                                <StackPanel>
+                                    <Grid MinHeight="26" Cursor="Hand" MouseLeftButtonUp="OnColorFxHeaderClick">
+                                        <TextBlock Style="{StaticResource ValTileLab}" Margin="0" VerticalAlignment="Center"
+                                                   Text="{loc:Loc etalonnage}" />
+                                        <Path Style="{StaticResource Ic}" x:Name="ColorFxChevron" Data="{StaticResource IcChevronDown24}" Width="12" Height="12"
+                                              HorizontalAlignment="Right" VerticalAlignment="Center"
+                                              Fill="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    </Grid>
+                                    <StackPanel x:Name="ColorFxPanel">
+                                        <Grid MinHeight="34" ToolTip="{loc:Loc double_clic_valeur_par_defaut}">
+                                            <TextBlock Text="{loc:Loc luminosite}" FontSize="{StaticResource FsMeta}" VerticalAlignment="Center" />
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <TextBlock FontSize="{StaticResource FsCaption}" Width="40" TextAlignment="Right" VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                           Text="{Binding VideoBrightness, StringFormat={}{0:+0%;-0%;0%}}" />
+                                                <Slider Width="120" VerticalAlignment="Center" Tag="0"
+                                                        Minimum="-0.5" Maximum="0.5" SmallChange="0.02"
+                                                        IsMoveToPointEnabled="True"
+                                                        MouseDoubleClick="OnColorSliderReset"
+                                                        Value="{Binding VideoBrightness}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid MinHeight="34" ToolTip="{loc:Loc double_clic_valeur_par_defaut}">
+                                            <TextBlock Text="{loc:Loc contraste}" FontSize="{StaticResource FsMeta}" VerticalAlignment="Center" />
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <TextBlock FontSize="{StaticResource FsCaption}" Width="40" TextAlignment="Right" VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                           Text="{Binding VideoContrast, StringFormat={}{0:P0}}" />
+                                                <Slider Width="120" VerticalAlignment="Center" Tag="1"
+                                                        Minimum="0.5" Maximum="1.5" SmallChange="0.02"
+                                                        IsMoveToPointEnabled="True"
+                                                        MouseDoubleClick="OnColorSliderReset"
+                                                        Value="{Binding VideoContrast}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid MinHeight="34" ToolTip="{loc:Loc double_clic_valeur_par_defaut}">
+                                            <TextBlock Text="{loc:Loc saturation}" FontSize="{StaticResource FsMeta}" VerticalAlignment="Center" />
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <TextBlock FontSize="{StaticResource FsCaption}" Width="40" TextAlignment="Right" VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                           Text="{Binding VideoSaturation, StringFormat={}{0:P0}}" />
+                                                <Slider Width="120" VerticalAlignment="Center" Tag="1"
+                                                        Minimum="0" Maximum="2" SmallChange="0.02"
+                                                        IsMoveToPointEnabled="True"
+                                                        MouseDoubleClick="OnColorSliderReset"
+                                                        Value="{Binding VideoSaturation}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid MinHeight="34" ToolTip="{loc:Loc vibrance_tooltip}">
+                                            <TextBlock Text="{loc:Loc vibrance}" FontSize="{StaticResource FsMeta}" VerticalAlignment="Center" />
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <TextBlock FontSize="{StaticResource FsCaption}" Width="40" TextAlignment="Right" VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                           Text="{Binding VideoVibrance, StringFormat={}{0:P0}}" />
+                                                <Slider Width="120" VerticalAlignment="Center" Tag="0"
+                                                        Minimum="-1" Maximum="1" SmallChange="0.02"
+                                                        IsMoveToPointEnabled="True"
+                                                        MouseDoubleClick="OnColorSliderReset"
+                                                        Value="{Binding VideoVibrance}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid MinHeight="34" ToolTip="{loc:Loc gamma_tooltip}">
+                                            <TextBlock Text="{loc:Loc gamma}" FontSize="{StaticResource FsMeta}" VerticalAlignment="Center" />
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <TextBlock FontSize="{StaticResource FsCaption}" Width="40" TextAlignment="Right" VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                           Text="{Binding VideoGamma, StringFormat={}{0:0.00}}" />
+                                                <Slider Width="120" VerticalAlignment="Center" Tag="1"
+                                                        Minimum="0.5" Maximum="1.8" SmallChange="0.02"
+                                                        IsMoveToPointEnabled="True"
+                                                        MouseDoubleClick="OnColorSliderReset"
+                                                        Value="{Binding VideoGamma}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid MinHeight="34" ToolTip="{loc:Loc vignette_tooltip}">
+                                            <TextBlock Text="{loc:Loc vignette}" FontSize="{StaticResource FsMeta}" VerticalAlignment="Center" />
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <TextBlock FontSize="{StaticResource FsCaption}" Width="40" TextAlignment="Right" VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                           Text="{Binding VideoVignette, StringFormat={}{0:P0}}" />
+                                                <Slider Width="120" VerticalAlignment="Center" Tag="0"
+                                                        Minimum="-1" Maximum="1" SmallChange="0.02"
+                                                        IsMoveToPointEnabled="True"
+                                                        MouseDoubleClick="OnColorSliderReset"
+                                                        Value="{Binding VideoVignette}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <ui:Button HorizontalAlignment="Right" Margin="0,2,0,0"
+                                                   Appearance="Transparent" Padding="8,2" FontSize="{StaticResource FsMeta}"
+                                                   Command="{Binding ResetVideoColorCommand}"
+                                                   Content="{loc:Loc reinitialiser}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Style="{StaticResource SecHead}" Text="{loc:Loc st.sec.phone}" />
                             <UniformGrid Columns="2" Margin="0,0,0,7">
-                                <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding DiscordPresenceEnabled}"
-                                              Margin="0,0,4,0" ToolTip="{loc:Loc tile.discord.tip}">
+                                <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding AutoLaunchDofus}"
+                                              Margin="0,0,4,0" ToolTip="{loc:Loc lance_dofus_touch_automatiquement_quand_le_mirro}">
                                     <StackPanel>
-                                        <TextBlock Style="{StaticResource TileTitle}" Text="{loc:Loc tile.discord}" />
-                                        <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.discord.c}" />
+                                        <TextBlock Style="{StaticResource TileTitle}" Text="{loc:Loc tile.dofus}" />
+                                        <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.dofus.c}" />
                                     </StackPanel>
                                 </ToggleButton>
                                 <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding UhidInput}"
@@ -3926,14 +4017,43 @@
                                         <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.handover.c}" />
                                     </StackPanel>
                                 </ToggleButton>
+                            </UniformGrid>
+
+                            <TextBlock Style="{StaticResource SecHead}" Text="{loc:Loc st.sec.links}" />
+                            <UniformGrid Columns="2" Margin="0,0,0,7">
+                                <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding DiscordPresenceEnabled}"
+                                              Margin="0,0,4,0" ToolTip="{loc:Loc tile.discord.tip}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource TileTitle}" Text="{loc:Loc tile.discord}" />
+                                        <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.discord.c}" />
+                                    </StackPanel>
+                                </ToggleButton>
+                                <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding SyncDeviceClipboard}"
+                                              Margin="4,0,0,0" ToolTip="{loc:Loc le_texte_copie_sur_le_telephone_arrive_dans_le_p}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource TileTitle}" Text="{loc:Loc tile.clip}" />
+                                        <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.clip.c}" />
+                                    </StackPanel>
+                                </ToggleButton>
+                            </UniformGrid>
+                            <UniformGrid Columns="2" Margin="0,0,0,7">
                                 <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding AnonymousStatsEnabled}"
-                                              Margin="4,0,0,0" ToolTip="{loc:Loc tile.stats.tip}">
+                                              Margin="0,0,4,0" ToolTip="{loc:Loc tile.stats.tip}">
                                     <StackPanel>
                                         <TextBlock Style="{StaticResource TileTitle}" Text="{loc:Loc tile.stats}" />
                                         <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.stats.c}" />
                                     </StackPanel>
                                 </ToggleButton>
+                                <ToggleButton Style="{StaticResource QuickTile}" IsChecked="{Binding LocalApiEnabled}"
+                                              Margin="4,0,0,0" ToolTip="{loc:Loc pilote_l_app_depuis_stream_deck_obs_scripts_aucu}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource TileTitle}" Text="{loc:Loc tile.api}" />
+                                        <TextBlock Style="{StaticResource TileCap}" Text="{loc:Loc tile.api.c}" />
+                                    </StackPanel>
+                                </ToggleButton>
                             </UniformGrid>
+
+                            <TextBlock Style="{StaticResource SecHead}" Text="{loc:Loc st.sec.quality}" />
 
                             <Border Style="{StaticResource ValTile}" Margin="0,0,0,7"
                                     ToolTip="{loc:Loc applique_resolution_fps_debit_d_un_coup_a_l_appa}">
@@ -3953,7 +4073,7 @@
                                                     </Style.Triggers>
                                                 </Style>
                                             </ui:Button.Style>
-                                            <TextBlock Text="{Binding QualityPresets[0].Label}" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding QualityPresets[0].Label}" HorizontalAlignment="Center" />
                                         </ui:Button>
                                         <ui:Button Tag="1" Margin="4,0,4,0" Click="OnPresetSegClick"
                                                    ToolTip="{Binding QualityPresets[1].Detail}">
@@ -3968,7 +4088,7 @@
                                                     </Style.Triggers>
                                                 </Style>
                                             </ui:Button.Style>
-                                            <TextBlock Text="{Binding QualityPresets[1].Label}" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding QualityPresets[1].Label}" HorizontalAlignment="Center" />
                                         </ui:Button>
                                         <ui:Button Tag="2" Margin="4,0,4,0" Click="OnPresetSegClick"
                                                    ToolTip="{Binding QualityPresets[2].Detail}">
@@ -3983,7 +4103,7 @@
                                                     </Style.Triggers>
                                                 </Style>
                                             </ui:Button.Style>
-                                            <TextBlock Text="{Binding QualityPresets[2].Label}" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding QualityPresets[2].Label}" HorizontalAlignment="Center" />
                                         </ui:Button>
                                         <ui:Button Tag="3" Margin="4,0,0,0" Click="OnPresetSegClick"
                                                    ToolTip="{Binding QualityPresets[3].Detail}">
@@ -3998,7 +4118,7 @@
                                                     </Style.Triggers>
                                                 </Style>
                                             </ui:Button.Style>
-                                            <TextBlock Text="{Binding QualityPresets[3].Label}" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding QualityPresets[3].Label}" HorizontalAlignment="Center" />
                                         </ui:Button>
                                     </UniformGrid>
                                 </StackPanel>
@@ -4164,6 +4284,7 @@
                                 </Border>
                             </UniformGrid>
 
+                            <TextBlock Style="{StaticResource SecHead}" Text="{loc:Loc st.sec.app}" />
                             <UniformGrid Columns="3" Margin="0,0,0,7">
                                 <Border Style="{StaticResource ValTile}" Margin="0,0,4,0">
                                     <StackPanel>
@@ -4244,112 +4365,44 @@
                                     <Grid>
                                         <TextBox IsReadOnly="True" FontSize="{StaticResource FsMeta}"
                                                  FontFamily="Consolas" VerticalContentAlignment="Center"
-                                                 Text="{Binding LocalApiToken, Mode=OneWay}" />
-                                        <ui:Button HorizontalAlignment="Right" Padding="0" Width="26" Height="24"
-                                                   Margin="0,0,3,0" Appearance="Transparent"
-                                                   Command="{Binding RegenerateApiTokenCommand}"
-                                                   ToolTip="{loc:Loc regenerer_le_token}">
-                                            <Path Style="{StaticResource Ic}" Data="{StaticResource IcArrowClockwise24}" Width="12" Height="12" />
-                                        </ui:Button>
+                                                 Text="{Binding LocalApiTokenDisplay, Mode=OneWay}" />
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                                                    Margin="0,0,3,0" VerticalAlignment="Center">
+                                            <ui:Button Padding="0" Width="24" Height="24" Margin="0,0,2,0"
+                                                       Appearance="Transparent"
+                                                       Command="{Binding ToggleApiTokenVisibilityCommand}"
+                                                       ToolTip="{loc:Loc token.show.tip}">
+                                                <Path Style="{StaticResource Ic}" Data="{StaticResource IcEye24}" Width="12" Height="12" />
+                                            </ui:Button>
+                                            <ui:Button Padding="0" Width="24" Height="24" Margin="0,0,2,0"
+                                                       Appearance="Transparent"
+                                                       Command="{Binding CopyApiTokenCommand}"
+                                                       ToolTip="{loc:Loc token.copy.tip}">
+                                                <Path Style="{StaticResource Ic}" Data="{StaticResource IcCopy24}" Width="12" Height="12" />
+                                            </ui:Button>
+                                            <ui:Button Padding="0" Width="24" Height="24"
+                                                       Appearance="Transparent"
+                                                       Command="{Binding RegenerateApiTokenCommand}"
+                                                       ToolTip="{loc:Loc regenerer_le_token}">
+                                                <Path Style="{StaticResource Ic}" Data="{StaticResource IcArrowClockwise24}" Width="12" Height="12" />
+                                            </ui:Button>
+                                        </StackPanel>
                                     </Grid>
-                                    <TextBlock FontSize="{StaticResource FsCaption}" Margin="0,6,0,0" TextWrapping="Wrap"
-                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                               Text="{loc:Loc get_api_mirrors_post_api_mirrors_1_activate_reco}" />
-                                </StackPanel>
-                            </Border>
-
-                            <Border Style="{StaticResource ValTile}" Margin="0,0,0,7">
-                                <StackPanel>
-                                    <Grid MinHeight="26" Cursor="Hand" MouseLeftButtonUp="OnColorFxHeaderClick">
-                                        <TextBlock Style="{StaticResource ValTileLab}" Margin="0" VerticalAlignment="Center"
-                                                   Text="{loc:Loc etalonnage}" />
-                                        <Path Style="{StaticResource Ic}" x:Name="ColorFxChevron" Data="{StaticResource IcChevronDown24}" Width="12" Height="12"
+                                    <Grid MinHeight="22" Cursor="Hand" Margin="0,4,0,0"
+                                          MouseLeftButtonUp="OnApiRefHeaderClick"
+                                          ToolTip="{loc:Loc api.endpoints.tip}">
+                                        <TextBlock Text="{loc:Loc api.endpoints}" FontSize="{StaticResource FsCaption}"
+                                                   FontFamily="Consolas" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                        <Path Style="{StaticResource Ic}" x:Name="ApiRefChevron"
+                                              Data="{StaticResource IcChevronRight24}" Width="11" Height="11"
                                               HorizontalAlignment="Right" VerticalAlignment="Center"
                                               Fill="{DynamicResource TextFillColorSecondaryBrush}" />
                                     </Grid>
-                                    <StackPanel x:Name="ColorFxPanel">
-                                        <Grid MinHeight="34" ToolTip="{loc:Loc double_clic_valeur_par_defaut}">
-                                            <TextBlock Text="{loc:Loc luminosite}" FontSize="{StaticResource FsMeta}" VerticalAlignment="Center" />
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                                <TextBlock FontSize="{StaticResource FsCaption}" Width="40" TextAlignment="Right" VerticalAlignment="Center"
-                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                           Text="{Binding VideoBrightness, StringFormat={}{0:+0%;-0%;0%}}" />
-                                                <Slider Width="120" VerticalAlignment="Center" Tag="0"
-                                                        Minimum="-0.5" Maximum="0.5" SmallChange="0.02"
-                                                        IsMoveToPointEnabled="True"
-                                                        MouseDoubleClick="OnColorSliderReset"
-                                                        Value="{Binding VideoBrightness}" />
-                                            </StackPanel>
-                                        </Grid>
-                                        <Grid MinHeight="34" ToolTip="{loc:Loc double_clic_valeur_par_defaut}">
-                                            <TextBlock Text="{loc:Loc contraste}" FontSize="{StaticResource FsMeta}" VerticalAlignment="Center" />
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                                <TextBlock FontSize="{StaticResource FsCaption}" Width="40" TextAlignment="Right" VerticalAlignment="Center"
-                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                           Text="{Binding VideoContrast, StringFormat={}{0:P0}}" />
-                                                <Slider Width="120" VerticalAlignment="Center" Tag="1"
-                                                        Minimum="0.5" Maximum="1.5" SmallChange="0.02"
-                                                        IsMoveToPointEnabled="True"
-                                                        MouseDoubleClick="OnColorSliderReset"
-                                                        Value="{Binding VideoContrast}" />
-                                            </StackPanel>
-                                        </Grid>
-                                        <Grid MinHeight="34" ToolTip="{loc:Loc double_clic_valeur_par_defaut}">
-                                            <TextBlock Text="{loc:Loc saturation}" FontSize="{StaticResource FsMeta}" VerticalAlignment="Center" />
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                                <TextBlock FontSize="{StaticResource FsCaption}" Width="40" TextAlignment="Right" VerticalAlignment="Center"
-                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                           Text="{Binding VideoSaturation, StringFormat={}{0:P0}}" />
-                                                <Slider Width="120" VerticalAlignment="Center" Tag="1"
-                                                        Minimum="0" Maximum="2" SmallChange="0.02"
-                                                        IsMoveToPointEnabled="True"
-                                                        MouseDoubleClick="OnColorSliderReset"
-                                                        Value="{Binding VideoSaturation}" />
-                                            </StackPanel>
-                                        </Grid>
-                                        <Grid MinHeight="34" ToolTip="{loc:Loc vibrance_tooltip}">
-                                            <TextBlock Text="{loc:Loc vibrance}" FontSize="{StaticResource FsMeta}" VerticalAlignment="Center" />
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                                <TextBlock FontSize="{StaticResource FsCaption}" Width="40" TextAlignment="Right" VerticalAlignment="Center"
-                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                           Text="{Binding VideoVibrance, StringFormat={}{0:P0}}" />
-                                                <Slider Width="120" VerticalAlignment="Center" Tag="0"
-                                                        Minimum="-1" Maximum="1" SmallChange="0.02"
-                                                        IsMoveToPointEnabled="True"
-                                                        MouseDoubleClick="OnColorSliderReset"
-                                                        Value="{Binding VideoVibrance}" />
-                                            </StackPanel>
-                                        </Grid>
-                                        <Grid MinHeight="34" ToolTip="{loc:Loc gamma_tooltip}">
-                                            <TextBlock Text="{loc:Loc gamma}" FontSize="{StaticResource FsMeta}" VerticalAlignment="Center" />
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                                <TextBlock FontSize="{StaticResource FsCaption}" Width="40" TextAlignment="Right" VerticalAlignment="Center"
-                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                           Text="{Binding VideoGamma, StringFormat={}{0:0.00}}" />
-                                                <Slider Width="120" VerticalAlignment="Center" Tag="1"
-                                                        Minimum="0.5" Maximum="1.8" SmallChange="0.02"
-                                                        IsMoveToPointEnabled="True"
-                                                        MouseDoubleClick="OnColorSliderReset"
-                                                        Value="{Binding VideoGamma}" />
-                                            </StackPanel>
-                                        </Grid>
-                                        <Grid MinHeight="34" ToolTip="{loc:Loc vignette_tooltip}">
-                                            <TextBlock Text="{loc:Loc vignette}" FontSize="{StaticResource FsMeta}" VerticalAlignment="Center" />
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                                <TextBlock FontSize="{StaticResource FsCaption}" Width="40" TextAlignment="Right" VerticalAlignment="Center"
-                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                           Text="{Binding VideoVignette, StringFormat={}{0:P0}}" />
-                                                <Slider Width="120" VerticalAlignment="Center" Tag="0"
-                                                        Minimum="-1" Maximum="1" SmallChange="0.02"
-                                                        IsMoveToPointEnabled="True"
-                                                        MouseDoubleClick="OnColorSliderReset"
-                                                        Value="{Binding VideoVignette}" />
-                                            </StackPanel>
-                                        </Grid>
-                                        <ui:Button HorizontalAlignment="Right" Margin="0,2,0,0"
-                                                   Appearance="Transparent" Padding="8,2" FontSize="{StaticResource FsMeta}"
-                                                   Command="{Binding ResetVideoColorCommand}"
-                                                   Content="{loc:Loc reinitialiser}" />
+                                    <StackPanel x:Name="ApiRefPanel" Visibility="Collapsed">
+                                        <TextBlock FontSize="{StaticResource FsCaption}" Margin="0,4,0,0" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                   Text="{loc:Loc get_api_mirrors_post_api_mirrors_1_activate_reco}" />
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
@@ -5250,11 +5303,12 @@
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                         </StackPanel>
-                        <ItemsControl ItemsSource="{Binding Devices}">
+                        <ItemsControl x:Name="RailDeviceList" ItemsSource="{Binding Devices}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <ui:Button Style="{StaticResource NavItem}" Click="OnSidebarDeviceClick"
                                                Height="Auto" Padding="4,4" Margin="0,0,0,5"
+                                               ContextMenu="{StaticResource DeviceCtxMenu}"
                                                ToolTip="{Binding DisplayName}">
                                         <Border CornerRadius="9" BorderThickness="1" Padding="9,7"
                                                 BorderBrush="{DynamicResource AppBorderBrush}" Background="{DynamicResource AppCardBrush}">
@@ -5263,6 +5317,12 @@
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                                             <Setter Property="BorderBrush" Value="{DynamicResource AccentBorderBrush}" />
+                                                            <Setter Property="Effect">
+                                                                <Setter.Value>
+                                                                    <DropShadowEffect Color="{DynamicResource AccentGlowColor}"
+                                                                                      BlurRadius="14" ShadowDepth="0" Opacity="0.3" />
+                                                                </Setter.Value>
+                                                            </Setter>
                                                         </DataTrigger>
                                                         <DataTrigger Binding="{Binding IsRememberedOnly}" Value="True">
                                                             <Setter Property="Opacity" Value="0.55" />
@@ -5374,7 +5434,49 @@
                                                             </Style>
                                                         </TextBlock.Style>
                                                     </TextBlock>
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,3,0,0"
+                                                                Visibility="{Binding HasWifiHealth, Converter={StaticResource BoolToVis}}">
+                                                        <Ellipse Width="5" Height="5" VerticalAlignment="Center" Margin="0,0,4,0">
+                                                            <Ellipse.Style>
+                                                                <Style TargetType="Ellipse">
+                                                                    <Setter Property="Fill" Value="{DynamicResource SageBrush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding WifiLevel}" Value="2">
+                                                                            <Setter Property="Fill" Value="{DynamicResource WarnBrush}" />
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding WifiLevel}" Value="3">
+                                                                            <Setter Property="Fill" Value="{DynamicResource DangerBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Ellipse.Style>
+                                                        </Ellipse>
+                                                        <TextBlock Text="{Binding WifiText}" FontFamily="Consolas" FontSize="9"
+                                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                    </StackPanel>
                                                 </StackPanel>
+                                                <Border Grid.ColumnSpan="3" Width="3" Height="26" CornerRadius="1.5"
+                                                        HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-9,0,0,0"
+                                                        Background="{DynamicResource DofusAccentBrush}" Opacity="0"
+                                                        IsHitTestVisible="False">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                    <DataTrigger.EnterActions>
+                                                                        <BeginStoryboard>
+                                                                            <Storyboard>
+                                                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                                                 From="0" To="1" Duration="0:0:0.28" />
+                                                                            </Storyboard>
+                                                                        </BeginStoryboard>
+                                                                    </DataTrigger.EnterActions>
+                                                                    <Setter Property="Opacity" Value="1" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                </Border>
                                             </Grid>
                                         </Border>
                                     </ui:Button>
@@ -5443,6 +5545,20 @@
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <TextBlock Text="{Binding WifiStatus}" FontSize="{StaticResource FsMeta}" Margin="12,0,0,0"
                                Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                    <Border Padding="7,2" CornerRadius="{StaticResource RadiusControl}"
+                            VerticalAlignment="Center" Margin="12,0,0,0"
+                            Background="{DynamicResource DangerSubtleBrush}"
+                            BorderBrush="{DynamicResource DangerBrush}" BorderThickness="1"
+                            Visibility="{Binding AdbConflictVisibility}"
+                            ToolTip="{Binding AdbConflict}">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Style="{StaticResource Ic}" Data="{StaticResource IcShieldError24}"
+                                  Width="10" Height="10" Fill="{DynamicResource DangerBrush}"
+                                  VerticalAlignment="Center" Margin="0,0,5,0" />
+                            <TextBlock Text="{loc:Loc adb.externe}" FontSize="{StaticResource FsMeta}"
+                                       FontWeight="SemiBold" Foreground="{DynamicResource DangerBrush}" />
+                        </StackPanel>
+                    </Border>
                     <Border Width="1" Height="10" Margin="10,0,9,0"
                             Background="{DynamicResource AppBorderSubtleBrush}"
                             VerticalAlignment="Center" />
@@ -5494,6 +5610,20 @@
                                    VerticalAlignment="Center"
                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                     </StackPanel>
+                    <Border Padding="7,2" CornerRadius="{StaticResource RadiusControl}"
+                            VerticalAlignment="Center" Margin="12,0,0,0"
+                            Background="{DynamicResource DangerSubtleBrush}"
+                            BorderBrush="{DynamicResource DangerBrush}" BorderThickness="1"
+                            Visibility="{Binding AdbConflictVisibility}"
+                            ToolTip="{Binding AdbConflict}">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Style="{StaticResource Ic}" Data="{StaticResource IcShieldError24}"
+                                  Width="10" Height="10" Fill="{DynamicResource DangerBrush}"
+                                  VerticalAlignment="Center" Margin="0,0,5,0" />
+                            <TextBlock Text="{loc:Loc adb.externe}" FontSize="{StaticResource FsCaption}"
+                                       FontWeight="SemiBold" Foreground="{DynamicResource DangerBrush}" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
                 <TextBlock x:Name="VersionText"
                            FontSize="{StaticResource FsCaption}"
@@ -5771,6 +5901,91 @@
                     </StackPanel>
                 </StackPanel>
             </Border>
+        </Border>
+
+        <!-- SPLASH SCREEN OVERLAY (STUDIO NATIVE THEME) -->
+        <Border x:Name="SplashOverlay" Grid.RowSpan="5" Panel.ZIndex="100"
+                Background="{DynamicResource AppWindowBrush}"
+                PreviewMouseDown="OnSplashMouseDown"
+                Opacity="0"
+                Focusable="True" Cursor="Arrow">
+            <Grid>
+                <Ellipse Width="640" Height="640" HorizontalAlignment="Center" VerticalAlignment="Center"
+                         IsHitTestVisible="False">
+                    <Ellipse.Fill>
+                        <RadialGradientBrush>
+                            <GradientStop Color="#0E4EC98E" Offset="0" />
+                            <GradientStop Color="#054EC98E" Offset="0.5" />
+                            <GradientStop Color="#00000000" Offset="1" />
+                        </RadialGradientBrush>
+                    </Ellipse.Fill>
+                </Ellipse>
+
+                <StackPanel x:Name="SplashStack" HorizontalAlignment="Center" VerticalAlignment="Center" Width="360"
+                            Opacity="0">
+                    <StackPanel.RenderTransform>
+                        <TranslateTransform x:Name="SplashStackShift" Y="14" />
+                    </StackPanel.RenderTransform>
+
+                    <Image Source="assets/mascot.png" Width="64" Height="64"
+                           HorizontalAlignment="Center" Margin="0,0,0,20"
+                           RenderOptions.BitmapScalingMode="HighQuality">
+                        <Image.Effect>
+                            <DropShadowEffect Color="#000000" BlurRadius="18" ShadowDepth="4" Opacity="0.45" />
+                        </Image.Effect>
+                    </Image>
+
+                    <TextBlock Text="TOUCHMIRROR"
+                               FontSize="26" FontWeight="Black"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                               HorizontalAlignment="Center" Margin="0,0,0,4" />
+
+                    <TextBlock Text="v0.9.7"
+                               FontSize="11"
+                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                               HorizontalAlignment="Center" Margin="0,0,0,42" />
+
+                    <Border Width="280" Height="2" CornerRadius="1"
+                            Background="#151F2E" HorizontalAlignment="Center" Margin="0,0,0,10">
+                        <Grid HorizontalAlignment="Left">
+                            <Border x:Name="SplashLaserFill" Width="70" Height="2" CornerRadius="1">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                        <GradientStop Color="#4EC98E" Offset="0" />
+                                        <GradientStop Color="#3CD68C" Offset="1" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <Border.Effect>
+                                    <DropShadowEffect Color="#4EC98E" BlurRadius="10" ShadowDepth="0" Opacity="0.4" />
+                                </Border.Effect>
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <Grid Width="280" HorizontalAlignment="Center">
+                        <TextBlock x:Name="SplashStatusText"
+                                   Text="{loc:Loc st.splash_init}"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   HorizontalAlignment="Left" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="220" />
+                        <TextBlock x:Name="SplashStepText"
+                                   Text="01 / 03"
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource SageBrush}"
+                                   HorizontalAlignment="Right" VerticalAlignment="Center"
+                                   FontFamily="Consolas, Segoe UI" />
+                    </Grid>
+
+                    <StackPanel x:Name="SplashActions" Orientation="Horizontal" HorizontalAlignment="Center"
+                                Margin="0,34,0,0" Opacity="0" IsHitTestVisible="False">
+                        <ui:Button Style="{StaticResource BtnPrimary}" Height="34" Padding="22,0"
+                                   Click="OnSplashLaunch">
+                            <TextBlock Text="{loc:Loc splash.launch}" FontWeight="SemiBold" />
+                        </ui:Button>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
         </Border>
 
     </Grid>

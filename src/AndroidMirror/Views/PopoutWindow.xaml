@@ -1,0 +1,55 @@
+<Window x:Class="TouchMirror.Views.PopoutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:loc="clr-namespace:TouchMirror.Services"
+        Title="TouchMirror"
+        Width="480" Height="300" MinWidth="200" MinHeight="140"
+        WindowStartupLocation="Manual"
+        Background="Black" ResizeMode="CanResizeWithGrip">
+    <Grid>
+        <Image x:Name="Video" Stretch="Uniform"
+               RenderOptions.BitmapScalingMode="LowQuality" />
+
+        <Grid x:Name="InputSurface"
+              Background="Transparent"
+              Focusable="True"
+              MouseDown="OnMouseDown"
+              MouseMove="OnMouseMove"
+              MouseUp="OnMouseUp"
+              MouseWheel="OnMouseWheel"
+              LostMouseCapture="OnLostCapture" />
+
+        <Border x:Name="Header" VerticalAlignment="Top" Padding="10,6"
+                Opacity="0" IsHitTestVisible="False">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#D0101216" Offset="0" />
+                    <GradientStop Color="#00101216" Offset="1" />
+                </LinearGradientBrush>
+            </Border.Background>
+            <TextBlock x:Name="TitleText" FontSize="11" FontWeight="SemiBold"
+                       Foreground="{DynamicResource OnDarkTextBrush}"
+                       TextTrimming="CharacterEllipsis" />
+        </Border>
+
+        <Border x:Name="Hud" Padding="8,3" CornerRadius="6"
+                HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                Margin="12,0,0,12" Opacity="0" IsHitTestVisible="False"
+                Background="{DynamicResource AppModalSolidBrush}"
+                BorderThickness="1" BorderBrush="{DynamicResource AppBorderBrush}"
+                Visibility="{Binding HudVisibility}">
+            <TextBlock FontFamily="Consolas" FontSize="{StaticResource FsMeta}" FontWeight="SemiBold">
+                <Run Text="{Binding HudFps, Mode=OneWay}" Foreground="{DynamicResource SageBrush}" />
+                <Run Text=" · " Foreground="{DynamicResource OnDarkTextDimBrush}" />
+                <Run Text="{Binding HudRate, Mode=OneWay}" Foreground="{DynamicResource OnDarkTextBrush}" />
+            </TextBlock>
+        </Border>
+
+        <TextBlock x:Name="NoCtl" Text="{loc:Loc popout.nocontrol}"
+                   FontSize="{StaticResource FsCaption}"
+                   Foreground="{DynamicResource OnDarkTextDimBrush}"
+                   HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                   Margin="0,0,12,12" Visibility="Collapsed" IsHitTestVisible="False" />
+    </Grid>
+</Window>

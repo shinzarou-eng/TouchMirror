@@ -63,8 +63,7 @@ public static class MarketplaceService
     }
 
     private static string CachePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "TouchMirror", "marketplace-cache.json");
+        AppPaths.DataDir, "marketplace-cache.json");
 
     public static bool LastFetchFromCache { get; private set; }
 

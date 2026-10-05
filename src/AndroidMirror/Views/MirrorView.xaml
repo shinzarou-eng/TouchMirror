@@ -135,6 +135,49 @@
             </StackPanel>
         </Border>
 
+        <Border Padding="8,3"
+                CornerRadius="{StaticResource RadiusControl}"
+                Background="{DynamicResource AppModalSolidBrush}"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Margin="0,0,12,12"
+                IsHitTestVisible="False"
+                Opacity="0.85"
+                Visibility="{Binding EcoBadgeVisibility}">
+            <TextBlock Text="{loc:Loc tile.eco}"
+                       Foreground="{DynamicResource OnDarkTextDimBrush}"
+                       FontSize="{StaticResource FsMeta}"
+                       FontWeight="SemiBold" />
+        </Border>
+
+        <Border Padding="8,3"
+                CornerRadius="{StaticResource RadiusControl}"
+                Background="{DynamicResource AppModalSolidBrush}"
+                BorderThickness="1"
+                BorderBrush="{DynamicResource AppBorderBrush}"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Bottom"
+                Margin="12,0,0,12"
+                IsHitTestVisible="False"
+                Opacity="0"
+                Visibility="{Binding HudVisibility}">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                     Value="True">
+                            <Setter Property="Opacity" Value="0.92" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <TextBlock FontFamily="Consolas" FontSize="{StaticResource FsMeta}" FontWeight="SemiBold">
+                <Run Text="{Binding HudFps, Mode=OneWay}" Foreground="{DynamicResource SageBrush}" />
+                <Run Text=" · " Foreground="{DynamicResource OnDarkTextDimBrush}" />
+                <Run Text="{Binding HudRate, Mode=OneWay}" Foreground="{DynamicResource OnDarkTextBrush}" />
+            </TextBlock>
+        </Border>
+
         <Grid x:Name="WaitingOverlay"
               Background="{DynamicResource AppScrimBrush}"
               Visibility="Collapsed">

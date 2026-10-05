@@ -61,4 +61,5 @@
 
     <SolidColorBrush x:Key="DofusAccentBrush" Color="#5A6470" />
     <SolidColorBrush x:Key="DofusAccentDimBrush" Color="#6B7684" />
+    <Color x:Key="AccentGlowColor">#5A6470</Color>
 </ResourceDictionary>

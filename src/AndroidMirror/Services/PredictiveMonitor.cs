@@ -9,6 +9,7 @@ public sealed class PredictiveMonitor : IDisposable
     public sealed record WifiProbe(string DeviceName, string Ip);
 
     private const int IntervalMs = 20_000;
+    private const int WifiIntervalMs = 4_000;
     private const double VramWarnRatio = 0.85;
     private const double DiskWarnFreeGB = 3;
     private const float GpuTempWarnC = 83;
@@ -21,11 +22,13 @@ public sealed class PredictiveMonitor : IDisposable
     private CancellationTokenSource? _cts;
     private Computer? _hw;
     private bool _hwBroken;
-    private readonly HashSet<string> _degradedIps = new();
+    private readonly Dictionary<string, (string Name, double Avg, double Loss)> _degradedProbes = new();
+    private readonly List<string> _wifiWarnings = new();
     private IReadOnlyList<string> _warnings = Array.Empty<string>();
 
     public event Action? Changed;
     public event Action<WifiProbe>? WifiDegraded;
+    public event Action<WifiProbe, double, double>? WifiSampled;
     public IReadOnlyList<string> Warnings => _warnings;
 
     public void Start(Func<int> mirrorCount, Func<IReadOnlyList<WifiProbe>> wifiProbes)
@@ -33,9 +36,10 @@ public sealed class PredictiveMonitor : IDisposable
         Stop();
         _mirrorCount = mirrorCount;
         _wifiProbes = wifiProbes;
-        _degradedIps.Clear();
+        _degradedProbes.Clear();
         _cts = new CancellationTokenSource();
         _ = LoopAsync(_cts.Token);
+        _ = WifiLoopAsync(_cts.Token);
     }
 
     public void Stop()
@@ -55,7 +59,7 @@ public sealed class PredictiveMonitor : IDisposable
                 CheckVram(w);
                 CheckDisk(w);
                 CheckGpuTemp(w);
-                await CheckWifiAsync(w, ct);
+                AddWifiWarnings(w);
             }
             catch { }
             SetWarnings(w);
@@ -140,28 +144,47 @@ public sealed class PredictiveMonitor : IDisposable
         catch { _hwBroken = true; }
     }
 
-    private async Task CheckWifiAsync(List<string> w, CancellationToken ct)
+    private async Task WifiLoopAsync(CancellationToken ct)
+    {
+        try { await Task.Delay(2_500, ct); } catch { return; }
+        while (!ct.IsCancellationRequested)
+        {
+            try { await SampleWifiAsync(ct); } catch { }
+            try { await Task.Delay(WifiIntervalMs, ct); } catch { break; }
+        }
+    }
+
+    private async Task SampleWifiAsync(CancellationToken ct)
     {
         var probes = _wifiProbes?.Invoke() ?? Array.Empty<WifiProbe>();
-        var warned = false;
         foreach (var p in probes)
         {
             ct.ThrowIfCancellationRequested();
-            var r = await WifiDiag.PingAsync(p.Ip, 3, ct);
-            if (r is not { } t)
-                continue;
-            var lossPct = t.Sent > 0 ? t.Lost * 100.0 / t.Sent : 0;
-            if (lossPct >= WifiLossWarnPct || (t.Avg > 0 && t.Avg >= WifiAvgWarnMs))
+            var r = await WifiDiag.PingAsync(p.Ip, 2, ct);
+            var loss = r is { } t && t.Sent > 0 ? t.Lost * 100.0 / t.Sent : 100.0;
+            var avg = r?.Avg ?? -1;
+            WifiSampled?.Invoke(p, avg, loss);
+            if (loss >= WifiLossWarnPct || (avg > 0 && avg >= WifiAvgWarnMs))
             {
-                w.Add(string.Format(L("health.wifi"), p.DeviceName));
-                warned = true;
-                if (_degradedIps.Add(p.Ip))
+                if (_degradedProbes.TryAdd(p.Ip, (p.DeviceName, avg, loss)))
                     WifiDegraded?.Invoke(p);
             }
             else
-                _degradedIps.Remove(p.Ip);
+                _degradedProbes.Remove(p.Ip);
         }
-        if (!warned && probes.Count > 0 && WifiDiag.QueryPcWifi() is { Connected: true } pc
+        lock (_wifiWarnings)
+        {
+            _wifiWarnings.Clear();
+            foreach (var (name, avg, loss) in _degradedProbes.Values)
+                _wifiWarnings.Add($"{string.Format(L("health.wifi"), name)} ({avg:0} ms, {loss:0}%)");
+        }
+    }
+
+    private void AddWifiWarnings(List<string> w)
+    {
+        lock (_wifiWarnings)
+            w.AddRange(_wifiWarnings);
+        if (_wifiProbes?.Invoke().Count > 0 && WifiDiag.QueryPcWifi() is { Connected: true } pc
             && pc.Signal < WifiSignalWarn)
             w.Add(string.Format(L("health.wifi_pc"), pc.Signal));
     }

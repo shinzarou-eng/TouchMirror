@@ -81,8 +81,7 @@ public static class DeviceThumbs
     }
 
     private static string CacheDir => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "TouchMirror", "thumbs");
+        AppPaths.DataDir, "thumbs");
 
     private static string CachePath(string key) => Path.Combine(CacheDir,
         Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(

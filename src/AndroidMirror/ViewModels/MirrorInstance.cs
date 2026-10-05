@@ -28,7 +28,9 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public virtual bool IsIos => false;
 
     [ObservableProperty] private string _deviceName = "";
-    [ObservableProperty] private bool _isConnected;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HudVisibility))]
+    private bool _isConnected;
     [ObservableProperty] private bool _isRecording;
     [ObservableProperty] private bool _isActive;
     [ObservableProperty] private int _slot;
@@ -61,6 +63,21 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     public bool ManualDisconnect { get; set; }
     public bool UnexpectedDeath { get; private set; }
     public string LastDeviceState { get; private set; } = "unknown";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EcoBadgeVisibility))]
+    private bool _isEco;
+
+    public Visibility EcoBadgeVisibility => IsEco ? Visibility.Visible : Visibility.Collapsed;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HudVisibility))]
+    private string _hudFps = "";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HudVisibility))]
+    private string _hudRate = "";
+    public Visibility HudVisibility => IsConnected && HudFps.Length > 0
+        ? Visibility.Visible : Visibility.Collapsed;
+
     [ObservableProperty] private bool _isReconnecting;
     [ObservableProperty] private string? _reconnectStatus;
     [ObservableProperty]
@@ -372,8 +389,16 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                             gpuPresenter: presenter);
                         if (presenter != null)
                         {
-                            Decoder.GpuFrame += presenter.Present;
-                            Decoder.SwFrame += presenter.PresentSoftware;
+                            Decoder.GpuFrame += (t, si, w, h, ci) =>
+                            {
+                                if (EcoDropPresent()) return;
+                                presenter.Present(t, si, w, h, ci);
+                            };
+                            Decoder.SwFrame += (y, ys, u, us, v, vs, w, h, ci) =>
+                            {
+                                if (EcoDropPresent()) return;
+                                presenter.PresentSoftware(y, ys, u, us, v, vs, w, h, ci);
+                            };
                             presenter.GpuFailed += OnGpuFailed;
                             var pr = presenter;
                             pr.FrameReady += () =>
@@ -513,6 +538,11 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         {
             session.Control?.SetVideoParams(ThrottleBitRate, suspend: true);
             _encoderSuspended = true;
+        }
+        else if (_bgThrottled && !_hovered)
+        {
+            try { session.Control?.SetVideoParams(EcoBitRate, suspend: false); } catch { }
+            _ecoApplied = true;
         }
         Connected?.Invoke(this);
 
@@ -656,6 +686,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
                 _fpsSamples++;
                 if (vf < _fpsMin)
                     _fpsMin = vf;
+                HudFps = $"{vf:0} fps";
+                HudRate = $"{_currentBitRate / 1_000_000.0:0.#} Mbps";
             }
         }
         var last = s.LastPacketAt;
@@ -926,7 +958,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     private void ApplyAdaptFloor(int w, int h)
     {
         if (_adapt?.SetFloor(AdaptEvaluator.FloorForSize(Math.Max(w, h))) is not { } nb
-            || nb == _currentBitRate)
+            || nb == _currentBitRate || _ecoApplied)
             return;
         _currentBitRate = nb;
         try { Session?.Control?.SetVideoParams(nb, suspend: false); } catch { }
@@ -945,7 +977,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
 
     private void AdaptTick()
     {
-        if (_adapt == null || _videoHidden || _adaptWatch.ElapsedMilliseconds < 1500)
+        if (_adapt == null || _videoHidden || _ecoApplied || _adaptWatch.ElapsedMilliseconds < 1500)
             return;
         _adaptWatch.Restart();
         if (_adapt.Evaluate(_mLagEma, _videoHidden) is not { } nb || nb == _currentBitRate)
@@ -957,16 +989,65 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     }
 
     private const int ThrottleBitRate = 500_000;
+    private const int EcoBitRate = 2_000_000;
     private CancellationTokenSource? _suspendCts;
     private bool _encoderSuspended;
     private bool _awaitResumeFrame;
     private long _resumeFrameAt;
+    private volatile bool _bgThrottled;
+    private volatile bool _hovered;
+    private bool _ecoApplied;
+
+    public virtual void SetBackgroundThrottle(bool throttled)
+    {
+        if (_bgThrottled == throttled)
+            return;
+        _bgThrottled = throttled;
+        ApplyEcoBitRate();
+    }
+
+    public virtual void SetHovered(bool hovered)
+    {
+        if (_hovered == hovered)
+            return;
+        _hovered = hovered;
+        ApplyEcoBitRate();
+    }
+
+    private const int EcoPresentIntervalMs = 66;
+    private long _ecoLastPresent;
+
+    private bool EcoDropPresent()
+    {
+        if (!_ecoApplied)
+            return false;
+        var now = Environment.TickCount64;
+        if (now - Interlocked.Read(ref _ecoLastPresent) < EcoPresentIntervalMs)
+            return true;
+        Interlocked.Exchange(ref _ecoLastPresent, now);
+        return false;
+    }
+
+    private void ApplyEcoBitRate()
+    {
+        var eco = _bgThrottled && !_hovered && _recorder == null;
+        if (eco == _ecoApplied || _videoHidden || _encoderSuspended || _stopping || _disposed)
+            return;
+        var rate = eco ? EcoBitRate : (_adapt?.Current ?? _videoBitRate);
+        try { Session?.Control?.SetVideoParams(rate, suspend: false); }
+        catch { return; }
+        _ecoApplied = eco;
+        _currentBitRate = rate;
+        IsEco = eco;
+        RaiseLog(L(eco ? "log.eco_on" : "log.eco_off"));
+    }
 
     public virtual void SetVideoHidden(bool hidden)
     {
         if (_videoHidden == hidden)
             return;
         _videoHidden = hidden;
+        _ecoApplied = false;
         if (hidden)
         {
             var cts = new CancellationTokenSource();
@@ -981,7 +1062,10 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         }
         Interlocked.Exchange(ref _suspendCts, null)?.Cancel();
         if (!_encoderSuspended)
+        {
+            ApplyEcoBitRate();
             return;
+        }
         _encoderSuspended = false;
         var restore = _adapt?.Current ?? _videoBitRate;
         _currentBitRate = restore;
@@ -991,6 +1075,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         try { Session?.Control?.SendSimple(ControlMsgType.ResetVideo); } catch { }
         _resumeFrameAt = Environment.TickCount64;
         _awaitResumeFrame = true;
+        ApplyEcoBitRate();
     }
 
     private void ReleaseDecoder()
@@ -1050,6 +1135,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             try { Session?.Control?.SetVideoParams(_videoBitRate, suspend: false); } catch { }
             _encoderSuspended = false;
         }
+        ApplyEcoBitRate();
         try { Session?.Control?.SendSimple(ControlMsgType.ResetVideo); } catch { }
         _resumeFrameAt = Environment.TickCount64;
         _awaitResumeFrame = true;
@@ -1079,6 +1165,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             try { Session?.Control?.SetVideoParams(ThrottleBitRate, suspend: true); } catch { }
             _encoderSuspended = true;
         }
+        else ApplyEcoBitRate();
     }
 
     public virtual Task DisconnectAsync()
@@ -1120,6 +1207,8 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             _rxBytesFinal = session.RxBytes;
         ConnectedSince = null;
         CodecBadge = null;
+        HudFps = "";
+        HudRate = "";
         _ = View.Dispatcher.BeginInvoke(View.Detach);
         if (session != null)
             await session.DisposeAsync();

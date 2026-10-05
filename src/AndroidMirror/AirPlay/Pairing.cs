@@ -3,6 +3,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using TouchMirror.Services;
 
 namespace TouchMirror.AirPlay;
 
@@ -13,8 +14,7 @@ public sealed class PairingIdentityStore
     public string PairingId { get; private set; } = "";
 
     private static string StorePath =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "TouchMirror", "airplay-identity.json");
+        Path.Combine(AppPaths.DataDir, "airplay-identity.json");
 
     public static PairingIdentityStore Load()
     {
@@ -56,8 +56,7 @@ public sealed class PairedClientsStore
     private readonly Dictionary<string, string> _clients = new(StringComparer.OrdinalIgnoreCase);
 
     private static string StorePath =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "TouchMirror", "airplay-paired.json");
+        Path.Combine(AppPaths.DataDir, "airplay-paired.json");
 
     private static readonly Lazy<PairedClientsStore> Lazy = new(Load);
     public static PairedClientsStore Instance => Lazy.Value;

@@ -157,6 +157,7 @@ public partial class MainWindow : FluentWindow
         _vm.MirrorAdded += instance =>
             instance.View.Activated += _ => _vm.SetActive(instance);
         _vm.PipChanged += () => Dispatcher.BeginInvoke(OnPipChanged);
+        _vm.Mirrors.CollectionChanged += OnMirrorsCollectionChanged;
         _vm.ScreenshotRequested += instance =>
             Dispatcher.Invoke(() =>
             {
@@ -253,7 +254,7 @@ public partial class MainWindow : FluentWindow
         {
             if (_vm.ShowSettings)
                 ShowDock("settings");
-            await _vm.InitializeAsync();
+            await RunStartupSplashAsync();
         };
         Closing += OnClosing;
         Deactivated += (_, _) => ReleaseAllKeys();
@@ -285,6 +286,45 @@ public partial class MainWindow : FluentWindow
             _pipWindow.Show();
         }
         _pipWindow.Bind(m, () => _vm.SetActive(m));
+    }
+
+    private readonly Dictionary<MirrorInstance, Views.PopoutWindow> _popouts = new();
+
+    private void OnDetachDeviceClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.MenuItem { DataContext: AdbDevice d })
+            return;
+        var m = _vm.Mirrors.FirstOrDefault(x => x.Device.SharesIdentity(d));
+        if (m != null)
+            DetachMirror(m);
+    }
+
+    internal void DetachMirror(MirrorInstance m)
+    {
+        if (_popouts.TryGetValue(m, out var existing) && existing.IsLoaded)
+        {
+            if (existing.WindowState == WindowState.Minimized)
+                existing.WindowState = WindowState.Normal;
+            existing.Activate();
+            return;
+        }
+        var w = new Views.PopoutWindow { Owner = this };
+        w.Bind(m, () => _vm.SetActive(m));
+        w.Closed += (_, _) => _popouts.Remove(m);
+        w.PlaceOnOtherMonitor(this);
+        w.Show();
+        _popouts[m] = w;
+        w.Activate();
+    }
+
+    private void OnMirrorsCollectionChanged(object? sender,
+        System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems == null)
+            return;
+        foreach (MirrorInstance m in e.OldItems)
+            if (_popouts.Remove(m, out var w))
+                w.Close();
     }
 
     private bool _closing;
@@ -536,6 +576,13 @@ public partial class MainWindow : FluentWindow
         var show = ColorFxPanel.Visibility != Visibility.Visible;
         ColorFxPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         ColorFxChevron.Data = UiIcons.Get(show ? SymbolRegular.ChevronDown24 : SymbolRegular.ChevronRight24);
+    }
+
+    private void OnApiRefHeaderClick(object sender, MouseButtonEventArgs e)
+    {
+        var show = ApiRefPanel.Visibility != Visibility.Visible;
+        ApiRefPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        ApiRefChevron.Data = UiIcons.Get(show ? SymbolRegular.ChevronDown24 : SymbolRegular.ChevronRight24);
     }
 
     private string? _activeDock;
@@ -822,6 +869,19 @@ public partial class MainWindow : FluentWindow
             var x = HubCardOffset(off, centerHalf, widths[i], s);
             var y = off == 0 ? 0.0 : 44.0;
             var o = off == 0 ? 1.0 : ao == 1 ? 0.38 : 0.0;
+            var stageHalf = HubCarousel.ActualWidth / 2;
+            if (off != 0 && stageHalf > 0)
+            {
+                if (stageHalf - centerHalf < 64)
+                {
+                    o = 0;
+                }
+                else
+                {
+                    var sideHalf = widths[i] * s / 2;
+                    x = Math.Sign(off) * Math.Min(Math.Abs(x), stageHalf - sideHalf + 52);
+                }
+            }
             Panel.SetZIndex(cp, -ao);
             cp.IsHitTestVisible = ao <= 1;
             if (animate)
@@ -974,7 +1034,8 @@ public partial class MainWindow : FluentWindow
     private bool _browserReady;
 
     private async void OnHelpClick(object sender, RoutedEventArgs e)
-    {
+        => await SafeUiAsync(async () =>
+        {
         var show = _activeDock != "guides";
         ShowDock(show ? "guides" : null);
         if (!show || _browserReady)
@@ -999,7 +1060,7 @@ public partial class MainWindow : FluentWindow
             _vm.Status = string.Format(L("st.webview_fail"), ex.Message);
             ShowDock(null);
         }
-    }
+        });
 
     private void OnSiteClick(object sender, RoutedEventArgs e)
     {
@@ -1069,11 +1130,23 @@ public partial class MainWindow : FluentWindow
     }
 
     private async void OnWorkspaceDeleteClick(object sender, RoutedEventArgs e)
+        => await SafeUiAsync(async () =>
+        {
+            if (sender is FrameworkElement { DataContext: WorkspaceItem item }
+                && await ConfirmAsync(L("dlg.del_ws_title"),
+                    string.Format(L("dlg.del_ws"), item.Name), L("supprimer"), danger: true))
+                _vm.DeleteWorkspaceCommand.Execute(item);
+        });
+
+    private async Task SafeUiAsync(Func<Task> action,
+        [System.Runtime.CompilerServices.CallerMemberName] string? what = null)
     {
-        if (sender is FrameworkElement { DataContext: WorkspaceItem item }
-            && await ConfirmAsync(L("dlg.del_ws_title"),
-                string.Format(L("dlg.del_ws"), item.Name), L("supprimer"), danger: true))
-            _vm.DeleteWorkspaceCommand.Execute(item);
+        try { await action(); }
+        catch (Exception ex)
+        {
+            AppLogger.Write($"ui.{what}: {ex}");
+            _vm.Status = string.Format(L("st.action_failed"), ex.Message);
+        }
     }
 
     private TaskCompletionSource<bool>? _confirmTcs;
@@ -1110,10 +1183,10 @@ public partial class MainWindow : FluentWindow
     private void OnWorkspaceExitClick(object sender, RoutedEventArgs e) => _vm.ExitWorkspace();
 
     private async void OnDeviceAccountsClick(object sender, RoutedEventArgs e)
-        => await OpenAccountsPopupAsync(sender as FrameworkElement);
+        => await SafeUiAsync(() => OpenAccountsPopupAsync(sender as FrameworkElement));
 
     private async void OnHubStackClick(object sender, MouseButtonEventArgs e)
-        => await OpenAccountsPopupAsync(sender as FrameworkElement);
+        => await SafeUiAsync(() => OpenAccountsPopupAsync(sender as FrameworkElement));
 
     private async Task OpenAccountsPopupAsync(FrameworkElement? anchor)
     {
@@ -1133,29 +1206,31 @@ public partial class MainWindow : FluentWindow
     }
 
     private async void OnAccountsFlyoutClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is not System.Windows.Controls.MenuItem mi)
-            return;
-        var device = mi.DataContext as Services.AdbDevice ?? _vm.SelectedDevice;
-        if (device == null || device.IsRememberedOnly)
-            return;
-        AccountsPopup.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
-        AccountsPopup.PlacementTarget = null;
-        AccountsPopup.IsOpen = true;
-        _vm.AccountNotice = null;
-        await _vm.OpenAccountsPopupAsync(device);
-    }
+        => await SafeUiAsync(async () =>
+        {
+            if (sender is not System.Windows.Controls.MenuItem mi)
+                return;
+            var device = mi.DataContext as Services.AdbDevice ?? _vm.SelectedDevice;
+            if (device == null || device.IsRememberedOnly)
+                return;
+            AccountsPopup.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+            AccountsPopup.PlacementTarget = null;
+            AccountsPopup.IsOpen = true;
+            _vm.AccountNotice = null;
+            await _vm.OpenAccountsPopupAsync(device);
+        });
 
     private async void OnAccountOpenClick(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.DataContext is not ViewModels.AccountItem item)
-            return;
-        AccountsPopup.IsOpen = false;
-        if (item.IsPrimary)
-            await _vm.ConnectExistingDeviceAsync(item.Device);
-        else if (item.Profile != null)
-            await _vm.OpenAccountAsync(item.Device, item.Profile);
-    }
+        => await SafeUiAsync(async () =>
+        {
+            if ((sender as FrameworkElement)?.DataContext is not ViewModels.AccountItem item)
+                return;
+            AccountsPopup.IsOpen = false;
+            if (item.IsPrimary)
+                await _vm.ConnectExistingDeviceAsync(item.Device);
+            else if (item.Profile != null)
+                await _vm.OpenAccountAsync(item.Device, item.Profile);
+        });
 
     private void OnAccountDeleteClick(object sender, RoutedEventArgs e)
     {
@@ -1170,13 +1245,14 @@ public partial class MainWindow : FluentWindow
     }
 
     private async void OnAccountDeleteConfirmClick(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.DataContext is not ViewModels.AccountItem item
-            || item.Profile == null)
-            return;
-        item.IsConfirming = false;
-        await _vm.RemoveAccountAsync(item.Device, item.Profile);
-    }
+        => await SafeUiAsync(async () =>
+        {
+            if ((sender as FrameworkElement)?.DataContext is not ViewModels.AccountItem item
+                || item.Profile == null)
+                return;
+            item.IsConfirming = false;
+            await _vm.RemoveAccountAsync(item.Device, item.Profile);
+        });
 
     private void OnAvatarPickerToggle(object sender, MouseButtonEventArgs e)
     {
@@ -1230,15 +1306,15 @@ public partial class MainWindow : FluentWindow
     private async void OnAvatarPickClick(object sender, MouseButtonEventArgs e)
     {
         if ((sender as FrameworkElement)?.DataContext is ViewModels.BreedAvatar av)
-            await _vm.PickAvatarAsync(av);
+            await SafeUiAsync(() => _vm.PickAvatarAsync(av));
         e.Handled = true;
     }
 
     private async void OnAccountCreateClick(object sender, RoutedEventArgs e)
-        => await CreateAccountFromPopupAsync(false);
+        => await SafeUiAsync(() => CreateAccountFromPopupAsync(false));
 
     private async void OnAccountCreateManagedClick(object sender, RoutedEventArgs e)
-        => await CreateAccountFromPopupAsync(true);
+        => await SafeUiAsync(() => CreateAccountFromPopupAsync(true));
 
     private async Task CreateAccountFromPopupAsync(bool managed)
     {
@@ -1609,6 +1685,12 @@ public partial class MainWindow : FluentWindow
             e.Handled = true;
             return;
         }
+        if (e.Key == Key.Escape && !_splashDismissed && SplashOverlay.Visibility == Visibility.Visible)
+        {
+            DismissSplash();
+            e.Handled = true;
+            return;
+        }
         if (e.Key == Key.Escape && _confirmTcs != null)
         {
             ResolveConfirm(false);
@@ -1845,5 +1927,148 @@ public partial class MainWindow : FluentWindow
             view.InjectText(e.Text);
             e.Handled = true;
         }
+    }
+
+    private bool _splashDismissed;
+    private bool _splashChoiceOpen;
+    private TaskCompletionSource<bool>? _splashTcs;
+
+    private async Task RunStartupSplashAsync()
+    {
+        WindowState = WindowState.Maximized;
+
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        SplashOverlay.BeginAnimation(OpacityProperty,
+            new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(380)) { EasingFunction = ease });
+        SplashStack.BeginAnimation(OpacityProperty,
+            new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(500)) { EasingFunction = ease });
+        SplashStackShift.BeginAnimation(TranslateTransform.YProperty,
+            new DoubleAnimation(14, 0, TimeSpan.FromMilliseconds(560)) { EasingFunction = ease });
+
+        UpdateSplashProgress(0.25, L("st.splash_init"), "01 / 03");
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var initTask = _vm.InitializeAsync();
+
+        await Task.Delay(320);
+        if (!_splashDismissed)
+            UpdateSplashProgress(0.65, L("st.splash_adb"), "02 / 03");
+
+        try
+        {
+            await initTask;
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Write($"[Startup] InitializeAsync error: {ex.Message}");
+        }
+
+        if (_splashDismissed)
+            return;
+
+        UpdateSplashProgress(1.0, L("st.splash_ready"), "03 / 03");
+
+        var elapsed = sw.ElapsedMilliseconds;
+        if (elapsed < 1100)
+            await Task.Delay((int)(1100 - elapsed));
+        if (_splashDismissed)
+            return;
+
+        ShowSplashChoice();
+        _splashTcs = new TaskCompletionSource<bool>();
+        await _splashTcs.Task;
+
+        DismissSplash();
+    }
+
+    private void ShowSplashChoice()
+    {
+        _splashChoiceOpen = true;
+        SplashActions.IsHitTestVisible = true;
+        SplashActions.BeginAnimation(OpacityProperty,
+            new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(320))
+            { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+    }
+
+    private void UpdateSplashProgress(double ratio, string status, string step)
+    {
+        if (_splashDismissed || SplashOverlay.Visibility != Visibility.Visible)
+            return;
+
+        const double maxLaserWidth = 280.0;
+        var targetWidth = Math.Clamp(ratio * maxLaserWidth, 20.0, maxLaserWidth);
+
+        SplashStatusText.Text = status;
+        SplashStepText.Text = step;
+
+        var anim = new DoubleAnimation(targetWidth, TimeSpan.FromMilliseconds(430))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        SplashLaserFill.BeginAnimation(WidthProperty, anim);
+    }
+
+    private void DismissSplash()
+    {
+        if (_splashDismissed)
+            return;
+        _splashDismissed = true;
+        _splashTcs?.TrySetResult(true);
+
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(420))
+        {
+            EasingFunction = ease
+        };
+        fade.Completed += (_, _) =>
+        {
+            SplashOverlay.Visibility = Visibility.Collapsed;
+            SplashOverlay.IsHitTestVisible = false;
+            PlayHubEntrance();
+        };
+        SplashOverlay.BeginAnimation(OpacityProperty, fade);
+        SplashStackShift.BeginAnimation(TranslateTransform.YProperty,
+            new DoubleAnimation(-10, TimeSpan.FromMilliseconds(420)) { EasingFunction = ease });
+    }
+
+    private void PlayHubEntrance()
+    {
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var i = 0;
+        foreach (var item in _vm.Devices)
+        {
+            var delay = TimeSpan.FromMilliseconds(60 * i++);
+            if (HubCarousel.ItemContainerGenerator.ContainerFromItem(item) is ContentPresenter cp
+                && FindNamed(cp, "UnitBd") is { } card)
+                FadeSlideIn(card, delay, ease, 16);
+            if (RailDeviceList?.ItemContainerGenerator.ContainerFromItem(item) is ContentPresenter rp)
+                FadeSlideIn(rp, delay + TimeSpan.FromMilliseconds(140), ease, 10);
+        }
+    }
+
+    private static void FadeSlideIn(FrameworkElement el, TimeSpan delay, CubicEase ease, double dy)
+    {
+        if (el.RenderTransform is not TranslateTransform tt)
+        {
+            tt = new TranslateTransform();
+            el.RenderTransform = tt;
+        }
+        el.Opacity = 0;
+        el.BeginAnimation(OpacityProperty,
+            new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(360)) { BeginTime = delay, EasingFunction = ease });
+        tt.BeginAnimation(TranslateTransform.YProperty,
+            new DoubleAnimation(dy, 0, TimeSpan.FromMilliseconds(360)) { BeginTime = delay, EasingFunction = ease });
+    }
+
+    private void OnSplashLaunch(object sender, RoutedEventArgs e)
+    {
+        _splashTcs?.TrySetResult(true);
+        if (!_splashChoiceOpen)
+            DismissSplash();
+    }
+
+    private void OnSplashMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        OnSplashLaunch(sender, e);
     }
 }

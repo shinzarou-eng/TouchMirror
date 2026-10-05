@@ -6,8 +6,7 @@ namespace TouchMirror.Services;
 public static class DimmedScreenStore
 {
     private static readonly string Dir = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "TouchMirror", "dimmed");
+        AppPaths.DataDir, "dimmed");
 
     public sealed record State(string File, string Serial, string DeviceKey,
         int Brightness, int StayOn, int BrightnessMode);

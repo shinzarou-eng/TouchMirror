@@ -34,6 +34,7 @@ public partial class App : Application
                 break;
             }
             Shutdown();
+            Environment.Exit(0);
             return;
         }
         AppLogger.Write("Application démarrée");

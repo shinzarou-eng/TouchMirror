@@ -32,3 +32,7 @@ engine/bin/
 publish/
 /*.tmp.html
 /hub-assets/
+
+plugins/checklist/checklist.txt
+plugins/bridge/data.txt
+docs/cartographie-bugs.md

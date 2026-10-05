@@ -250,7 +250,10 @@ public partial class MainViewModel : ObservableObject
         if (ActiveWorkspace != null)
             ActiveWorkspace.Model.GridMode = value;
         foreach (var m in Mirrors)
+        {
             m.SetVideoHidden(m != ActiveMirror && !ShowGridSurface);
+            m.SetBackgroundThrottle(m != ActiveMirror && ShowGridSurface);
+        }
         ScheduleSave();
     }
 
@@ -299,6 +302,11 @@ public partial class MainViewModel : ObservableObject
     private readonly DispatcherTimer _saveTimer = new() { Interval = TimeSpan.FromMilliseconds(600) };
     private readonly DispatcherTimer _pollTimer = new() { Interval = TimeSpan.FromSeconds(5) };
     [ObservableProperty] private bool _refreshing;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AdbConflictVisibility))]
+    private string? _adbConflict;
+    public Visibility AdbConflictVisibility => AdbConflict != null
+        ? Visibility.Visible : Visibility.Collapsed;
     private readonly AppSettings _settings;
     private static string L(string key) => LocalizationService.Get(key);
     private bool _suppressSave;
@@ -372,6 +380,7 @@ public partial class MainViewModel : ObservableObject
             OnPropertyChanged(nameof(HealthTooltip));
         };
         _health.WifiDegraded += OnWifiDegraded;
+        _health.WifiSampled += OnWifiSampled;
         _suppressReconnect = true;
         _suppressSave = true;
         MaxSize = _settings.MaxSize;
@@ -619,6 +628,7 @@ public partial class MainViewModel : ObservableObject
             m.IsActive = m == instance;
             m.SetAudioMuted(m != instance);
             m.SetVideoHidden(m != instance && !ShowGridSurface);
+            m.SetBackgroundThrottle(m != instance && ShowGridSurface);
             m.KeybindEditMode = KeybindEditMode && m == instance;
         }
         RefreshInactiveMirrors();
@@ -653,6 +663,17 @@ public partial class MainViewModel : ObservableObject
     private CancellationTokenSource? _gamePoll;
     [ObservableProperty] private int _localApiPort = 47613;
     [ObservableProperty] private string _localApiToken = "";
+    [ObservableProperty] private bool _apiTokenVisible;
+
+    public string LocalApiTokenDisplay
+        => ApiTokenVisible || string.IsNullOrEmpty(LocalApiToken)
+            ? LocalApiToken
+            : LocalApiToken.Length <= 4
+                ? new string('•', LocalApiToken.Length)
+                : new string('•', LocalApiToken.Length - 4) + LocalApiToken[^4..];
+
+    partial void OnLocalApiTokenChanged(string value) => OnPropertyChanged(nameof(LocalApiTokenDisplay));
+    partial void OnApiTokenVisibleChanged(bool value) => OnPropertyChanged(nameof(LocalApiTokenDisplay));
     [ObservableProperty] private string _language = "fr";
     [ObservableProperty] private string _theme = "sombre";
     [ObservableProperty] private bool _isHalloweenTheme;
@@ -844,6 +865,18 @@ public partial class MainViewModel : ObservableObject
         LocalApiToken = _settings.LocalApiToken;
         SaveNow();
         Log("Token API régénéré");
+    }
+
+    [RelayCommand]
+    private void ToggleApiTokenVisibility() => ApiTokenVisible = !ApiTokenVisible;
+
+    [RelayCommand]
+    private void CopyApiToken()
+    {
+        if (string.IsNullOrEmpty(LocalApiToken))
+            return;
+        System.Windows.Clipboard.SetText(LocalApiToken);
+        Log("Token API copié");
     }
 
     private async Task RestartApiAsync()
@@ -1273,16 +1306,24 @@ public partial class MainViewModel : ObservableObject
         SaveNow();
     }
 
-    private PluginApi ApiFor(PluginInstance p) => new(_apiHost, msg => p.Emit(msg), p.Id,
-        Path.GetFileName(p.FilePath).Equals("plugin.js", StringComparison.OrdinalIgnoreCase)
-            ? Path.GetDirectoryName(p.FilePath)!
-            : Path.Combine(Path.GetDirectoryName(p.FilePath)!, p.Id));
+    private PluginApi ApiFor(PluginInstance p)
+    {
+        var api = new PluginApi(_apiHost, msg => p.Emit(msg), p.Id,
+            Path.GetFileName(p.FilePath).Equals("plugin.js", StringComparison.OrdinalIgnoreCase)
+                ? Path.GetDirectoryName(p.FilePath)!
+                : Path.Combine(Path.GetDirectoryName(p.FilePath)!, p.Id));
+        api.Tripped += () => Application.Current.Dispatcher.BeginInvoke(() =>
+        {
+            p.Trip(L("plugins.circuit_breaker"));
+            Log($"plugin « {p.Name} » suspendu — trop d'appels API");
+        });
+        return api;
+    }
 
     private static readonly string BundledPluginsDir =
         Path.Combine(AppContext.BaseDirectory, "assets", "plugins");
     private static readonly string UserPluginsDir =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "TouchMirror", "plugins");
+        Path.Combine(AppPaths.DataDir, "plugins");
     private static readonly string LegacyPluginsDir =
         Path.Combine(AppContext.BaseDirectory, "plugins");
 
@@ -2207,6 +2248,14 @@ public partial class MainViewModel : ObservableObject
         {
             var list = (await AdbService.GetDevicesAsync()).ToList();
 
+            var ext = AdbService.ExternalAdbPath();
+            if (ext != AdbConflict)
+            {
+                if (ext != null)
+                    Log($"{L("log.adb_conflict")} {ext}");
+                AdbConflict = ext;
+            }
+
             foreach (var st in DimmedScreenStore.Pending())
             {
                 var dev = list.FirstOrDefault(d =>
@@ -2231,15 +2280,18 @@ public partial class MainViewModel : ObservableObject
 
             foreach (var d in list)
             {
-                if (_settings.Devices.ContainsKey(d.DeviceKey))
-                    continue;
-                var stale = _settings.Devices.FirstOrDefault(kv =>
-                    kv.Value.LastSerial != null && d.MatchesSerial(kv.Value.LastSerial));
-                if (stale.Key != null)
+                var staleKey = SettingsStore.FindAliasKey(_settings, d, list);
+                if (staleKey != null)
                 {
-                    _settings.Devices.Remove(stale.Key);
-                    _settings.Devices[d.DeviceKey] = stale.Value;
+                    SettingsStore.MigrateDeviceKey(_settings, staleKey, d.DeviceKey);
+                    Log($"réglages migrés {staleKey} → {d.DeviceKey}");
                 }
+                if (d.HardwareSerial is { Length: > 0 })
+                    foreach (var a in new[] { d.Serial, d.AltSerial })
+                        if (a != null && a != d.DeviceKey && a != staleKey
+                            && (_settings.Devices.ContainsKey(a)
+                                || _settings.Devices.Keys.Any(k => k.StartsWith(a + "#", StringComparison.Ordinal))))
+                            SettingsStore.MigrateDeviceKey(_settings, a, d.DeviceKey);
             }
 
             _voluntaryDisconnects.RemoveWhere(s =>
@@ -2275,11 +2327,16 @@ public partial class MainViewModel : ObservableObject
 
             var selKey = SelectedDevice?.DeviceKey;
             for (var i = 0; i < list.Count; i++)
+            {
+                var prev = Devices.FirstOrDefault(d => d.DeviceKey == list[i].DeviceKey);
                 list[i] = list[i] with
                 {
                     IsSelected = selKey != null && list[i].DeviceKey == selKey,
-                    IsMirrored = Mirrors.Any(m => m.Device.SharesIdentity(list[i]))
+                    IsMirrored = Mirrors.Any(m => m.Device.SharesIdentity(list[i])),
+                    WifiRtt = prev?.WifiRtt ?? -1,
+                    WifiLoss = prev?.WifiLoss ?? -1
                 };
+            }
 
             var known = Devices.Where(d => d.IsReady).ToList();
             foreach (var d in list.Where(d => d.IsReady && !known.Any(k => k.DeviceKey == d.DeviceKey)))
@@ -3700,41 +3757,70 @@ public partial class MainViewModel : ObservableObject
 
     private IReadOnlyList<PredictiveMonitor.WifiProbe> BuildWifiProbes()
     {
+        var seen = new HashSet<string>();
         var list = new List<PredictiveMonitor.WifiProbe>();
         foreach (var m in Mirrors)
         {
             if (!m.ResolvedDevice.IsWifi)
                 continue;
             var ip = m.ResolvedDevice.Serial.Split(':')[0];
-            if (ip.Contains('.'))
+            if (ip.Contains('.') && seen.Add(ip))
                 list.Add(new PredictiveMonitor.WifiProbe(m.Device.ShortName, ip));
+        }
+        foreach (var d in Devices)
+        {
+            if (!d.IsWifi || !d.IsReady)
+                continue;
+            var ip = d.Serial.Split(':')[0];
+            if (ip.Contains('.') && seen.Add(ip))
+                list.Add(new PredictiveMonitor.WifiProbe(d.ShortName, ip));
         }
         return list;
     }
 
+    private void OnWifiSampled(PredictiveMonitor.WifiProbe probe, double rtt, double loss)
+    {
+        Application.Current.Dispatcher.BeginInvoke(() =>
+        {
+            for (var i = 0; i < Devices.Count; i++)
+            {
+                var d = Devices[i];
+                if (d.IsWifi && d.Serial.Split(':')[0] == probe.Ip)
+                    Devices[i] = d with { WifiRtt = rtt, WifiLoss = loss };
+            }
+        });
+    }
+
     private async void OnWifiDegraded(PredictiveMonitor.WifiProbe probe)
     {
-        var m = Mirrors.FirstOrDefault(x => x.ResolvedDevice.IsWifi
-            && x.ResolvedDevice.Serial.Split(':')[0] == probe.Ip);
-        if (m == null || m.IsRecording || !_usbSwitched.Add(m.IdentityKey))
-            return;
-        var twin = Devices.FirstOrDefault(d =>
-            !d.IsWifi && d.IsReady && d.SharesIdentity(m.Device));
-        if (twin == null)
+        try
         {
-            _usbSwitched.Remove(m.IdentityKey);
-            return;
+            var m = Mirrors.FirstOrDefault(x => x.ResolvedDevice.IsWifi
+                && x.ResolvedDevice.Serial.Split(':')[0] == probe.Ip);
+            if (m == null || m.IsRecording || !_usbSwitched.Add(m.IdentityKey))
+                return;
+            var twin = Devices.FirstOrDefault(d =>
+                !d.IsWifi && d.IsReady && d.SharesIdentity(m.Device));
+            if (twin == null)
+            {
+                _usbSwitched.Remove(m.IdentityKey);
+                return;
+            }
+            AddActivity("usb", L("act.usb_switch"), m.Device.ShortName);
+            Status = string.Format(L("st.usb_switch"), m.Device.ShortName);
+            m.ManualDisconnect = true;
+            try { await m.DisconnectAsync(); }
+            catch
+            {
+                _usbSwitched.Remove(m.IdentityKey);
+                return;
+            }
+            await ConnectDeviceAsync(twin);
         }
-        AddActivity("usb", L("act.usb_switch"), m.Device.ShortName);
-        Status = string.Format(L("st.usb_switch"), m.Device.ShortName);
-        m.ManualDisconnect = true;
-        try { await m.DisconnectAsync(); }
-        catch
+        catch (Exception ex)
         {
-            _usbSwitched.Remove(m.IdentityKey);
-            return;
+            Log($"wifi degradation handover: {ex.Message}");
         }
-        await ConnectDeviceAsync(twin);
     }
 
     [RelayCommand]
@@ -4061,12 +4147,18 @@ public partial class MainViewModel : ObservableObject
 
     private IEnumerable<string> CollectReportIds()
     {
-        foreach (var s in Devices.SelectMany(d => new[] { d.Serial, d.HardwareSerial })
-                     .Concat(Mirrors.Select(m => m.Device.Serial))
-                     .Concat(Mirrors.Select(m => m.Device.HardwareSerial))
+        foreach (var s in Devices.SelectMany(d => new[] { d.Serial, d.HardwareSerial, d.AltSerial })
+                     .Concat(Mirrors.SelectMany(m => new[] { m.Device.Serial, m.Device.HardwareSerial, m.Device.AltSerial }))
                      .Append(LocalApiToken)
                      .Where(x => !string.IsNullOrWhiteSpace(x)))
             yield return s!;
+        foreach (var k in _settings.Devices.Keys
+                     .Concat(_settings.Workspaces.SelectMany(w => w.Devices.Select(d => d.DeviceKey)))
+                     .Concat(_settings.MirrorOrder)
+                     .Append(_settings.LastSelectedDeviceKey ?? "")
+                     .Select(k => k.Split('#')[0])
+                     .Where(k => k.Length >= 5))
+            yield return k;
         var identity = AirPlay.AirPlaySession.PairingIdentity;
         if (!string.IsNullOrEmpty(identity.PairingId))
             yield return identity.PairingId!;

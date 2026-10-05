@@ -8,7 +8,7 @@ namespace TouchMirror.Services;
 public sealed record AdbDevice(string Serial, string Model, string State, int? Battery = null,
     string? HardwareSerial = null, string? AltSerial = null, string? CustomName = null,
     string? Color = null, string? Diag = null, bool Pinned = false, bool IsSelected = false,
-    bool IsMirrored = false)
+    bool IsMirrored = false, double WifiRtt = -1, double WifiLoss = -1)
 {
     public string DeviceKey => HardwareSerial is { Length: > 0 } h ? h : Serial;
     public string MaskedSerial => Serial.Length > 7 ? Serial[..4] + "•••" + Serial[^3..] : "•••";
@@ -41,6 +41,18 @@ public sealed record AdbDevice(string Serial, string Model, string State, int? B
         : IsReady ? L("dev.live") : IsRememberedOnly ? L("dev.memorized") : "";
     public string SidebarMeta => IsRememberedOnly ? ""
         : $" · {(HasDualTransport ? "usb+wifi" : IsWifi ? "wifi" : "usb")}";
+    public int WifiLevel =>
+        WifiLoss >= 99 ? 3
+        : WifiLoss >= 34 || WifiRtt >= 80 ? 2
+        : WifiRtt >= 0 && WifiLoss >= 0 ? 1
+        : 0;
+    public bool HasWifiHealth => IsWifi && IsReady && WifiLevel > 0;
+    public string WifiText => WifiLevel switch
+    {
+        3 => L("wifi.down"),
+        >= 1 => $"{WifiRtt:0} ms",
+        _ => ""
+    };
     public int Chassis
     {
         get
@@ -140,6 +152,27 @@ public static class AdbService
         }
         catch { }
 
+        return null;
+    }
+
+    public static string? ExternalAdbPath()
+    {
+        var ours = FindAdb();
+        try
+        {
+            foreach (var p in Process.GetProcessesByName("adb"))
+            {
+                try
+                {
+                    var path = p.MainModule?.FileName;
+                    if (path != null && ours != null
+                        && !string.Equals(path, ours, StringComparison.OrdinalIgnoreCase))
+                        return path;
+                }
+                catch { }
+            }
+        }
+        catch { }
         return null;
     }
 

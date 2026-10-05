@@ -17,6 +17,14 @@ public sealed class ReportSanitizerTests
     }
 
     [Fact]
+    public void Masks_Subnet_Cidr()
+    {
+        var s = Sanitize("scan du sous-réseau 192.168.1.0/24");
+        Assert.DoesNotContain("192.168.1.0", s);
+        Assert.DoesNotContain("/24", s);
+    }
+
+    [Fact]
     public void Masks_Ipv6()
     {
         var s = Sanitize("fe80::1ff:fe23:4567:890a répond");

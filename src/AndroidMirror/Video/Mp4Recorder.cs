@@ -59,7 +59,10 @@ public unsafe sealed class Mp4Recorder : IDisposable
         _stream->codecpar->extradata = ptr;
         _stream->codecpar->extradata_size = extra.Length;
 
-        var r = ffmpeg.avformat_write_header(_fmt, null);
+        AVDictionary* opts = null;
+        ffmpeg.av_dict_set(&opts, "movflags", "frag_keyframe+empty_moov+default_base_moof", 0);
+        var r = ffmpeg.avformat_write_header(_fmt, &opts);
+        ffmpeg.av_dict_free(&opts);
         _headerWritten = r >= 0;
         Services.AppLogger.Write($"mp4: header codec={_codecId} write_header={r}");
     }

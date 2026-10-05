@@ -118,7 +118,7 @@ internal static class Program
     }
 
     private static readonly AdbDevice TestPhone = new("test-phone", "Test Phone", "device");
-    private static readonly EngineOptions TestOptions = new() { Audio = false, TurnScreenOff = false };
+    private static readonly EngineOptions TestOptions = new() { Audio = false, TurnScreenOff = false, WifiHandover = false };
 
     private static void ResetFake(string mode = "hold", string state = "device")
     {

@@ -6,7 +6,7 @@ public static class AppLogger
 {
     private static readonly string _path =
         System.IO.Path.Combine(AppContext.GetData("TouchMirror.LogDirectory") as string
-            ?? System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TouchMirror"), "app.log");
+            ?? AppPaths.DataDir, "app.log");
     private static readonly object _lock = new();
     private static StreamWriter? _writer;
 

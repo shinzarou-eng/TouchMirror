@@ -21,6 +21,8 @@ public static class ReportSanitizer
         @"\b(?:[0-9A-Fa-f]{1,4}:){1,7}:(?:[0-9A-Fa-f]{0,4}:?){0,7}", RegexOptions.Compiled);
     private static readonly Regex Ipv4 = new(
         @"\b(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}\b", RegexOptions.Compiled);
+    private static readonly Regex Subnet = new(
+        @"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/\d{1,2}\b", RegexOptions.Compiled);
     private static readonly Regex LongHex = new(
         @"\b[0-9A-Fa-f]{24,}\b", RegexOptions.Compiled);
     private static readonly Regex LongToken = new(
@@ -44,6 +46,7 @@ public static class ReportSanitizer
         s = GuidRe.Replace(s, "«uuid»");
         s = Mac.Replace(s, "xx:xx:xx:xx:xx:xx");
         s = Ipv6.Replace(s, "«ipv6»");
+        s = Subnet.Replace(s, "«sous-réseau»");
         s = Ipv4.Replace(s, "$1.$2.×.×");
         s = LongHex.Replace(s, "«clé»");
         s = LongToken.Replace(s, "«jeton»");

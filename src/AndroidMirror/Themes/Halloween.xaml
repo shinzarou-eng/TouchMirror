@@ -24,6 +24,7 @@
     <SolidColorBrush x:Key="AccentBorderBrush" Color="#40E07B2C" />
 
     <SolidColorBrush x:Key="DofusAccentBrush" Color="#F0A55E" />
+    <Color x:Key="AccentGlowColor">#F0A55E</Color>
     <SolidColorBrush x:Key="DofusAccentDimBrush" Color="#A8703F" />
 
 </ResourceDictionary>

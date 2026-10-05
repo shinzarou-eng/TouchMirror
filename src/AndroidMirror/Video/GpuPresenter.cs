@@ -80,7 +80,7 @@ public sealed class GpuPresenter : IDisposable
     private bool _pendingRebind;
     private bool _disposed;
     private volatile bool _upscale;
-    internal const bool PostUpscaleEnabled = false;
+    internal static readonly bool PostUpscaleEnabled = false;
     private int _outW, _outH;
     private ID3D11PixelShader? _psScale;
     private int RenderW => _upscale ? _outW : _w;

@@ -17,8 +17,14 @@ public sealed class PluginApi
     private readonly string _dir;
 
     private const int MaxCallsPerSecond = 30;
+    private const int AbuseTripDenials = 240;
+    private const double AbuseWindowSec = 8;
     private int _windowCalls;
     private DateTime _windowStart = DateTime.UtcNow;
+    private int _deniedCalls;
+    private DateTime _deniedWindowStart = DateTime.MinValue;
+
+    public event Action? Tripped;
 
     private readonly HashSet<(int Slot, string Id)> _overlays = new();
     private volatile bool _stopped;
@@ -49,8 +55,21 @@ public sealed class PluginApi
             return JsonSerializer.Serialize(
                 new LocalApiHost.ApiResult(false, "plugin arrêté"), JsonOpts);
         if (!TryAcquireCall())
+        {
+            var now = DateTime.UtcNow;
+            if (now - _deniedWindowStart > TimeSpan.FromSeconds(AbuseWindowSec))
+            {
+                _deniedWindowStart = now;
+                _deniedCalls = 0;
+            }
+            if (++_deniedCalls >= AbuseTripDenials)
+            {
+                _deniedCalls = 0;
+                Tripped?.Invoke();
+            }
             return JsonSerializer.Serialize(
                 new LocalApiHost.ApiResult(false, "limite d'appels dépassée"), JsonOpts);
+        }
         if (method is "activate" or "record" or "screenshot" or "disconnect" or "connect" or "mute" or "volume")
             _log($"[api] {method} {arg}");
         try

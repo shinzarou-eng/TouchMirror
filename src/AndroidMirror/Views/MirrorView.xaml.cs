@@ -66,12 +66,34 @@ public partial class MirrorView : UserControl
         Loaded += (_, _) =>
         {
             var w = Window.GetWindow(this);
-            if (w != null)
-                w.DpiChanged += (_, _) => ScheduleOutputSize();
+            if (w != null && _hostWindow != w)
+            {
+                if (_hostWindow != null)
+                {
+                    _hostWindow.DpiChanged -= OnHostDpiChanged;
+                    _hostWindow.Deactivated -= OnHostDeactivated;
+                }
+                _hostWindow = w;
+                w.DpiChanged += OnHostDpiChanged;
+                w.Deactivated += OnHostDeactivated;
+            }
         };
+        IsKeyboardFocusWithinChanged += (_, _) =>
+        {
+            if (!IsKeyboardFocusWithin)
+                ReleaseHeldKeys();
+        };
+        MouseEnter += (_, _) => (DataContext as MirrorInstance)?.SetHovered(true);
+        MouseLeave += (_, _) => (DataContext as MirrorInstance)?.SetHovered(false);
         _outSizeTimer.Tick += (_, _) => PushOutputSize();
         _moveFlush.Tick += (_, _) => FlushPendingMove();
     }
+
+    private Window? _hostWindow;
+
+    private void OnHostDpiChanged(object? sender, DpiChangedEventArgs e) => ScheduleOutputSize();
+
+    private void OnHostDeactivated(object? sender, EventArgs e) => ReleaseHeldKeys();
 
     private void ScheduleOutputSize()
     {
@@ -105,6 +127,35 @@ public partial class MirrorView : UserControl
     }
 
     public ImageSource? VideoSource => VideoImage.Source;
+
+    public bool ExternalControl => _control != null;
+
+    public bool TryMapExternalPoint(Point p, Size surface, out uint x, out uint y, bool strict = false)
+    {
+        x = y = 0;
+        if (_videoW <= 0 || _videoH <= 0 || surface.Width <= 0 || surface.Height <= 0)
+            return false;
+        var vw = _displayRotation is 90 or 270 ? _videoH : _videoW;
+        var vh = _displayRotation is 90 or 270 ? _videoW : _videoH;
+        var scale = Math.Min(surface.Width / vw, surface.Height / vh);
+        var ox = (surface.Width - vw * scale) / 2;
+        var oy = (surface.Height - vh * scale) / 2;
+        var rx = (p.X - ox) / scale;
+        var ry = (p.Y - oy) / scale;
+        if (strict && (rx < 0 || ry < 0 || rx >= vw || ry >= vh))
+            return false;
+        Unrotate(Math.Clamp(rx, 0, vw - 1), Math.Clamp(ry, 0, vh - 1), out x, out y);
+        return true;
+    }
+
+    public void InjectExternalTouch(byte action, uint x, uint y, float pressure, uint flag, uint buttons)
+        => _control?.InjectTouch(action, AndroidMotionEvent.PointerIdMouse, x, y,
+            (ushort)_videoW, (ushort)_videoH, pressure, flag, buttons);
+
+    public void InjectExternalScroll(uint x, uint y, float vscroll, uint buttons)
+        => _control?.InjectScroll(x, y, (ushort)_videoW, (ushort)_videoH, 0, vscroll, buttons);
+
+    public void InjectExternalKey(int keycode) => _control?.InjectKeyPress(keycode);
 
     public string VideoDiag
     {
@@ -1454,6 +1505,12 @@ public partial class MirrorView : UserControl
     public void Detach()
     {
         ReleaseHeldKeys();
+        if (_hostWindow != null)
+        {
+            _hostWindow.DpiChanged -= OnHostDpiChanged;
+            _hostWindow.Deactivated -= OnHostDeactivated;
+            _hostWindow = null;
+        }
         _uhid = false;
         _decoder = null;
         _control = null;

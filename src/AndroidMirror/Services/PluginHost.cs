@@ -65,6 +65,13 @@ public partial class PluginInstance : ObservableObject
 
     internal void Emit(string line) => Output?.Invoke(line);
 
+    internal void Trip(string reason)
+    {
+        Output?.Invoke(reason);
+        try { Application.Current?.Dispatcher.BeginInvoke(() => LastError = reason); } catch { }
+        Task.Run(Stop);
+    }
+
     public PluginInstance(string path)
     {
         FilePath = path;

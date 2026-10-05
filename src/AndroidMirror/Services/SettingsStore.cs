@@ -103,7 +103,12 @@ public sealed class AppSettings
     public bool LocalApiEnabled { get; set; }
     public bool DiscordPresence { get; set; }
     public bool AnonymousStats { get; set; } = true;
-    public int LocalApiPort { get; set; } = 47613;
+    public int LocalApiPort { get; set; } =
+#if DEBUG
+        47614;
+#else
+        47613;
+#endif
     public string? LocalApiToken { get; set; }
     public string? LastSelectedDeviceKey { get; set; }
     public List<string> EnabledPlugins { get; set; } = new();
@@ -124,8 +129,7 @@ public sealed class AppSettings
 public static class SettingsStore
 {
     private static readonly string _path = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "TouchMirror", "settings.json");
+        AppPaths.DataDir, "settings.json");
 
     private static readonly JsonSerializerOptions _json = new() { WriteIndented = true };
 
@@ -183,6 +187,102 @@ public static class SettingsStore
             try { File.Copy(_path, _path + ".corrupt", true); } catch { }
         }
         return new();
+    }
+
+    public static string? FindAliasKey(AppSettings s, AdbDevice d, IReadOnlyList<AdbDevice> live)
+    {
+        if (s.Devices.ContainsKey(d.DeviceKey))
+            return null;
+        var bySerial = s.Devices.FirstOrDefault(kv =>
+            kv.Value.LastSerial != null && d.MatchesSerial(kv.Value.LastSerial)).Key;
+        if (bySerial != null)
+            return bySerial;
+        if (d.HardwareSerial is { Length: > 0 })
+        {
+            if (d.Serial != d.DeviceKey && s.Devices.ContainsKey(d.Serial))
+                return d.Serial;
+            if (d.AltSerial != null && s.Devices.ContainsKey(d.AltSerial))
+                return d.AltSerial;
+        }
+        if (d.Model.Length > 0 && live.Count(x => x.Model == d.Model) == 1)
+        {
+            var ipKeys = s.Devices
+                .Where(kv => kv.Key.Contains(':')
+                    && kv.Value.Model == d.Model
+                    && !live.Any(x => x.DeviceKey == kv.Key))
+                .Select(kv => kv.Key)
+                .ToList();
+            if (ipKeys.Count == 1)
+                return ipKeys[0];
+        }
+        return null;
+    }
+
+    public static void MigrateDeviceKey(AppSettings s, string from, string to)
+    {
+        if (from == to)
+            return;
+        if (s.Devices.Remove(from, out var dp))
+        {
+            if (s.Devices.TryGetValue(to, out var cur))
+                MergePrefs(cur, dp);
+            else
+                s.Devices[to] = dp;
+        }
+        var prefix = from + "#";
+        foreach (var kv in s.Devices.Where(kv => kv.Key.StartsWith(prefix, StringComparison.Ordinal)).ToList())
+        {
+            s.Devices.Remove(kv.Key);
+            var nk = to + kv.Key[from.Length..];
+            if (s.Devices.TryGetValue(nk, out var cur))
+                MergePrefs(cur, kv.Value);
+            else
+                s.Devices[nk] = kv.Value;
+        }
+        foreach (var w in s.Workspaces)
+        {
+            foreach (var wd in w.Devices)
+                if (wd.DeviceKey == from || wd.DeviceKey.StartsWith(prefix, StringComparison.Ordinal))
+                    wd.DeviceKey = to + wd.DeviceKey[from.Length..];
+            if (w.ActiveDeviceKey is { } ak
+                && (ak == from || ak.StartsWith(prefix, StringComparison.Ordinal)))
+                w.ActiveDeviceKey = to + ak[from.Length..];
+        }
+        s.MirrorOrder = s.MirrorOrder
+            .Select(k => k == from || k.StartsWith(prefix, StringComparison.Ordinal)
+                ? to + k[from.Length..] : k)
+            .ToList();
+        if (s.LastSelectedDeviceKey == from
+            || (s.LastSelectedDeviceKey?.StartsWith(prefix, StringComparison.Ordinal) ?? false))
+            s.LastSelectedDeviceKey = to + s.LastSelectedDeviceKey![from.Length..];
+    }
+
+    private static void MergePrefs(DevicePrefs cur, DevicePrefs old)
+    {
+        cur.CustomName ??= old.CustomName;
+        cur.Model ??= old.Model;
+        cur.LastSerial ??= old.LastSerial;
+        cur.Color ??= old.Color;
+        cur.Pinned |= old.Pinned;
+        if (cur.Keybinds.Count == 0) cur.Keybinds = old.Keybinds;
+        foreach (var kv in old.KeybindProfiles) cur.KeybindProfiles.TryAdd(kv.Key, kv.Value);
+        cur.ActiveKeybindProfile ??= old.ActiveKeybindProfile;
+        cur.MaxSize ??= old.MaxSize;
+        cur.MaxFps ??= old.MaxFps;
+        cur.VideoBitRate ??= old.VideoBitRate;
+        cur.VideoCodec ??= old.VideoCodec;
+        cur.VideoDecoder ??= old.VideoDecoder;
+        cur.EnableAudio ??= old.EnableAudio;
+        cur.TurnScreenOff ??= old.TurnScreenOff;
+        cur.NewDisplay ??= old.NewDisplay;
+        cur.AdaptiveBitrate ??= old.AdaptiveBitrate;
+        cur.AdaptiveCeiling ??= old.AdaptiveCeiling;
+        cur.UhidInput ??= old.UhidInput;
+        if (cur.OwnedUserIds.Count == 0) cur.OwnedUserIds = old.OwnedUserIds;
+        foreach (var kv in old.AccountAvatars) cur.AccountAvatars.TryAdd(kv.Key, kv.Value);
+        foreach (var kv in old.AccountNames) cur.AccountNames.TryAdd(kv.Key, kv.Value);
+        foreach (var kv in old.AccountWeekSeconds) cur.AccountWeekSeconds.TryAdd(kv.Key, kv.Value);
+        foreach (var kv in old.OverlayPositions) cur.OverlayPositions.TryAdd(kv.Key, kv.Value);
     }
 
     public static void Save(AppSettings settings)
