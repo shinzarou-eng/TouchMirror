@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
 using System.Reflection;
@@ -151,7 +152,7 @@ internal static class Program
             Require(!await AdbService.PrepareServerAsync("test-phone", local, "33333333"), "same-sized corrupt cache was reused");
             Require(File.Exists(FakeAdb.Remote("touchmirror-11111111.jar")) && File.Exists(FakeAdb.Remote("touchmirror-22222222.jar")), "session paths not isolated");
         });
-        foreach (var mode in new[] { "eof", "partial", "bad-name", "stall" })
+        foreach (var mode in new[] { "eof", "partial", "bad-name", "stall", "v3", "bad-magic" })
             await CheckAsync($"handshake rejects {mode} and disposes twice", async () =>
             {
                 ResetFake(mode);
@@ -170,6 +171,71 @@ internal static class Program
                     await session.DisposeAsync();
                 }
             });
+        await CheckAsync("mux resync survives a corrupted stream", async () =>
+        {
+            ResetFake("desync");
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(6));
+            var session = new EngineSession(TestPhone, TestOptions, timeout.Token);
+            var packets = 0;
+            session.VideoPacketReceived += _ => Interlocked.Increment(ref packets);
+            await session.StartAsync();
+            for (var i = 0; i < 80 && packets < 2; i++) await Task.Delay(50);
+            await session.DisposeAsync();
+            Require(packets == 2, $"corrupted stream lost packets ({packets})");
+        });
+        await CheckAsync("hard stream cut ends the session", async () =>
+        {
+            ResetFake("cut");
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(6));
+            var session = new EngineSession(TestPhone, TestOptions, timeout.Token);
+            var got = 0;
+            var ended = new TaskCompletionSource();
+            session.VideoPacketReceived += _ => Interlocked.Increment(ref got);
+            session.Disconnected += () => ended.TrySetResult();
+            await session.StartAsync();
+            var done = await Task.WhenAny(ended.Task, Task.Delay(4000));
+            await session.DisposeAsync();
+            Require(done == ended.Task && got >= 1, $"stream cut not detected (packets {got})");
+        });
+        await CheckAsync("client control frames carry v4 magic", async () =>
+        {
+            ResetFake("cfg-echo");
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var session = new EngineSession(TestPhone, TestOptions, timeout.Token);
+            await session.StartAsync();
+            var okFile = Path.Combine(FakeAdb.Root, "cfgok");
+            var failFile = Path.Combine(FakeAdb.Root, "cfgfail");
+            for (var i = 0; i < 200 && !File.Exists(okFile) && !File.Exists(failFile); i++)
+                await Task.Delay(50);
+            await session.DisposeAsync();
+            Require(File.Exists(okFile), "control frame lacked TMIR v4 framing");
+        });
+        await CheckAsync("orphaned reverse tunnels are purged, foreign kept", async () =>
+        {
+            ResetFake();
+            File.WriteAllText(Path.Combine(FakeAdb.Root, "localabstract_touchmirror_dead1"), "1234");
+            File.WriteAllText(Path.Combine(FakeAdb.Root, "localabstract_touchmirror_dead2"), "1235");
+            File.WriteAllText(Path.Combine(FakeAdb.Root, "localabstract_scrcpy"), "1236");
+            await AdbService.PurgeReverseOrphansAsync("test-phone", "touchmirror_live");
+            Require(!File.Exists(Path.Combine(FakeAdb.Root, "localabstract_touchmirror_dead1")), "dead tunnel survived");
+            Require(!File.Exists(Path.Combine(FakeAdb.Root, "localabstract_touchmirror_dead2")), "dead tunnel survived");
+            Require(File.Exists(Path.Combine(FakeAdb.Root, "localabstract_scrcpy")), "foreign tunnel removed");
+        });
+        await CheckAsync("competing adb process is detected by name", async () =>
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "TouchMirrorChecks", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            var fake = Path.Combine(dir, "scrcpy.exe");
+            File.Copy(Path.Combine(Environment.SystemDirectory, "ping.exe"), fake);
+            using var proc = Process.Start(new ProcessStartInfo(fake, "-t 127.0.0.1") { CreateNoWindow = true, UseShellExecute = false })!;
+            try
+            {
+                await Task.Delay(400);
+                Require(AdbService.FindCompetingProcesses().Any(p => p.Name == "scrcpy"),
+                    "renamed competing process not detected");
+            }
+            finally { try { proc.Kill(); } catch { } }
+        });
         await CheckAsync("recovery retains identity, stops recording and clears pending input", async () =>
         {
             ResetFake();

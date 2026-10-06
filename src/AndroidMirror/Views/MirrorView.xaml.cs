@@ -91,7 +91,11 @@ public partial class MirrorView : UserControl
 
     private Window? _hostWindow;
 
-    private void OnHostDpiChanged(object? sender, DpiChangedEventArgs e) => ScheduleOutputSize();
+    private void OnHostDpiChanged(object? sender, DpiChangedEventArgs e)
+    {
+        ScheduleOutputSize();
+        _presenter?.Redraw();
+    }
 
     private void OnHostDeactivated(object? sender, EventArgs e) => ReleaseHeldKeys();
 

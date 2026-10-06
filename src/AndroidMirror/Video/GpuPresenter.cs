@@ -497,6 +497,26 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
     {
         if (srcTexture == IntPtr.Zero || _disposed || _gpuDead)
             return;
+        try
+        {
+            PresentCore(srcTexture, sliceIndex, w, h, colorInfo);
+        }
+        catch (SharpGen.Runtime.SharpGenException)
+        {
+            OnDeviceFault();
+        }
+        FrameReady?.Invoke();
+    }
+
+    private void OnDeviceFault()
+    {
+        ClearSources();
+        _pendingRebind = true;
+        ScheduleRebindRetry();
+    }
+
+    private void PresentCore(IntPtr srcTexture, int sliceIndex, int w, int h, int colorInfo)
+    {
         lock (_sync)
         {
             if (_disposed)
@@ -539,7 +559,6 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
 
             Draw(srvY, srvUV, w, h);
         }
-        FrameReady?.Invoke();
     }
 
     private byte[]? _uvTmp;
@@ -549,6 +568,20 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
     {
         if (yPlane == IntPtr.Zero || uPlane == IntPtr.Zero || _disposed || _gpuDead)
             return;
+        try
+        {
+            PresentSoftwareCore(yPlane, yStride, uPlane, uStride, vPlane, vStride, w, h, colorInfo);
+        }
+        catch (SharpGen.Runtime.SharpGenException)
+        {
+            OnDeviceFault();
+        }
+        FrameReady?.Invoke();
+    }
+
+    private unsafe void PresentSoftwareCore(IntPtr yPlane, int yStride, IntPtr uPlane, int uStride,
+        IntPtr vPlane, int vStride, int w, int h, int colorInfo)
+    {
         lock (_sync)
         {
             if (_disposed)
@@ -597,7 +630,6 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
 
             Draw(_srvY!, _srvUV!, w, h);
         }
-        FrameReady?.Invoke();
     }
 
     public void Attach(D3DImage image, IntPtr hwnd)
@@ -656,7 +688,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         Task.Run(() => RebindWorker(img, w, h, hwnd));
         _ = Task.Run(async () =>
         {
-            await Task.Delay(5000);
+            await Task.Delay(15000);
             if (Volatile.Read(ref _rebindBusy) == 1 && !_disposed && !_gpuDead)
             {
                 _gpuDead = true;
@@ -917,7 +949,7 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
             {
                 try
                 {
-                    if (_bgra != null && _frame != null)
+                    if (_bgra != null && _frame != null && !_pendingRebind)
                     {
                         try
                         {
