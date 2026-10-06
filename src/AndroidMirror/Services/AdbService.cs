@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -174,6 +176,47 @@ public static class AdbService
         }
         catch { }
         return null;
+    }
+
+    public static async Task<int> ProbeServerVersionAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            using var tcp = new TcpClient();
+            using var reg = ct.Register(tcp.Dispose);
+            await tcp.ConnectAsync(IPAddress.Loopback, 5037, ct);
+            var s = tcp.GetStream();
+            s.ReadTimeout = 3000;
+            var req = Encoding.ASCII.GetBytes("000chost:version");
+            await s.WriteAsync(req, ct);
+            var hdr = new byte[8];
+            if (!await ReadExact(s, hdr, ct))
+                return -1;
+            var resp = Encoding.ASCII.GetString(hdr);
+            if (!resp.StartsWith("OKAY", StringComparison.Ordinal))
+                return -1;
+            var len = Convert.ToInt32(resp[4..], 16);
+            if (len <= 0 || len > 64)
+                return -1;
+            var body = new byte[len];
+            if (!await ReadExact(s, body, ct))
+                return -1;
+            return Convert.ToInt32(Encoding.ASCII.GetString(body), 16);
+        }
+        catch { return -1; }
+    }
+
+    private static async Task<bool> ReadExact(NetworkStream s, byte[] buf, CancellationToken ct)
+    {
+        var n = 0;
+        while (n < buf.Length)
+        {
+            var r = await s.ReadAsync(buf.AsMemory(n, buf.Length - n), ct);
+            if (r <= 0)
+                return false;
+            n += r;
+        }
+        return true;
     }
 
     public static Task<string> RunTextAsync(string args, CancellationToken ct = default)

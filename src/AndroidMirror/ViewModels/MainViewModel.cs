@@ -2266,11 +2266,10 @@ public partial class MainViewModel : ObservableObject
             var list = (await AdbService.GetDevicesAsync()).ToList();
 
             var ext = AdbService.ExternalAdbPath();
-            if (ext != AdbConflict)
+            if (ext != _adbExtProc)
             {
-                if (ext != null)
-                    Log($"{L("log.adb_conflict")} {ext}");
-                AdbConflict = ext;
+                _adbExtProc = ext;
+                SyncAdbConflict();
             }
 
             foreach (var st in DimmedScreenStore.Pending())
@@ -2496,9 +2495,37 @@ public partial class MainViewModel : ObservableObject
     {
         var names = await Task.Run(() => AdbService.FindCompetingProcesses().Select(p => p.Name).Distinct().ToArray());
         _lastForeignNames = names;
+        var ver = await AdbService.ProbeServerVersionAsync();
+        if (ver > 0)
+        {
+            if (_adbServerBase == 0)
+                _adbServerBase = ver;
+            var note = ver != _adbServerBase
+                ? string.Format(L("adb.stolen"), _adbServerBase, ver)
+                : null;
+            if (note != _adbMismatch)
+            {
+                _adbMismatch = note;
+                SyncAdbConflict();
+            }
+        }
         UpdateWizard(Devices.ToList());
         if (!_trackCts.IsCancellationRequested)
             ConnectionWarning = names.Length == 0 ? null : string.Format(L("diag.other_apps"), string.Join(", ", names));
+    }
+
+    private string? _adbExtProc;
+    private string? _adbMismatch;
+    private int _adbServerBase;
+
+    private void SyncAdbConflict()
+    {
+        var want = _adbExtProc ?? _adbMismatch;
+        if (want == AdbConflict)
+            return;
+        if (want != null)
+            Log($"{L("log.adb_conflict")} {want}");
+        AdbConflict = want;
     }
 
     [ObservableProperty]

@@ -5552,20 +5552,24 @@
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <TextBlock Text="{Binding WifiStatus}" FontSize="{StaticResource FsMeta}" Margin="12,0,0,0"
                                Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                    <Border Padding="7,2" CornerRadius="{StaticResource RadiusControl}"
-                            VerticalAlignment="Center" Margin="12,0,0,0"
-                            Background="{DynamicResource DangerSubtleBrush}"
-                            BorderBrush="{DynamicResource DangerBrush}" BorderThickness="1"
-                            Visibility="{Binding AdbConflictVisibility}"
-                            ToolTip="{Binding AdbConflict}">
-                        <StackPanel Orientation="Horizontal">
-                            <Path Style="{StaticResource Ic}" Data="{StaticResource IcShieldError24}"
-                                  Width="10" Height="10" Fill="{DynamicResource DangerBrush}"
-                                  VerticalAlignment="Center" Margin="0,0,5,0" />
-                            <TextBlock Text="{loc:Loc adb.externe}" FontSize="{StaticResource FsMeta}"
-                                       FontWeight="SemiBold" Foreground="{DynamicResource DangerBrush}" />
-                        </StackPanel>
-                    </Border>
+                    <ui:Button Appearance="Transparent" Padding="0"
+                               VerticalAlignment="Center" Margin="12,0,0,0"
+                               Command="{Binding DiagFixAdbCommand}"
+                               Visibility="{Binding AdbConflictVisibility}"
+                               ToolTip="{Binding AdbConflict}"
+                               Cursor="Hand">
+                        <Border Padding="7,2" CornerRadius="{StaticResource RadiusControl}"
+                                Background="{DynamicResource DangerSubtleBrush}"
+                                BorderBrush="{DynamicResource DangerBrush}" BorderThickness="1">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Style="{StaticResource Ic}" Data="{StaticResource IcShieldError24}"
+                                      Width="10" Height="10" Fill="{DynamicResource DangerBrush}"
+                                      VerticalAlignment="Center" Margin="0,0,5,0" />
+                                <TextBlock Text="{loc:Loc adb.externe}" FontSize="{StaticResource FsMeta}"
+                                           FontWeight="SemiBold" Foreground="{DynamicResource DangerBrush}" />
+                            </StackPanel>
+                        </Border>
+                    </ui:Button>
                     <Border Width="1" Height="10" Margin="10,0,9,0"
                             Background="{DynamicResource AppBorderSubtleBrush}"
                             VerticalAlignment="Center" />
@@ -5617,20 +5621,24 @@
                                    VerticalAlignment="Center"
                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                     </StackPanel>
-                    <Border Padding="7,2" CornerRadius="{StaticResource RadiusControl}"
-                            VerticalAlignment="Center" Margin="12,0,0,0"
-                            Background="{DynamicResource DangerSubtleBrush}"
-                            BorderBrush="{DynamicResource DangerBrush}" BorderThickness="1"
-                            Visibility="{Binding AdbConflictVisibility}"
-                            ToolTip="{Binding AdbConflict}">
-                        <StackPanel Orientation="Horizontal">
-                            <Path Style="{StaticResource Ic}" Data="{StaticResource IcShieldError24}"
-                                  Width="10" Height="10" Fill="{DynamicResource DangerBrush}"
-                                  VerticalAlignment="Center" Margin="0,0,5,0" />
-                            <TextBlock Text="{loc:Loc adb.externe}" FontSize="{StaticResource FsCaption}"
-                                       FontWeight="SemiBold" Foreground="{DynamicResource DangerBrush}" />
-                        </StackPanel>
-                    </Border>
+                    <ui:Button Appearance="Transparent" Padding="0"
+                               VerticalAlignment="Center" Margin="12,0,0,0"
+                               Command="{Binding DiagFixAdbCommand}"
+                               Visibility="{Binding AdbConflictVisibility}"
+                               ToolTip="{Binding AdbConflict}"
+                               Cursor="Hand">
+                        <Border Padding="7,2" CornerRadius="{StaticResource RadiusControl}"
+                                Background="{DynamicResource DangerSubtleBrush}"
+                                BorderBrush="{DynamicResource DangerBrush}" BorderThickness="1">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Style="{StaticResource Ic}" Data="{StaticResource IcShieldError24}"
+                                      Width="10" Height="10" Fill="{DynamicResource DangerBrush}"
+                                      VerticalAlignment="Center" Margin="0,0,5,0" />
+                                <TextBlock Text="{loc:Loc adb.externe}" FontSize="{StaticResource FsCaption}"
+                                           FontWeight="SemiBold" Foreground="{DynamicResource DangerBrush}" />
+                            </StackPanel>
+                        </Border>
+                    </ui:Button>
                 </StackPanel>
                 <TextBlock x:Name="VersionText"
                            FontSize="{StaticResource FsCaption}"

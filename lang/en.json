@@ -733,6 +733,7 @@
   "st.splash_adb": "Connecting to ADB server :5037…",
   "st.splash_ready": "Ready",
   "adb.externe": "External ADB",
+  "adb.stolen": "adb server :5037 replaced by an external tool (v{0:x} → v{1:x}) — click the badge to relaunch the TouchMirror server",
   "log.adb_conflict": "ADB :5037 conflict — external process",
   "plugins.circuit_breaker": "suspended: too many API calls",
   "wifi.down": "lost",
