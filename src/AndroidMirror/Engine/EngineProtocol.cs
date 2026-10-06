@@ -126,9 +126,25 @@ public sealed class ControlChannel : IDisposable
         frame[4] = ChanControl;
         BinaryPrimitives.WriteUInt32BigEndian(frame.AsSpan(5), (uint)msg.Length);
         msg.CopyTo(frame.AsSpan(9));
-        if (!_sendQueue.Writer.TryWrite(frame)
-            && Interlocked.Exchange(ref _faulted, 1) == 0)
+        if (_sendQueue.Writer.TryWrite(frame))
+            return;
+        if (IsDroppable(msg))
+            return;
+        if (Interlocked.Exchange(ref _faulted, 1) == 0)
             SendQueueFaulted?.Invoke();
+        _ = WriteLater(frame);
+    }
+
+    internal static bool IsDroppable(ReadOnlySpan<byte> msg)
+        => msg.Length >= 2
+            && ((ControlMsgType)msg[0] == ControlMsgType.InjectScrollEvent
+                || ((ControlMsgType)msg[0] == ControlMsgType.InjectTouchEvent
+                    && msg[1] == AndroidMotionEvent.ActionMove));
+
+    private async Task WriteLater(byte[] frame)
+    {
+        try { await _sendQueue.Writer.WriteAsync(frame); }
+        catch { }
     }
 
     private async Task SendLoop()
