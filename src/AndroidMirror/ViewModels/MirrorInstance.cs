@@ -206,7 +206,10 @@ public partial class MirrorInstance : ObservableObject, IDisposable
     private int _decoderStallTicks;
     private readonly object _audioLock = new();
     private bool _screenDimmed;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AudioOffBadgeVisibility))]
     private bool _audioBroken;
+    public Visibility AudioOffBadgeVisibility => AudioBroken ? Visibility.Visible : Visibility.Collapsed;
     private AdbDevice _resolvedDevice;
     private string? _wifiEndpoint;
     private int _wifiTcpipTried;
@@ -462,9 +465,9 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         };
         session.AudioEnded += _ =>
         {
-            if (_audioBroken)
+            if (AudioBroken)
                 return;
-            _audioBroken = true;
+            AudioBroken = true;
             RaiseLog(L("log.audio_unavailable"));
             lock (_audioLock)
             {
@@ -474,7 +477,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
         };
         session.AudioPacketReceived += packet =>
         {
-            if (_audioBroken)
+            if (AudioBroken)
                 return;
             try
             {
@@ -491,7 +494,7 @@ public partial class MirrorInstance : ObservableObject, IDisposable
             }
             catch (Exception ex)
             {
-                _audioBroken = true;
+                AudioBroken = true;
                 lock (_audioLock)
                 {
                     Audio?.Dispose();

@@ -150,6 +150,19 @@
                        FontWeight="SemiBold" />
         </Border>
 
+        <Border Padding="8,4"
+                CornerRadius="{StaticResource RadiusControl}"
+                Background="{DynamicResource AppModalSolidBrush}"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Margin="0,0,12,44"
+                IsHitTestVisible="False"
+                Opacity="0.85"
+                Visibility="{Binding AudioOffBadgeVisibility}">
+            <Path Style="{StaticResource Ic}" Data="{StaticResource IcSpeakerMute24}" Width="12" Height="12"
+                  Fill="{DynamicResource OnDarkTextDimBrush}" />
+        </Border>
+
         <Border Padding="8,3"
                 CornerRadius="{StaticResource RadiusControl}"
                 Background="{DynamicResource AppModalSolidBrush}"
