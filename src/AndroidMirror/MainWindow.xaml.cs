@@ -1706,14 +1706,14 @@ public partial class MainWindow : FluentWindow
             e.Handled = true;
             return;
         }
+        if (e.Key == Key.Escape && _activeDock != null)
+        {
+            ShowDock(null);
+            e.Handled = true;
+            return;
+        }
         if (e.Key == Key.Escape && !IsTextInputTarget(e.OriginalSource))
         {
-            if (_activeDock != null)
-            {
-                ShowDock(null);
-                e.Handled = true;
-                return;
-            }
             if (_vm.ShowHub && _vm.Mirrors.Count > 0)
             {
                 _vm.ShowHub = false;
