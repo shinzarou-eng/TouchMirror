@@ -189,7 +189,7 @@ public sealed class EngineSession : IAsyncDisposable
         _control.ClipboardReceived += t => DeviceClipboard?.Invoke(t);
         _control.SendQueueFaulted += () =>
         {
-            ServerLog?.Invoke("session: control queue saturated — forcing reconnect");
+            ServerLog?.Invoke("session: file de contrôle saturée — reconnexion forcée");
             BreakConnection();
         };
         _control.SendConfig(_options);
@@ -238,7 +238,7 @@ public sealed class EngineSession : IAsyncDisposable
         catch (OperationCanceledException) when (_cts.IsCancellationRequested) { }
         catch (Exception ex)
         {
-            ServerLog?.Invoke($"mux loop error: {ex.Message}");
+            ServerLog?.Invoke($"mux: {ex.Message}");
         }
         finally
         {
@@ -248,7 +248,7 @@ public sealed class EngineSession : IAsyncDisposable
             _control?.Dispose();
             if (!_cts.IsCancellationRequested)
             {
-                ServerLog?.Invoke("session: stream ended unexpectedly; cause undetermined");
+                ServerLog?.Invoke("session: flux terminé — cause inconnue");
                 Disconnected?.Invoke();
             }
         }

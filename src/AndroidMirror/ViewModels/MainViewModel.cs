@@ -1920,7 +1920,7 @@ public partial class MainViewModel : ObservableObject
             if (attempt == 0)
                 await Task.Delay(400);
         }
-        AppLogger.Write($"display resolve failed for {device.Serial} — falling back to 1920x1200/400");
+        AppLogger.Write($"display: résolution illisible ({device.Serial}) — repli 1920x1200/400");
         return null;
     }
 
@@ -2867,7 +2867,7 @@ public partial class MainViewModel : ObservableObject
         try
         {
             WireMirror(instance);
-            Services.AppLogger.Write("startasync begin");
+            Services.AppLogger.Write("connect begin");
             var accountDisplay = account != null
                 ? await ResolveAccountDisplayAsync(device, prefs)
                 : null;
@@ -2875,7 +2875,7 @@ public partial class MainViewModel : ObservableObject
             if (account != null)
                 await AdbService.StartUserAsync(device.Serial, account.UserId);
             await instance.StartAsync(options);
-            Services.AppLogger.Write("startasync done");
+            Services.AppLogger.Write("connect done");
             RememberDevice(device);
             BindKeybindPersistence(instance);
         }

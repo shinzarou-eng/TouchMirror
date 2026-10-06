@@ -5910,7 +5910,6 @@
             </Border>
         </Border>
 
-        <!-- SPLASH SCREEN OVERLAY (STUDIO NATIVE THEME) -->
         <Border x:Name="SplashOverlay" Grid.RowSpan="5" Panel.ZIndex="100"
                 Background="{DynamicResource AppWindowBrush}"
                 PreviewMouseDown="OnSplashMouseDown"

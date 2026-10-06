@@ -1975,7 +1975,7 @@ public partial class MainWindow : FluentWindow
         }
         catch (Exception ex)
         {
-            AppLogger.Write($"[Startup] InitializeAsync error: {ex.Message}");
+            AppLogger.Write($"startup: {ex.Message}");
         }
 
         if (_splashDismissed)
