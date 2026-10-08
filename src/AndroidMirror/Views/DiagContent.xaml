@@ -138,9 +138,9 @@
                         <Path Style="{DynamicResource Ic}" Data="{DynamicResource IcDismiss24}" Width="13" Height="13" />
                     </ui:Button>
                     <ui:Button Style="{DynamicResource BtnAction}" Height="30" Padding="10,0" Margin="0,0,6,0"
-                               Command="{Binding CopyDebugMaskedCommand}" IsEnabled="{Binding DebugIdle}"
-                               ToolTip="{loc:Loc dbg.masked_tip}">
-                        <Path Style="{DynamicResource Ic}" Data="{DynamicResource IcShieldCheckmark24}" Width="13" Height="13" />
+                               Command="{Binding CopyDebugRawCommand}" IsEnabled="{Binding DebugIdle}"
+                               ToolTip="{loc:Loc dbg.raw_tip}">
+                        <Path Style="{DynamicResource Ic}" Data="{DynamicResource IcEye24}" Width="13" Height="13" />
                     </ui:Button>
                     <ui:Button Style="{DynamicResource BtnAction}" Height="30" Padding="10,0" Margin="0,0,6,0"
                                Command="{Binding DiagExportCommand}" IsEnabled="{Binding DebugIdle}"

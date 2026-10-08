@@ -34,6 +34,7 @@ public partial class MarketplaceItem : ObservableObject
     public string ShortHash => Entry.Hash.Length > 16 ? Entry.Hash[..16] + "…" : Entry.Hash;
 
     [ObservableProperty] private string _actionLabel = "Installer";
+    [ObservableProperty] private string _actionTip = "";
     [ObservableProperty] private bool _canInstall = true;
     [ObservableProperty] private bool _isInstalled;
     [ObservableProperty]
@@ -67,6 +68,7 @@ public partial class MarketplaceItem : ObservableObject
         if (IsInstalled)
         {
             ActionLabel = LocalizationService.Get("installe");
+            ActionTip = ActionLabel;
             CanInstall = false;
             return;
         }
@@ -75,12 +77,25 @@ public partial class MarketplaceItem : ObservableObject
             && min > UpdateService.CurrentVersion)
         {
             ActionLabel = string.Format(LocalizationService.Get("mkt.requires"), Entry.MinAppVersion);
+            ActionTip = ActionLabel;
             CanInstall = false;
             return;
         }
         CanInstall = true;
-        ActionLabel = p == null ? LocalizationService.Get("mkt.install")
-            : p.Version != Entry.Version ? LocalizationService.Get("mkt.update")
-            : LocalizationService.Get("mkt.reconfirm");
+        if (p == null)
+        {
+            ActionLabel = LocalizationService.Get("mkt.install");
+            ActionTip = ActionLabel;
+        }
+        else if (p.Version != Entry.Version)
+        {
+            ActionLabel = LocalizationService.Get("mkt.update");
+            ActionTip = string.Format(LocalizationService.Get("mkt.update_to"), Entry.Version);
+        }
+        else
+        {
+            ActionLabel = LocalizationService.Get("mkt.reconfirm");
+            ActionTip = LocalizationService.Get("mkt.reconfirm_tip");
+        }
     }
 }

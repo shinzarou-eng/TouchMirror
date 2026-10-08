@@ -73,8 +73,8 @@ La vérification repose sur des empreintes SHA-256 embarquées, pas sur une sign
 
 **Résultat attendu :** une première connexion qui ne se rate pas, et un coût maîtrisé quand le nombre de tuiles augmente.
 
-- [ ] Guider la première connexion pas à pas : activation du débogage USB, autorisation sur le téléphone, passage en WiFi — chaque étape vérifiable par l'app.
-- [ ] Détecter les blocages courants dès l'installation : adb absent, pilote manquant, autorisation refusée, réseau incompatible.
+- [x] Guider la première connexion pas à pas : activation du débogage USB, autorisation sur le téléphone, passage en WiFi — chaque étape vérifiable par l'app.
+- [x] Détecter les blocages courants dès l'installation : adb absent, pilote manquant, autorisation refusée, réseau incompatible.
 - [ ] Réduire le coût des tuiles inactives : fps et débit adaptés au focus, mesures avant/après pour prouver le gain.
 - [ ] Afficher les mesures locales par miroir (fps réels, débit, pertes) avec leur définition.
 - [ ] Mesurer le coût CPU/mémoire/batterie à 2, 4 et 6 tuiles et publier des budgets de ressources par configuration.

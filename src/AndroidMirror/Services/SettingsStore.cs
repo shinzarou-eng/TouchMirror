@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Text.Json;
 
@@ -102,7 +103,8 @@ public sealed class AppSettings
     public bool ShowSettings { get; set; }
     public bool LocalApiEnabled { get; set; }
     public bool DiscordPresence { get; set; }
-    public bool AnonymousStats { get; set; } = true;
+    public bool AnonymousStats { get; set; }
+    public bool StatsConsent { get; set; }
     public int LocalApiPort { get; set; } =
 #if DEBUG
         47614;
@@ -117,7 +119,11 @@ public sealed class AppSettings
     public Dictionary<string, DevicePrefs> Devices { get; set; } = new();
     public List<Workspace> Workspaces { get; set; } = new();
     public string? ActiveWorkspaceId { get; set; }
-    public string Language { get; set; } = "fr";
+    public string Language { get; set; } = DetectLanguage();
+
+    private static string DetectLanguage()
+        => CultureInfo.CurrentUICulture.TwoLetterISOLanguageName
+            .Equals("fr", StringComparison.OrdinalIgnoreCase) ? "fr" : "en";
     public string Theme { get; set; } = "sombre";
     public int? IosMapMode { get; set; }
     public string ShortcutMirrorNext { get; set; } = "Ctrl+Tab";
@@ -170,6 +176,8 @@ public static class SettingsStore
                 }
                 if (hud && !s.EnabledPlugins.Contains("hud"))
                     s.EnabledPlugins.Add("hud");
+                if (!s.StatsConsent)
+                    s.AnonymousStats = false;
                 if (s.IosMapMode is < 0 or > 2)
                     s.IosMapMode = null;
                 foreach (var dp in s.Devices.Values)

@@ -27,8 +27,46 @@ public partial class PopoutWindow : Window
             {
                 e.Handled = true;
                 Close();
+                return;
             }
+            var v = V;
+            if (v == null || !v.ExternalControl)
+                return;
+            var key = e.Key == Key.System ? e.SystemKey : e.Key;
+            if (key == Key.V && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                try
+                {
+                    var text = Clipboard.GetText();
+                    if (!string.IsNullOrEmpty(text))
+                        v.PasteToDevice(text);
+                }
+                catch { }
+                e.Handled = true;
+                return;
+            }
+            if (v.HandleKey(key, true, e.IsRepeat))
+                e.Handled = true;
         };
+        PreviewKeyUp += (_, e) =>
+        {
+            var v = V;
+            if (v == null || !v.ExternalControl)
+                return;
+            var key = e.Key == Key.System ? e.SystemKey : e.Key;
+            if (v.HandleKey(key, false, e.IsRepeat))
+                e.Handled = true;
+        };
+        TextInput += (_, e) =>
+        {
+            var v = V;
+            if (v == null || !v.ExternalControl
+                || string.IsNullOrEmpty(e.Text) || char.IsControl(e.Text[0]))
+                return;
+            v.InjectText(e.Text);
+            e.Handled = true;
+        };
+        Deactivated += (_, _) => V?.ReleaseHeldKeys();
     }
 
     private static void Fade(UIElement el, double to)

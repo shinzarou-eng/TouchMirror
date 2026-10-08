@@ -1393,11 +1393,14 @@ public partial class MainWindow : FluentWindow
             _vm.SetDeviceColor(d, mi.Tag is string s && s.Length > 0 ? s : null);
     }
 
-    private void OnDeviceForgetClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is System.Windows.Controls.MenuItem { DataContext: Services.AdbDevice d })
-            _vm.ForgetDeviceCommand.Execute(d);
-    }
+    private async void OnDeviceForgetClick(object sender, RoutedEventArgs e)
+        => await SafeUiAsync(async () =>
+        {
+            if (sender is System.Windows.Controls.MenuItem { DataContext: Services.AdbDevice d }
+                && await ConfirmAsync(L("dlg.forget_title"),
+                    string.Format(L("dlg.forget"), d.ShortName), L("oublier"), danger: true))
+                _vm.ForgetDeviceCommand.Execute(d);
+        });
 
     private void OnMoreClick(object sender, RoutedEventArgs e)
     {
@@ -1952,6 +1955,8 @@ public partial class MainWindow : FluentWindow
     {
         WindowState = WindowState.Maximized;
 
+        SplashVersion.Text = "v" + UpdateService.CurrentVersion + UpdateService.DevSuffix;
+
         var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
         SplashOverlay.BeginAnimation(OpacityProperty,
             new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(380)) { EasingFunction = ease });
@@ -1991,7 +1996,7 @@ public partial class MainWindow : FluentWindow
 
         ShowSplashChoice();
         _splashTcs = new TaskCompletionSource<bool>();
-        await _splashTcs.Task;
+        await Task.WhenAny(_splashTcs.Task, Task.Delay(1500));
 
         DismissSplash();
     }

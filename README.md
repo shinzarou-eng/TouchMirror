@@ -100,7 +100,8 @@ Think of it as an open-source scrcpy alternative made for players: mirror and co
 |---|---|---|
 | 🔗 | **Local API** | HTTP + SSE on localhost with a token — Stream Deck, OBS, scripts. Drives the app only: connect/disconnect, record, screenshot — no endpoint can send touch or keys into the game |
 | 🧩 | **Plugins** | Embedded JavaScript engine (sandbox) — `plugin.json` manifest, official plugins verified by hash |
-| 🩺 | **Built-in diagnostics** | Full panel: health score, copyable report (masked variant available), one-click repairs (adb, firewall, RSA), 30 s benchmark and WiFi test — per-brand guides (Xiaomi, Samsung, Oppo, Vivo, Huawei) |
+| 🩺 | **Built-in diagnostics** | Full panel: health score, report masked by default when copied (IPs, serials, paths), one-click repairs (adb, firewall, RSA), 30 s benchmark and WiFi test — per-brand guides (Xiaomi, Samsung, Oppo, Vivo, Huawei) |
+| 📈 | **Anonymous stats** | Off by default — an opt-in ping (version + random session id, every 5 min while the app runs) counts active installs; enable it in Settings if you want to help |
 | �️ | **Automatic firewall** | The inbound rule is created when you enable AirPlay mirroring — a single UAC prompt, restricted to your local network |
 | ⬆️ | **Auto-updates** | With the Setup build: each new release is detected at startup, downloaded as a delta (only what changed) and applied on restart — never download by hand again |
 | 🍎 | **iPhone / AirPlay** (*beta*) | Mirror an iPhone/iPad over Wi-Fi — the app hosts a local AirPlay receiver. *Not yet bundled in the GitHub zip — local builds only* · [progress notes](docs/airplay.md) |

@@ -551,7 +551,7 @@ public partial class MainViewModel : ObservableObject
     private string? _updateVersion;
     public string UpdateUrl { get; private set; } = "";
     public Visibility UpdateBannerVisibility =>
-        UpdateVersion != null ? Visibility.Visible : Visibility.Collapsed;
+        UpdateVersion != null && !WizardOpen ? Visibility.Visible : Visibility.Collapsed;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(UpdateActionLabel))]
     private bool _updateSelfUpdate;
@@ -869,6 +869,8 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnAnonymousStatsEnabledChanged(bool value)
     {
+        if (value)
+            _settings.StatsConsent = true;
         ScheduleSave();
         _stats.SetEnabled(value);
     }
@@ -1124,9 +1126,13 @@ public partial class MainViewModel : ObservableObject
     }
 
     public bool HasActiveWorkspace => ActiveWorkspace != null;
+    public bool ShowWorkspaceBanner => HasActiveWorkspace && !WizardOpen;
 
     partial void OnActiveWorkspaceChanged(WorkspaceItem? value)
-        => OnPropertyChanged(nameof(HasActiveWorkspace));
+    {
+        OnPropertyChanged(nameof(HasActiveWorkspace));
+        OnPropertyChanged(nameof(ShowWorkspaceBanner));
+    }
 
     public void ExitWorkspace()
     {
@@ -2339,7 +2345,9 @@ public partial class MainViewModel : ObservableObject
                         "remembered", CustomName: prefs.CustomName, Color: prefs.Color, Pinned: prefs.Pinned));
             }
 
-            list = list.OrderByDescending(d => d.Pinned).ToList();
+            list = list.OrderByDescending(d => d.Pinned)
+                       .ThenBy(d => d.IsRememberedOnly)
+                       .ToList();
 
             var selKey = SelectedDevice?.DeviceKey;
             for (var i = 0; i < list.Count; i++)
@@ -2370,7 +2378,8 @@ public partial class MainViewModel : ObservableObject
                     AppLogger.Forget(ConnectDeviceAsync(d, null, acc));
                 }
             }
-            foreach (var d in list.Where(d => d.IsReady && !known.Any(k => k.SharesIdentity(d))))
+            var newlyReady = list.Where(d => d.IsReady && !known.Any(k => k.SharesIdentity(d))).ToList();
+            foreach (var d in newlyReady)
                 AddActivity("phone", L("act.device_detected"), d.ShortName);
 
             for (var i = 0; i < list.Count; i++)
@@ -2394,6 +2403,8 @@ public partial class MainViewModel : ObservableObject
                 ?? list.FirstOrDefault(d => d.DeviceKey == _settings.LastSelectedDeviceKey)
                 ?? list.FirstOrDefault(d => d.IsReady)
                 ?? list.FirstOrDefault();
+            if (SelectedDevice is { IsReady: false } && newlyReady.Count > 0)
+                SelectedDevice = newlyReady[0];
             SyncDeviceSelection();
             OnPropertyChanged(nameof(DetectedDeviceCount));
             OnPropertyChanged(nameof(StepPluggedDone));
@@ -2530,6 +2541,8 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(WizardSuggested))]
+    [NotifyPropertyChangedFor(nameof(UpdateBannerVisibility))]
+    [NotifyPropertyChangedFor(nameof(ShowWorkspaceBanner))]
     private bool _wizardOpen;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(WizardStep))]
@@ -4106,8 +4119,8 @@ public partial class MainViewModel : ObservableObject
             return;
         try
         {
-            System.Windows.Clipboard.SetText(DebugReport);
-            DebugNote = L("dbg.copied");
+            System.Windows.Clipboard.SetText(ReportSanitizer.Sanitize(DebugReport, CollectReportIds()));
+            DebugNote = L("dbg.masked");
         }
         catch (Exception ex)
         {
@@ -4117,14 +4130,14 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void CopyDebugMasked()
+    private void CopyDebugRaw()
     {
         if (string.IsNullOrEmpty(DebugReport))
             return;
         try
         {
-            System.Windows.Clipboard.SetText(ReportSanitizer.Sanitize(DebugReport, CollectReportIds()));
-            DebugNote = L("dbg.masked");
+            System.Windows.Clipboard.SetText(DebugReport);
+            DebugNote = L("dbg.raw_copied");
         }
         catch (Exception ex)
         {

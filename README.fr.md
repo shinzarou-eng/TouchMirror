@@ -102,7 +102,8 @@ L'alternative open source à scrcpy pensée pour les joueurs : affiche et contr�
 |---|---|---|
 | 🔗 | **API locale** | HTTP + SSE sur localhost avec token — pilotage Stream Deck, OBS, scripts. Pilote l'app seulement : connexion, enregistrement, capture — aucun endpoint n'envoie de tactile ou de touches au jeu |
 | 🧩 | **Plugins** | Moteur JavaScript embarqué (sandbox) — manifest `plugin.json`, plugins officiels vérifiés par hash |
-| 🩺 | **Diagnostics intégrés** | Panneau complet : score de santé, rapport copiable (version masquée dispo), réparations en un clic (adb, pare-feu, RSA), benchmark 30 s et test WiFi — guides par marque (Xiaomi, Samsung, Oppo, Vivo, Huawei) |
+| 🩺 | **Diagnostics intégrés** | Panneau complet : score de santé, rapport copiable masqué par défaut (IP, série, chemins), réparations en un clic (adb, pare-feu, RSA), benchmark 30 s et test WiFi — guides par marque (Xiaomi, Samsung, Oppo, Vivo, Huawei) |
+| 📈 | **Statistiques anonymes** | Désactivées par défaut — un ping léger (version + identifiant de session aléatoire, toutes les 5 min pendant que l'app tourne) pour compter les installations actives ; à activer dans Réglages si tu veux aider |
 | �️ | **Pare-feu automatique** | La règle entrante est créée quand tu actives le mirroring AirPlay — une seule invite UAC, limitée à ton réseau local |
 | ⬆️ | **Mises à jour auto** | Avec le Setup : chaque nouvelle version est détectée au démarrage, téléchargée en delta (seul le diff) et appliquée au redémarrage — plus rien à retélécharger à la main |
 | 🍎 | **iPhone / AirPlay** (*bêta*) | Miroir d’un iPhone/iPad en Wi-Fi — l’app héberge un récepteur AirPlay local. *Pas encore dans le zip GitHub — builds locales uniquement* · [état d'avancement](docs/airplay.md) |
